@@ -1,0 +1,17 @@
+{
+  "params": 1347373,
+  "vocab": 3117,
+  "topic_a": {
+    "pretrain": 3.8462340307235716,
+    "online_a": 3.8462340307235716,
+    "online_b": 3.8462340307235716
+  },
+  "topic_b": {
+    "pretrain": 4.2159395503997805,
+    "online_a": 4.2159395503997805,
+    "online_b": 4.2159395503997805
+  },
+  "a_preserved": true,
+  "b_learned": false,
+  "memory": 5000
+}

@@ -1,0 +1,46 @@
+{
+  "config": {
+    "pretrain_epochs": 5,
+    "online_epochs": 8,
+    "online_chunks": 300,
+    "replay_batch": 8,
+    "ewc_lambda": 0,
+    "retain_limit": 1.05,
+    "learn_min_gain": 0.03,
+    "phase_min_gain": {
+      "online_B1": 0.1,
+      "online_A2": -0.02,
+      "online_B2": -0.02
+    },
+    "held_out_eval_chunks": 200
+  },
+  "phases": {
+    "pretrain": {
+      "a": 4.197690711021424,
+      "b": 5.253596267700195,
+      "held_out": 200
+    },
+    "online_B1": {
+      "ok": true,
+      "new_before": 5.253596267700195,
+      "new_after": 4.584585676193237,
+      "old_before": 4.197690711021424,
+      "old_after": 4.111099734306335
+    },
+    "online_A2": {
+      "ok": true,
+      "new_before": 4.111099734306335,
+      "new_after": 4.105408611297608,
+      "old_before": 4.584585676193237,
+      "old_after": 4.382723717689514
+    },
+    "online_B2": {
+      "ok": true,
+      "new_before": 4.382723717689514,
+      "new_after": 4.310233902931214,
+      "old_before": 4.105408611297608,
+      "old_after": 4.002082114219665
+    }
+  },
+  "paper_ready": true
+}

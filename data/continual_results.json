@@ -1,0 +1,17 @@
+{
+  "baseline": {
+    "en": 4.559871101379395,
+    "cn": 4.689787673950195
+  },
+  "after_english": {
+    "en": 4.559871101379395,
+    "cn": 4.689787673950195
+  },
+  "after_chinese": {
+    "en": 4.559871101379395,
+    "cn": 4.689787673950195
+  },
+  "en_preserved": true,
+  "cn_learned": false,
+  "total_updates": 400
+}

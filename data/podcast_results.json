@@ -1,0 +1,18 @@
+{
+  "params": 1347373,
+  "vocab_size": 3117,
+  "topic_a": {
+    "before": 8.222488842010499,
+    "after_a": 8.222488842010499,
+    "after_b": 8.222488842010499
+  },
+  "topic_b": {
+    "before": 8.21520902633667,
+    "after_a": 8.21520902633667,
+    "after_b": 8.21520902633667
+  },
+  "a_preserved": true,
+  "b_learned": false,
+  "memory_used": 38500,
+  "total_updates": 16384
+}

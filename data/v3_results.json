@@ -1,0 +1,16 @@
+{
+  "params": 1362343,
+  "topic_a": {
+    "pretrain": 3.9472620820999147,
+    "after_b": 3.9184626150131225,
+    "roundtrip": 3.7264202547073366
+  },
+  "topic_b": {
+    "pretrain": 5.245103921890259,
+    "learned": 4.610239720344543
+  },
+  "a_preserved": true,
+  "b_learned": true,
+  "a_roundtrip": true,
+  "memory": 6500
+}
