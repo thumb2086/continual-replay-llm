@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
 *.pt
+*.pt.*
 *.pth
 .DS_Store
+data/cloud/

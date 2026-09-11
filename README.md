@@ -1,10 +1,18 @@
-# Continual Replay LLM
+# Continual Replay LLM + Neural Compression
 
-Replay-first continual learning for small streaming language models.
+Replay-first continual learning for small streaming language models — applied to **neural text compression** that beats Huffman by up to 23.6% in real measured bits.
 
-A tiny character-level Transformer learns Topic A, then Topic B, then Topic A again — without catastrophic forgetting. The key finding: **explicit old-topic replay is the main retention mechanism; EWC mainly throttles plasticity.**
+## Compression results (best)
 
-## Results
+| Setting | bpc | vs Huffman 8.475 |
+|---|---|---|
+| M + big data + full adapt | **6.472** | **+23.6%** |
+| S + big data + full adapt | 6.640 | +21.6% |
+| enwik8 zero-shot (M) | 5.365 | cross-domain |
+
+See [compression-paper.md](compression-paper.md) for the full 24-condition sweep, data-mixing curves, enwik8 evaluation, and honest limitations.
+
+## Continual-learning results
 
 Held-out A→B→A→B long cycle (replay batch 8, EWC off):
 
@@ -35,7 +43,12 @@ compare_ablation.py  Pure / EWC-only / replay-only / EWC+replay
 sweep_lambda.py      EWC lambda sweep with fixed replay
 sweep_replay.py      Replay-size sweep with EWC off
 run_research_loop.py Autonomous A→B→A→B validation with gates
-paper.md             Technical paper draft
+real_compression.py  Huffman vs neural arithmetic coding (real bits)
+sweep_all.py         24-condition grid: size x precision x pruning x adapt
+train_bigdata.py     Big-data training + regularization + early stopping
+showdown.py          Size x distillation x pruning comparison
+paper.md             Continual-learning technical paper draft
+compression-paper.md Compression technical report (start here for compression)
 continual-learning-report.md  Full experiment log
 data/                Result JSON files (metrics only, no weights)
 ```

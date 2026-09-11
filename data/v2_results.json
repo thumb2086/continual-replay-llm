@@ -1,0 +1,17 @@
+{
+  "params": 1366063,
+  "topic_a": {
+    "pretrain": 4.002355966567993,
+    "online_a": 4.004280047416687,
+    "online_b": 4.004280047416687
+  },
+  "topic_b": {
+    "pretrain": 4.179089994430542,
+    "online_a": 4.179501729011536,
+    "online_b": 4.179374208450318
+  },
+  "a_preserved": true,
+  "b_learned": false,
+  "memory": 5000,
+  "novelty_threshold": 0.5
+}

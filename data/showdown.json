@@ -1,0 +1,62 @@
+{
+  "M-teacher": {
+    "params": 4824231,
+    "frozen": {
+      "bpc": 7.5596875,
+      "chars_per_s": 40863.86678068676,
+      "peak_mem_mb": 1575.17138671875,
+      "verified": 0
+    },
+    "bias_adapt": {
+      "bpc": 7.53955078125,
+      "chars_per_s": 47474.53760332561,
+      "verified": 3,
+      "trainable": 17063
+    }
+  },
+  "S-scratch": {
+    "params": 1097383,
+    "frozen": {
+      "bpc": 7.46576171875,
+      "chars_per_s": 133627.51198301004,
+      "peak_mem_mb": 1633.56298828125,
+      "verified": 0
+    },
+    "bias_adapt": {
+      "bpc": 7.44962890625,
+      "chars_per_s": 107577.01886907764,
+      "verified": 3,
+      "trainable": 5543
+    }
+  },
+  "S-distilled": {
+    "params": 1097383,
+    "frozen": {
+      "bpc": 7.6362890625,
+      "chars_per_s": 162997.97478692455,
+      "peak_mem_mb": 1690.955078125,
+      "verified": 0
+    },
+    "bias_adapt": {
+      "bpc": 7.62787109375,
+      "chars_per_s": 131280.89238675064,
+      "verified": 3,
+      "trainable": 5543
+    }
+  },
+  "M-pruned": {
+    "params": 3642279,
+    "frozen": {
+      "bpc": 7.58,
+      "chars_per_s": 161652.47712195426,
+      "peak_mem_mb": 1816.59130859375,
+      "verified": 0
+    },
+    "bias_adapt": {
+      "bpc": 7.55818359375,
+      "chars_per_s": 124285.81545137653,
+      "verified": 3,
+      "trainable": 14759
+    }
+  }
+}

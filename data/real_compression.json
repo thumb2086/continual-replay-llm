@@ -1,0 +1,36 @@
+{
+  "n_chunks": 400,
+  "n_symbols": 50800,
+  "n_chars": 51200,
+  "huffman_bpc": 8.47494140625,
+  "neural_bpc": 7.16203125,
+  "prefix_curve": {
+    "full": {
+      "bpc": 7.16203125,
+      "chars_per_s": 34431.38319014205,
+      "verified": 3
+    },
+    "prefix200": {
+      "bpc": 7.22328125,
+      "chars_per_s": 84295.00957967578,
+      "verified": 3
+    },
+    "prefix100": {
+      "bpc": 7.30724609375,
+      "chars_per_s": 99555.16918944554,
+      "verified": 3
+    },
+    "prefix40": {
+      "bpc": 7.40736328125,
+      "chars_per_s": 169890.07873940998,
+      "verified": 3
+    },
+    "frozen": {
+      "bpc": 7.5596875,
+      "chars_per_s": 126681.00024186079,
+      "verified": 3
+    }
+  },
+  "roundtrip_verified_chunks": 3,
+  "elapsed_s": 32.33972954750061
+}

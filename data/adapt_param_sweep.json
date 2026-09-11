@@ -1,0 +1,30 @@
+{
+  "full": {
+    "trainable": 4824231,
+    "trainable_pct": 100.0,
+    "bpc": 7.40736328125,
+    "chars_per_s": 16422.314390109983,
+    "verified": 3
+  },
+  "last-layer": {
+    "trainable": 1359527,
+    "trainable_pct": 28.181216861298726,
+    "bpc": 7.51912109375,
+    "chars_per_s": 172210.8958402833,
+    "verified": 3
+  },
+  "bias-only": {
+    "trainable": 17063,
+    "trainable_pct": 0.3536936767745989,
+    "bpc": 7.53955078125,
+    "chars_per_s": 173928.6921758625,
+    "verified": 3
+  },
+  "head-only": {
+    "trainable": 832423,
+    "trainable_pct": 17.255040233355327,
+    "bpc": 7.5298046875,
+    "chars_per_s": 206380.66090366108,
+    "verified": 3
+  }
+}

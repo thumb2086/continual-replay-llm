@@ -1,0 +1,200 @@
+{
+  "huffman": {
+    "bpc": 8.47494140625,
+    "chars_per_s": 30102941.601951275
+  },
+  "conditions": {
+    "S/dense/frozen/fp16": {
+      "params": 1097383,
+      "ckpt_mb": 4.186183929443359,
+      "bpc": 7.444,
+      "chars_per_s": 69111.699,
+      "peak_mem_mb": 1576.052,
+      "verified": 3
+    },
+    "S/dense/frozen/fp32": {
+      "params": 1097383,
+      "ckpt_mb": 4.186183929443359,
+      "bpc": 7.443,
+      "chars_per_s": 229789.464,
+      "peak_mem_mb": 1734.207,
+      "verified": 0
+    },
+    "S/dense/prefix40/fp16": {
+      "params": 1097383,
+      "ckpt_mb": 4.186183929443359,
+      "bpc": 7.404,
+      "chars_per_s": 110697.316,
+      "peak_mem_mb": 1083.085,
+      "verified": 0
+    },
+    "S/dense/prefix40/fp32": {
+      "params": 1097383,
+      "ckpt_mb": 4.186183929443359,
+      "bpc": 7.403,
+      "chars_per_s": 225261.074,
+      "peak_mem_mb": 1183.522,
+      "verified": 0
+    },
+    "S/dense/full/fp16": {
+      "params": 1097383,
+      "ckpt_mb": 4.186183929443359,
+      "bpc": 7.327,
+      "chars_per_s": 105902.352,
+      "peak_mem_mb": 228.997,
+      "verified": 0
+    },
+    "S/dense/full/fp32": {
+      "params": 1097383,
+      "ckpt_mb": 4.186183929443359,
+      "bpc": 7.327,
+      "chars_per_s": 112867.5,
+      "peak_mem_mb": 235.323,
+      "verified": 0
+    },
+    "S/pruned/frozen/fp16": {
+      "params": 1031591,
+      "ckpt_mb": 3.9352073669433594,
+      "bpc": 7.449,
+      "chars_per_s": 218141.114,
+      "peak_mem_mb": 1575.801,
+      "verified": 0
+    },
+    "S/pruned/frozen/fp32": {
+      "params": 1031591,
+      "ckpt_mb": 3.9352073669433594,
+      "bpc": 7.449,
+      "chars_per_s": 217538.514,
+      "peak_mem_mb": 1733.956,
+      "verified": 0
+    },
+    "S/pruned/prefix40/fp16": {
+      "params": 1031591,
+      "ckpt_mb": 3.9352073669433594,
+      "bpc": 7.419,
+      "chars_per_s": 214229.074,
+      "peak_mem_mb": 1082.081,
+      "verified": 0
+    },
+    "S/pruned/prefix40/fp32": {
+      "params": 1031591,
+      "ckpt_mb": 3.9352073669433594,
+      "bpc": 7.419,
+      "chars_per_s": 229435.691,
+      "peak_mem_mb": 1182.519,
+      "verified": 0
+    },
+    "S/pruned/full/fp16": {
+      "params": 1031591,
+      "ckpt_mb": 3.9352073669433594,
+      "bpc": 7.36,
+      "chars_per_s": 108443.544,
+      "peak_mem_mb": 227.993,
+      "verified": 0
+    },
+    "S/pruned/full/fp32": {
+      "params": 1031591,
+      "ckpt_mb": 3.9352073669433594,
+      "bpc": 7.36,
+      "chars_per_s": 116996.82,
+      "peak_mem_mb": 234.319,
+      "verified": 0
+    },
+    "M/dense/frozen/fp16": {
+      "params": 4824231,
+      "ckpt_mb": 18.40298080444336,
+      "bpc": 7.563,
+      "chars_per_s": 183832.515,
+      "peak_mem_mb": 1790.612,
+      "verified": 3
+    },
+    "M/dense/frozen/fp32": {
+      "params": 4824231,
+      "ckpt_mb": 18.40298080444336,
+      "bpc": 7.563,
+      "chars_per_s": 144947.171,
+      "peak_mem_mb": 1948.767,
+      "verified": 0
+    },
+    "M/dense/prefix40/fp16": {
+      "params": 4824231,
+      "ckpt_mb": 18.40298080444336,
+      "bpc": 7.371,
+      "chars_per_s": 163878.884,
+      "peak_mem_mb": 1340.323,
+      "verified": 0
+    },
+    "M/dense/prefix40/fp32": {
+      "params": 4824231,
+      "ckpt_mb": 18.40298080444336,
+      "bpc": 7.371,
+      "chars_per_s": 152202.229,
+      "peak_mem_mb": 1440.76,
+      "verified": 0
+    },
+    "M/dense/full/fp16": {
+      "params": 4824231,
+      "ckpt_mb": 18.40298080444336,
+      "bpc": 7.149,
+      "chars_per_s": 52705.413,
+      "peak_mem_mb": 494.89,
+      "verified": 0
+    },
+    "M/dense/full/fp32": {
+      "params": 4824231,
+      "ckpt_mb": 18.40298080444336,
+      "bpc": 7.149,
+      "chars_per_s": 52947.781,
+      "peak_mem_mb": 494.89,
+      "verified": 0
+    },
+    "M/pruned/frozen/fp16": {
+      "params": 4036263,
+      "ckpt_mb": 15.39712142944336,
+      "bpc": 7.624,
+      "chars_per_s": 196123.855,
+      "peak_mem_mb": 1787.606,
+      "verified": 0
+    },
+    "M/pruned/frozen/fp32": {
+      "params": 4036263,
+      "ckpt_mb": 15.39712142944336,
+      "bpc": 7.625,
+      "chars_per_s": 188716.607,
+      "peak_mem_mb": 1945.761,
+      "verified": 0
+    },
+    "M/pruned/prefix40/fp16": {
+      "params": 4036263,
+      "ckpt_mb": 15.39712142944336,
+      "bpc": 7.494,
+      "chars_per_s": 170358.549,
+      "peak_mem_mb": 1328.299,
+      "verified": 0
+    },
+    "M/pruned/prefix40/fp32": {
+      "params": 4036263,
+      "ckpt_mb": 15.39712142944336,
+      "bpc": 7.493,
+      "chars_per_s": 161451.34,
+      "peak_mem_mb": 1428.737,
+      "verified": 0
+    },
+    "M/pruned/full/fp16": {
+      "params": 4036263,
+      "ckpt_mb": 15.39712142944336,
+      "bpc": 7.268,
+      "chars_per_s": 54814.712,
+      "peak_mem_mb": 478.387,
+      "verified": 0
+    },
+    "M/pruned/full/fp32": {
+      "params": 4036263,
+      "ckpt_mb": 15.39712142944336,
+      "bpc": 7.269,
+      "chars_per_s": 59431.815,
+      "peak_mem_mb": 480.545,
+      "verified": 0
+    }
+  }
+}

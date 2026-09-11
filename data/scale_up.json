@@ -1,0 +1,23 @@
+{
+  "params": 11961767,
+  "settings": {
+    "full": {
+      "bpc": 7.4496875,
+      "chars_per_s": 12021.095759070664,
+      "peak_mem_mb": 683.83056640625,
+      "verified": 3
+    },
+    "prefix40": {
+      "bpc": 7.9578125,
+      "chars_per_s": 84193.94700700491,
+      "peak_mem_mb": 1468.16943359375,
+      "verified": 3
+    },
+    "frozen": {
+      "bpc": 8.3140625,
+      "chars_per_s": 64735.04994810606,
+      "peak_mem_mb": 2022.318359375,
+      "verified": 3
+    }
+  }
+}
