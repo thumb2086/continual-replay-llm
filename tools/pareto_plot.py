@@ -42,11 +42,15 @@ OFF75 = [
     ("ov2048", 100 / 14.2, 0.9687),
     ("ov1024", 100 / 12.4, 0.9723),
     ("ov0", 100 / 11.3, 0.9785),
+    ("gate207 gather\n25KB/s", 100 / 4.0, 0.9812),
+    ("K2048 gate\n22KB/s", 100 / 4.5, 0.9715),
 ]
 # 1MB flagships (KB/s comparable on this axis)
 MB1 = [
     ("1MB@off50", 1024 / 256.0, 0.9222),
     ("1MB@off25", 1024 / 262.7, 0.9076),
+    ("1MB gate207", 1024 / 49.4, 0.9359),
+    ("1MB crown-g", 1024 / 201.6, 0.9079),
 ]
 SOTA_BPB = 0.9389          # Nacrith paper, full file
 SOTA_RATIO = 8.0 / SOTA_BPB  # 8.52x: higher-is-better twin of the SOTA line
@@ -119,10 +123,14 @@ print("saved pareto_off50.png")
 # ---- plot 2: off75 hard region ----
 fig, ax = _base("Speed vs ratio, hard region (SmolLM2-135M, measured)",
                 8.05, 8.6)
-_dots(ax, OFF75, "seagreen", show=("ov4096", "ov3072", "ov0"),
-      offsets={"ov4096": (-52, -10), "ov3072": (10, 16), "ov0": (10, -8)})
+_dots(ax, OFF75, "seagreen", show=("ov4096", "ov3072", "ov0",
+                                    "gate207 gather\n25KB/s",
+                                    "K2048 gate\n22KB/s"),
+      offsets={"ov4096": (-52, -10), "ov3072": (10, 16), "ov0": (10, -8),
+               "gate207 gather\n25KB/s": (10, 10),
+               "K2048 gate\n22KB/s": (10, -14)})
 _diamonds(ax)
-ax.set_xlim(0, 10.5)
+ax.set_xlim(0, 28)
 fig.tight_layout()
 fig.savefig("pareto_off75.png", dpi=120)
 print("saved pareto_off75.png")

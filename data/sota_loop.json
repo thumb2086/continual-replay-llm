@@ -1975,6 +1975,69 @@
    "id": "swa",
    "status": "dead",
    "note": "Sliding-window streaming attention declined by arithmetic, zero code: our regime is 8k-token forwards (launch-dominated), not 1-token decode; streaming redistributes the same FLOPs over MORE launches (7-8 vs 4) -> strictly worse. CHAIN-family already falsified x2. Attention verdict: flash banked, SWA arith-dead, backends closed."
+  },
+  {
+   "id": "off75a",
+   "status": "chart",
+   "bpb": 0.9812,
+   "elapsed_s": 4.0,
+   "note": "off75 speed-gate207-gather: 4.0s fastest-ever slice (idle box + fewer tokens), 208 units ok. Pareto point (different slice, not a main-line bank)."
+  },
+  {
+   "id": "off75b",
+   "status": "chart",
+   "bpb": 0.9715,
+   "elapsed_s": 4.5,
+   "note": "off75 K2048-gate-gather: 4.5s, 209 units ok. Pareto-consistent (3x faster than classic off75, slightly worse ratio)."
+  },
+  {
+   "id": "1m-gate",
+   "status": "chart",
+   "bpb": 0.9359,
+   "elapsed_s": 49.4,
+   "note": "1MB speed-gate207: 38 segs, 20.7KB/s linear scale, PEAK flat 4.01GB. Scale plot new line."
+  },
+  {
+   "id": "1m-crowng",
+   "status": "chart",
+   "bpb": 0.9079,
+   "elapsed_s": 201.6,
+   "note": "1MB crown-gather: 74 segs, 0.9079 identical to classic 0.9078, 201.6s beats classic 254.7s (gather wins at scale). PEAK 5.26GB. Fills scale None."
+  },
+  {
+   "id": "vecplain",
+   "status": "dead",
+   "bpb": 0.9276,
+   "elapsed_s": 4.9,
+   "note": "Vectorized plain-path: BIT-EXACT twice (0.9276, 220x2) but 4.9s LOSES by +0.4s (pre-pass duplicates gets + 8MB temp traffic + redundant gate > saved Python overhead; loop_wall unchanged 0.7). Gated off (VECPLAIN). Crash-course: first version segfaulted (shared trailing block ran once) - fixed, infra kept flagged. Phase-A wall = blend rows, not plain Python."
+  },
+  {
+   "id": "chunk-exact",
+   "status": "banked",
+   "bpb": 0.9276,
+   "elapsed_s": 2.9,
+   "note": "CHUNK_PRE4096+CHUNK_HEAD2048+SPARSE_BLK: BIT-EXACT x2 (3.0s/2.9s, 220x2), fwd 3.8->2.4s (no 800MB logits, smaller WDDM temps), PEAK 4.01->1.50GB (-63%). Meets stopping (a) AND (c). New speed record 2.9s/34.5KB/s. (Relative positions required: absolute gave 1.5222.)"
+  },
+  {
+   "id": "qwen-k1",
+   "status": "banked",
+   "bpb": 0.8559,
+   "elapsed_s": 5.4,
+   "note": "Qwen2.5-0.5B chunked (28K single seg, K1024): 216 units ok, PEAK 4.85GB. First sub-0.90: -444e-4 vs SmolLM2 crown. B-line opens."
+  },
+  {
+   "id": "qwen-k2",
+   "status": "banked",
+   "bpb": 0.8442,
+   "elapsed_s": 5.6,
+   "note": "Qwen K2048: 219 units ok, 5.6s, PEAK 5.32GB fits. New crown 0.8442 (stopping b). Crown line pick (clean, no paging)."
+  },
+  {
+   "id": "qwen-k4",
+   "status": "null",
+   "bpb": 0.8391,
+   "elapsed_s": 14.9,
+   "note": "Qwen K4096/PF4096: 0.8391 (-51e-4 diminishing) BUT PEAK 9.11GB pages over 8GB -> fwd 14.0s thrash. Documents the big-V VRAM wall; not the crown pick."
   }
  ],
  "done": false,

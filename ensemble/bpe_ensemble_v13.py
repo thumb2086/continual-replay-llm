@@ -101,6 +101,10 @@ CHAIN = int(os.environ.get("CHAIN", "0"))  # v13: 1 = KV chaining (FALSIFIED: fp
 MEMDIAG = int(os.environ.get("MEMDIAG", "0"))  # v13: tracemalloc census (costs ~0.3s/seg); default off
 USE_ORT = int(os.environ.get("USE_ORT", "0"))  # v13-ort: ONNX Runtime CUDA backend (EXPERIMENTAL/UNRUN); default off
 ORT_MODEL_DIR = os.environ.get("ORT_MODEL_DIR", "./ort-smollm2")
+CHUNK_PRE = int(os.environ.get("CHUNK_PRE", "0"))  # v13-chunk: exact chunked prefill (tokens/fwd-chunk, causal-identical); 0 = off. With CHUNK_HEAD for big-V models.
+CHUNK_HEAD = int(os.environ.get("CHUNK_HEAD", "0"))  # v13-chunk: exact chunked lm_head+topk (rows/chunk); full [T,V] logits never materialize. 0 = off.
+SPARSE_BLK = int(os.environ.get("SPARSE_BLK", "0"))  # v13-chunk: sparse blk rows (pi/pv only, expand per blend row into scratch); needs gather+gputopk+ov0, refused under proc/numdrv. 0 = off (dense).
+_SPARSE_EFF = 1 if (SPARSE_BLK and GATHER_PI and USE_GPU_TOPK and not USE_PROC_LOOP and OVERLAP == 0) else 0
 # (v10-validated: bf=2 still pages at 11.22GB -- trunk activations, not
 # logits, dominate. Slicing only removed the logits tip. Default stays 1;
 # the win is peak 6.62 -> ~5.8GB headroom, not batch.)
@@ -290,115 +294,278 @@ def _range_core(block, T0, lo, hi, coded, prev_tail,
     decoder mirrors exactly; verify guards.
     """
     _sp, _sr, _wk = S[0], S[1], S[2]
+    _srow = S[13] if len(S) > 13 else None  # v13-chunk sparse expand buf
     _hs, _his, _oi, _op, _ro, _tg = S[3], S[4], S[5], S[6], S[7], S[8]
-    for _t in range(lo, hi):
-        _pos = _t - T0
-        _prev = block[_t]
-        _tgt = block[_t + 1]
-        _prev2 = block[_t - 1] if _t > 0 else prev_tail
-        _ib = bi_id_of.get(_prev, -1)
-        if USE_TRIGRAM and _prev2 is not None:
-            _it = tri_id_of.get((_prev2, _prev), -1)
-        else:
-            _it = -1
-        _ps = ((OVERLAP > 0 and _t == T0)
-               or ((coded + (_t - T0)) % 130 == 0))
-        # v13 blend-gate: existence gate (classic) PLUS count gate: rows
-        # below the minima fall back to plain (LM-only). Low-count blends
-        # carry ~no cache weight, but cost a full 72us kernel call.
-        # Deterministic on causal tables -> decoder mirrors; verify guards.
-        _gate_bt = bi_tot[_ib] if _ib >= 0 else 0
-        _gate_tt = tri_tot[_it] if _it >= 0 else 0
-        if ((_ib < 0 and _it < 0)
-                or ((BLEND_BT_MIN > 0 or BLEND_TT_MIN > 0)
-                    and _gate_bt < BLEND_BT_MIN and _gate_tt < BLEND_TT_MIN)
-                ) and not nolm:
-            opath[_pos] = 0
-            if USE_GPU_TOPK:
-                _tidx = ti[_t]
-                _tp = tv[_t].astype(np.float64)
+    # v13-vecplain: vectorize the PLAIN path (opath=0, ~60% rows). A cheap
+    # scalar pre-pass classifies rows (dict gets + gate math only); plain
+    # rows fill with one vectorized first-hit rank over ti/tv; blend rows
+    # run the untouched scalar path below. Same values by construction
+    # (argmax-first-True == where()[0][0]); refused unless GPU-topk LM
+    # path without the excl probe (classic/nolm/probe keep the old loop).
+    # bpb gate + verify guard.
+    _barr = block if isinstance(block, np.ndarray) else np.asarray(block)
+    if (USE_GPU_TOPK and not nolm and not _EXCLPROBE
+            and os.environ.get("VECPLAIN", "0") == "1"):
+        _ppos, _pt, _brows = [], [], []
+        for _t in range(lo, hi):
+            _pos = _t - T0
+            _prev = int(_barr[_t])
+            _prev2 = int(_barr[_t - 1]) if _t > 0 else prev_tail
+            _ib = bi_id_of.get(_prev, -1)
+            if USE_TRIGRAM and _prev2 is not None:
+                _it = tri_id_of.get((_prev2, _prev), -1)
             else:
-                _pf = blk[_t]
-                _tidx = np.argpartition(_pf, -TOP_K)[-TOP_K:]
-                _tidx = _tidx[np.argsort(-_pf[_tidx])]
-                _tp = _pf[_tidx]
-            _hit = np.where(_tidx == _tgt)[0]
-            _rk = int(_hit[0]) if len(_hit) else -1
-            obatch[_pos] = _tp
-            if _rk < 0 or _ps:
-                otidx[_pos] = _tidx
-        else:
-            opath[_pos] = 1
-            if _ib >= 0:
-                _brk, _brv = bi_keys[_ib], bi_vals[_ib]
-                _bt = bi_tot[_ib]
-                _wB = _bt / (_bt + BIGRAM_CONF)
+                _it = -1
+            _gate_bt = bi_tot[_ib] if _ib >= 0 else 0
+            _gate_tt = tri_tot[_it] if _it >= 0 else 0
+            if ((_ib < 0 and _it < 0)
+                    or ((BLEND_BT_MIN > 0 or BLEND_TT_MIN > 0)
+                        and _gate_bt < BLEND_BT_MIN and _gate_tt < BLEND_TT_MIN)):
+                _ppos.append(_pos)
+                _pt.append(_t)
             else:
-                _brk, _brv, _bt, _wB = _E64, _E64f, 1, 0.0
-            if _it >= 0:
-                _trk, _trv = tri_keys[_it], tri_vals[_it]
-                _tt = tri_tot[_it]
-                _wT = _tt / (_tt + TRIGRAM_CONF)
-            else:
-                _trk, _trv, _tt, _wT = _E64, _E64f, 1, 0.0
-            _pfull = blk[_t]
-            if USE_GPU_TOPK:
-                _pre = pi[_t]
-            else:
-                _pre = np.argpartition(_pfull, -PREFILTER)[-PREFILTER:]
-            _wc = 1.0 - (1.0 - _wT) * (1.0 - _wB)
-            _le = 1.0 - (1.0 - BIGRAM_LAMBDA) * _wc
-            if nolm:
-                _le = 0.0  # cache-only: LM term exactly zero
-            # v13-gather: numba pi-truncation (V-stamp, exact: pi-subset
-            # always fits PREFILTER temps). Replaces the np.isin probe
-            # path (~3s/run). _sp doubles as stamp (fresh tag from the
-            # shared counter; the kernel re-stamps with its own tag after).
-            if _PIONLY_EFF:
-                _ctag = _tg[0] + 1
-                _tg[0] = _ctag
-                _ok, _ov, _otk, _otv = S[9], S[10], S[11], S[12]
-                _cnb, _cnt = _compact_pi(
-                    _brk if _ib >= 0 else _E64, _brv if _ib >= 0 else _E64f,
-                    _trk if _it >= 0 else _E64, _trv if _it >= 0 else _E64f,
-                    _pre, _sp, _ctag, _ok, _ov, _otk, _otv)
-                _brk, _brv = _ok[:_cnb], _ov[:_cnb]
-                _trk, _trv = _otk[:_cnt], _otv[:_cnt]
-            _sb = ((1.0 - _wT) * _wB / _bt) if _ib >= 0 else 0.0
-            _st = (_wT / _tt) if _it >= 0 else 0.0
-            _tg[0] += 1
-            _n = nb_blend_row(
-                _pfull, _pre, _brk, _brv, _trk, _trv,
-                _sb, _st, _le, TOP_K,
-                _sp, _sr, _wk, _tg[0],
-                _hs, _his, _oi, _op,
-                int(_tgt), _ro)
-            if _n < TOP_K:
-                if nolm:
-                    # short cache rows: zero-pad (escape absorbs the mass).
-                    # Pad ids with 1<<62 (never < tgt, never a real id, so
-                    # the escape rank cross-check stays exact on both sides).
-                    _op[_n:TOP_K] = 0.0
-                    _oi[_n:TOP_K] = (1 << 62)
-                    if _n == 0:
-                        _rk = -1  # no candidates: forced escape (orank
-                        # scratch would otherwise leak the previous row)
-                    _n = TOP_K
+                _brows.append((_t, _pos, _ib, _it))
+        if _ppos:
+            _P = np.asarray(_ppos, dtype=np.int64)
+            _T = np.asarray(_pt, dtype=np.int64)
+            _tgtv = _barr[_T + 1]
+            _tidxm = ti[_T]
+            _eq = (_tidxm == _tgtv[:, None])
+            _has = _eq.any(axis=1)
+            _rk = np.where(_has, _eq.argmax(axis=1), -1)
+            opath[_P] = 0
+            obatch[_P] = tv[_T].astype(np.float64)
+            orank[_P] = _rk
+            _psm = (((_T == T0) & (OVERLAP > 0))
+                    | ((coded + (_T - T0)) % 130 == 0))
+            _save = (_rk < 0) | _psm
+            otidx[_P[_save]] = _tidxm[_save]
+        for (_t, _pos, _ib, _it) in _brows:
+            _tgt = _barr[_t + 1]
+            _ps = ((OVERLAP > 0 and _t == T0)
+                   or ((coded + (_t - T0)) % 130 == 0))
+            # (vec path: blend rows run the full scalar body below —
+            # gate re-check included verbatim; classified-blend always
+            # lands in else. Same values as the old loop by construction.)
+            _gate_bt = bi_tot[_ib] if _ib >= 0 else 0
+            _gate_tt = tri_tot[_it] if _it >= 0 else 0
+            if ((_ib < 0 and _it < 0)
+                    or ((BLEND_BT_MIN > 0 or BLEND_TT_MIN > 0)
+                        and _gate_bt < BLEND_BT_MIN and _gate_tt < BLEND_TT_MIN)
+                    ) and not nolm:
+                opath[_pos] = 0
+                if USE_GPU_TOPK:
+                    _tidx = ti[_t]
+                    _tp = tv[_t].astype(np.float64)
                 else:
-                    raise ArithmeticError(
-                        f"candidate shortfall {_n} < {TOP_K}")
+                    _pf = blk[_t]
+                    _tidx = np.argpartition(_pf, -TOP_K)[-TOP_K:]
+                    _tidx = _tidx[np.argsort(-_pf[_tidx])]
+                    _tp = _pf[_tidx]
+                _hit = np.where(_tidx == _tgt)[0]
+                _rk = int(_hit[0]) if len(_hit) else -1
+                obatch[_pos] = _tp
+                if _rk < 0 or _ps:
+                    otidx[_pos] = _tidx
             else:
-                _rk = int(_ro[0])
-            obatch[_pos] = _op[:_n]
-            if _rk < 0 or _ps:
-                otidx[_pos] = _oi[:_n]
-        orank[_pos] = _rk
-        if _EXCLPROBE and opath[_pos] == 1:
-            _hit_pre = bool(np.any(_pre == _tgt))
-            with _EXCL_LOCK:
-                _EXCL[1] += 1
-                if _rk >= 0 and not _hit_pre:
-                    _EXCL[0] += 1
+                opath[_pos] = 1
+                if _ib >= 0:
+                    _brk, _brv = bi_keys[_ib], bi_vals[_ib]
+                    _bt = bi_tot[_ib]
+                    _wB = _bt / (_bt + BIGRAM_CONF)
+                else:
+                    _brk, _brv, _bt, _wB = _E64, _E64f, 1, 0.0
+                if _it >= 0:
+                    _trk, _trv = tri_keys[_it], tri_vals[_it]
+                    _tt = tri_tot[_it]
+                    _wT = _tt / (_tt + TRIGRAM_CONF)
+                else:
+                    _trk, _trv, _tt, _wT = _E64, _E64f, 1, 0.0
+                if _SPARSE_EFF:
+                    # sparse blk: (pimat, pvmat); expand this row into scratch.
+                    # nb_blend reads pre_idx positions only, all inside pi, so
+                    # the expanded row scores EXACTLY like the dense row.
+                    _pim, _pvm = blk
+                    _srow[:] = 0.0
+                    _srow[_pim[_t]] = _pvm[_t]
+                    _pfull = _srow
+                else:
+                    _pfull = blk[_t]
+                if USE_GPU_TOPK:
+                    _pre = pi[_t]
+                else:
+                    _pre = np.argpartition(_pfull, -PREFILTER)[-PREFILTER:]
+                _wc = 1.0 - (1.0 - _wT) * (1.0 - _wB)
+                _le = 1.0 - (1.0 - BIGRAM_LAMBDA) * _wc
+                if nolm:
+                    _le = 0.0  # cache-only: LM term exactly zero
+                # v13-gather: numba pi-truncation (V-stamp, exact: pi-subset
+                # always fits PREFILTER temps). Replaces the np.isin probe
+                # path (~3s/run). _sp doubles as stamp (fresh tag from the
+                # shared counter; the kernel re-stamps with its own tag after).
+                if _PIONLY_EFF:
+                    _ctag = _tg[0] + 1
+                    _tg[0] = _ctag
+                    _ok, _ov, _otk, _otv = S[9], S[10], S[11], S[12]
+                    _cnb, _cnt = _compact_pi(
+                        _brk if _ib >= 0 else _E64, _brv if _ib >= 0 else _E64f,
+                        _trk if _it >= 0 else _E64, _trv if _it >= 0 else _E64f,
+                        _pre, _sp, _ctag, _ok, _ov, _otk, _otv)
+                    _brk, _brv = _ok[:_cnb], _ov[:_cnb]
+                    _trk, _trv = _otk[:_cnt], _otv[:_cnt]
+                _sb = ((1.0 - _wT) * _wB / _bt) if _ib >= 0 else 0.0
+                _st = (_wT / _tt) if _it >= 0 else 0.0
+                _tg[0] += 1
+                _n = nb_blend_row(
+                    _pfull, _pre, _brk, _brv, _trk, _trv,
+                    _sb, _st, _le, TOP_K,
+                    _sp, _sr, _wk, _tg[0],
+                    _hs, _his, _oi, _op,
+                    int(_tgt), _ro)
+                if _n < TOP_K:
+                    if nolm:
+                        # short cache rows: zero-pad (escape absorbs the mass).
+                        # Pad ids with 1<<62 (never < tgt, never a real id, so
+                        # the escape rank cross-check stays exact on both sides).
+                        _op[_n:TOP_K] = 0.0
+                        _oi[_n:TOP_K] = (1 << 62)
+                        if _n == 0:
+                            _rk = -1  # no candidates: forced escape (orank
+                            # scratch would otherwise leak the previous row)
+                        _n = TOP_K
+                    else:
+                        raise ArithmeticError(
+                            f"candidate shortfall {_n} < {TOP_K}")
+                else:
+                    _rk = int(_ro[0])
+                obatch[_pos] = _op[:_n]
+                if _rk < 0 or _ps:
+                    otidx[_pos] = _oi[:_n]
+            orank[_pos] = _rk
+            if _EXCLPROBE and opath[_pos] == 1:
+                _hit_pre = bool(np.any(_pre == _tgt))
+                with _EXCL_LOCK:
+                    _EXCL[1] += 1
+                    if _rk >= 0 and not _hit_pre:
+                        _EXCL[0] += 1
+    else:
+        for _t in range(lo, hi):
+            _pos = _t - T0
+            _prev = block[_t]
+            _tgt = block[_t + 1]
+            _prev2 = block[_t - 1] if _t > 0 else prev_tail
+            _ib = bi_id_of.get(_prev, -1)
+            if USE_TRIGRAM and _prev2 is not None:
+                _it = tri_id_of.get((_prev2, _prev), -1)
+            else:
+                _it = -1
+            _ps = ((OVERLAP > 0 and _t == T0)
+                   or ((coded + (_t - T0)) % 130 == 0))
+            # v13 blend-gate: existence gate (classic) PLUS count gate: rows
+            # below the minima fall back to plain (LM-only). Low-count blends
+            # carry ~no cache weight, but cost a full 72us kernel call.
+            # Deterministic on causal tables -> decoder mirrors; verify guards.
+            _gate_bt = bi_tot[_ib] if _ib >= 0 else 0
+            _gate_tt = tri_tot[_it] if _it >= 0 else 0
+            if ((_ib < 0 and _it < 0)
+                    or ((BLEND_BT_MIN > 0 or BLEND_TT_MIN > 0)
+                        and _gate_bt < BLEND_BT_MIN and _gate_tt < BLEND_TT_MIN)
+                    ) and not nolm:
+                opath[_pos] = 0
+                if USE_GPU_TOPK:
+                    _tidx = ti[_t]
+                    _tp = tv[_t].astype(np.float64)
+                else:
+                    _pf = blk[_t]
+                    _tidx = np.argpartition(_pf, -TOP_K)[-TOP_K:]
+                    _tidx = _tidx[np.argsort(-_pf[_tidx])]
+                    _tp = _pf[_tidx]
+                _hit = np.where(_tidx == _tgt)[0]
+                _rk = int(_hit[0]) if len(_hit) else -1
+                obatch[_pos] = _tp
+                if _rk < 0 or _ps:
+                    otidx[_pos] = _tidx
+            else:
+                opath[_pos] = 1
+                if _ib >= 0:
+                    _brk, _brv = bi_keys[_ib], bi_vals[_ib]
+                    _bt = bi_tot[_ib]
+                    _wB = _bt / (_bt + BIGRAM_CONF)
+                else:
+                    _brk, _brv, _bt, _wB = _E64, _E64f, 1, 0.0
+                if _it >= 0:
+                    _trk, _trv = tri_keys[_it], tri_vals[_it]
+                    _tt = tri_tot[_it]
+                    _wT = _tt / (_tt + TRIGRAM_CONF)
+                else:
+                    _trk, _trv, _tt, _wT = _E64, _E64f, 1, 0.0
+                if _SPARSE_EFF:
+                    # sparse blk: (pimat, pvmat); expand this row into scratch.
+                    # nb_blend reads pre_idx positions only, all inside pi, so
+                    # the expanded row scores EXACTLY like the dense row.
+                    _pim, _pvm = blk
+                    _srow[:] = 0.0
+                    _srow[_pim[_t]] = _pvm[_t]
+                    _pfull = _srow
+                else:
+                    _pfull = blk[_t]
+                if USE_GPU_TOPK:
+                    _pre = pi[_t]
+                else:
+                    _pre = np.argpartition(_pfull, -PREFILTER)[-PREFILTER:]
+                _wc = 1.0 - (1.0 - _wT) * (1.0 - _wB)
+                _le = 1.0 - (1.0 - BIGRAM_LAMBDA) * _wc
+                if nolm:
+                    _le = 0.0  # cache-only: LM term exactly zero
+                # v13-gather: numba pi-truncation (V-stamp, exact: pi-subset
+                # always fits PREFILTER temps). Replaces the np.isin probe
+                # path (~3s/run). _sp doubles as stamp (fresh tag from the
+                # shared counter; the kernel re-stamps with its own tag after).
+                if _PIONLY_EFF:
+                    _ctag = _tg[0] + 1
+                    _tg[0] = _ctag
+                    _ok, _ov, _otk, _otv = S[9], S[10], S[11], S[12]
+                    _cnb, _cnt = _compact_pi(
+                        _brk if _ib >= 0 else _E64, _brv if _ib >= 0 else _E64f,
+                        _trk if _it >= 0 else _E64, _trv if _it >= 0 else _E64f,
+                        _pre, _sp, _ctag, _ok, _ov, _otk, _otv)
+                    _brk, _brv = _ok[:_cnb], _ov[:_cnb]
+                    _trk, _trv = _otk[:_cnt], _otv[:_cnt]
+                _sb = ((1.0 - _wT) * _wB / _bt) if _ib >= 0 else 0.0
+                _st = (_wT / _tt) if _it >= 0 else 0.0
+                _tg[0] += 1
+                _n = nb_blend_row(
+                    _pfull, _pre, _brk, _brv, _trk, _trv,
+                    _sb, _st, _le, TOP_K,
+                    _sp, _sr, _wk, _tg[0],
+                    _hs, _his, _oi, _op,
+                    int(_tgt), _ro)
+                if _n < TOP_K:
+                    if nolm:
+                        # short cache rows: zero-pad (escape absorbs the mass).
+                        # Pad ids with 1<<62 (never < tgt, never a real id, so
+                        # the escape rank cross-check stays exact on both sides).
+                        _op[_n:TOP_K] = 0.0
+                        _oi[_n:TOP_K] = (1 << 62)
+                        if _n == 0:
+                            _rk = -1  # no candidates: forced escape (orank
+                            # scratch would otherwise leak the previous row)
+                        _n = TOP_K
+                    else:
+                        raise ArithmeticError(
+                            f"candidate shortfall {_n} < {TOP_K}")
+                else:
+                    _rk = int(_ro[0])
+                obatch[_pos] = _op[:_n]
+                if _rk < 0 or _ps:
+                    otidx[_pos] = _oi[:_n]
+            orank[_pos] = _rk
+            if _EXCLPROBE and opath[_pos] == 1:
+                _hit_pre = bool(np.any(_pre == _tgt))
+                with _EXCL_LOCK:
+                    _EXCL[1] += 1
+                    if _rk >= 0 and not _hit_pre:
+                        _EXCL[0] += 1
 
 
 def _proc_init(specs, _V, _K):
@@ -567,7 +734,16 @@ try:
                     _trv = e64f
                     _tt = 1.0
                     _wT = 0.0
-                _pfull = blk[_t]
+                if _SPARSE_EFF:
+                    # sparse blk: (pimat, pvmat); expand this row into scratch.
+                    # nb_blend reads pre_idx positions only, all inside pi, so
+                    # the expanded row scores EXACTLY like the dense row.
+                    _pim, _pvm = blk
+                    _srow[:] = 0.0
+                    _srow[_pim[_t]] = _pvm[_t]
+                    _pfull = _srow
+                else:
+                    _pfull = blk[_t]
                 _pre = pi[_t]
                 _wc = 1.0 - (1.0 - _wT) * (1.0 - _wB)
                 _le = 1.0 - (1.0 - f_lam) * _wc
@@ -1023,6 +1199,9 @@ def main():
             # always fits, so compaction is exact, never lossy)
             np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
             np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
+            # v13-chunk: sparse-blk row expand buffer (V f64, zero+scatter
+            # per blend row; nb_blend reads pre_idx only so this is exact)
+            np.zeros(V, dtype=np.float64),
         ])
     _pool = ThreadPoolExecutor(max_workers=max(1, N_LOOP_WORKERS),
                                initializer=_pin_worker)
@@ -1412,6 +1591,7 @@ def main():
             if int(os.environ.get("SHAPE_DEBUG", "0")) and si == 1:
                 print(f"  [shdbg] fresh={_nfr} B={_B} NC={NC} F0={_F0} xin={tuple(_xin.shape)}", flush=True)
             _t_attn0 = time.time()
+            _CH_OUT = None  # v13-chunk: chunked-head tensors (else None)
             if _skip:
                 # v13-skip: no forward at all; Phase-A runs cache-only
                 # (nolm). Tables/carry/finish stay sequential.
@@ -1448,7 +1628,73 @@ def main():
                     si += 1
                     del _out, _xin, _xin2
                 else:
-                    if GRAPH_FULL and not CHAIN and _nfr == BLOCK_TOKENS:
+                    if (CHUNK_PRE > 0 and CHUNK_HEAD > 0 and not CHAIN
+                            and OVERLAP == 0 and not USE_ORT
+                            and BATCH_SEGS <= 1 and not GRAPH_FULL
+                            and GATHER_PI and USE_GPU_TOPK
+                            and _have_lg is None and not _skip):
+                        # v13-chunk: exact chunked prefill + chunked head.
+                        # Causal math identical to one full forward (A/B
+                        # proven EXACT on SmolLM2); full [T,V] logits never
+                        # materialize (Qwen28Kx152K: 8.7GB -> ~622MB/chunk).
+                        _CH_OUT = None
+                        with torch.no_grad():
+                            _cpast = None
+                            _hids = []
+                            _xids = _xin[0]
+                            for _cs in range(0, _nfr, CHUNK_PRE):
+                                _ce = min(_nfr, _cs + CHUNK_PRE)
+                                # NOTE: window-relative positions (0..nfr-1),
+                                # NOT absolute: the recompute path this mirrors
+                                # never passes position_ids (1.5222 lesson).
+                                _cpos = torch.arange(
+                                    _cs, _ce, device=device)
+                                _cout = model.model(
+                                    _xin[:, _cs:_ce],
+                                    past_key_values=_cpast,
+                                    position_ids=_cpos.unsqueeze(0),
+                                    cache_position=_cpos,
+                                    use_cache=True)
+                                _hids.append(_cout.last_hidden_state)
+                                _cpast = _cout.past_key_values
+                                del _cout, _cpos
+                            _H = torch.cat(_hids, dim=1)
+                            del _hids, _xids
+                            _lse_l, _g_l = [], []
+                            _pi_l2, _ti_l2, _pv_l2 = [], [], []
+                            _tv_l2, _tp_l = [], []
+                            for _hs in range(0, _nfr, CHUNK_HEAD):
+                                _he = min(_nfr, _hs + CHUNK_HEAD)
+                                _lgc = model.lm_head(
+                                    _H[:, _hs:_he, :]).float()
+                                if _lgc.dim() == 3:
+                                    _lgc = _lgc[0]
+                                _lse_l.append(torch.logsumexp(_lgc, dim=-1))
+                                _pv, _pi = torch.topk(_lgc, PREFILTER, dim=1)
+                                _tv, _tpos = torch.topk(_pv, TOP_K, dim=1)
+                                _ti = torch.gather(_pi, 1, _tpos)
+                                _g_l.append(torch.gather(_lgc, 1, _pi))
+                                _pi_l2.append(_pi)
+                                _ti_l2.append(_ti)
+                                _pv_l2.append(_pv)
+                                _tv_l2.append(_tv)
+                                _tp_l.append(_tpos)
+                                del _lgc
+                            _lse = torch.cat(_lse_l)
+                            _g = torch.cat(_g_l)
+                            _pi_l = torch.cat(_pi_l2)
+                            _ti_l = torch.cat(_ti_l2)
+                            _pv_l = torch.cat(_pv_l2)
+                            _tv_l = torch.cat(_tv_l2)
+                            _tpos = torch.cat(_tp_l)
+                            del (_H, _lse_l, _g_l, _pi_l2, _ti_l2, _pv_l2,
+                                 _tv_l2, _tp_l)
+                        _CH_OUT = (_lse, _g, _pi_l, _ti_l, _pv_l, _tv_l,
+                                   _tpos)
+                        _abs_pos += _nfr
+                        _lg_b = None
+                        del _cpast, _xin
+                    elif GRAPH_FULL and not CHAIN and _nfr == BLOCK_TOKENS:
                         _lg_all = _full_forward_graphed(_xin)
                         _abs_pos += _nfr
                         _lg_b = _lg_all[0]  # [nfr, V] fp16 GPU
@@ -1493,12 +1739,19 @@ def main():
                 # reduction, gather pi-logits, CPU exp. Values match the
                 # PI_ONLY number up to fp noise (ratio gate); verify guards.
                 _t_topk0 = time.time()
-                with torch.no_grad():
-                    _lse = torch.logsumexp(_lg_b.float(), dim=-1)  # [nfr] fp32
-                    _pv_l, _pi_l = torch.topk(_lg_b.float(), PREFILTER, dim=1)
-                    _tv_l, _tpos = torch.topk(_pv_l, TOP_K, dim=1)
-                    _ti_l = torch.gather(_pi_l, 1, _tpos)
-                    _g = torch.gather(_lg_b.float(), 1, _pi_l)  # [nfr, P]
+                if _CH_OUT is not None:
+                    # v13-chunk: precomputed per-row tensors (concat of
+                    # chunk results == full-forward tensors, exact).
+                    (_lse, _g, _pi_l, _ti_l, _pv_l, _tv_l,
+                     _tpos) = _CH_OUT
+                    _CH_OUT = None
+                else:
+                    with torch.no_grad():
+                        _lse = torch.logsumexp(_lg_b.float(), dim=-1)  # [nfr] fp32
+                        _pv_l, _pi_l = torch.topk(_lg_b.float(), PREFILTER, dim=1)
+                        _tv_l, _tpos = torch.topk(_pv_l, TOP_K, dim=1)
+                        _ti_l = torch.gather(_pi_l, 1, _tpos)
+                        _g = torch.gather(_lg_b.float(), 1, _pi_l)  # [nfr, P]
                 t_topk += time.time() - _t_topk0
                 _t_d2h0 = time.time()
                 if _PIN_ON:
@@ -1551,20 +1804,32 @@ def main():
                 tv = _shm_tv[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, TOP_K), dtype=np.float32)
                 ti = _shm_ti[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, TOP_K), dtype=np.int64)
                 pi = _shm_pi[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, PREFILTER), dtype=np.int64)
-                blk_probs = _shm_blk[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, V), dtype=np.float32)
+                if _SPARSE_EFF:
+                    # sparse blk: keep (pi, pv) matrices, no dense [B,V]
+                    # (Qwen28Kx152K: 17GB -> ~690MB CPU). Core expands per
+                    # blend row into scratch (nb_blend reads pre_idx only).
+                    pvmat = np.zeros((_B, PREFILTER), dtype=np.float32)
+                    pvmat[_F0:_F0 + _nfr] = _pv_f
+                    blk_probs = (pi, pvmat)
+                else:
+                    blk_probs = _shm_blk[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, V), dtype=np.float32)
                 lg_full = None
                 tv[_F0:_F0 + _nfr] = tv_f
                 ti[_F0:_F0 + _nfr] = ti_f
                 pi[_F0:_F0 + _nfr] = pi_f
-                # sparse blk: values only at pi keys (truncated rows never
-                # query outside pi after _PIONLY_EFF truncation).
-                _srows = _rr0 + _F0
-                blk_probs[_srows[:, None], pi_f] = _pv_f
+                if _SPARSE_EFF:
+                    pass  # sparse rows already live in (pi, pvmat)
+                else:
+                    # sparse blk: values only at pi keys (truncated rows never
+                    # query outside pi after _PIONLY_EFF truncation).
+                    _srows = _rr0 + _F0
+                    blk_probs[_srows[:, None], pi_f] = _pv_f
                 if _F0 > 0:
                     tv[T0] = _carry[0]
                     ti[T0] = _carry[1]
                     pi[T0] = _carry[2]
-                    blk_probs[T0] = _carry[3]
+                    if not _SPARSE_EFF:
+                        blk_probs[T0] = _carry[3]
                 _cb = np.zeros(V, dtype=np.float32)
                 _cb[pi_f[-1]] = _pv_f[-1]
                 _carry = (tv_f[-1].copy(), ti_f[-1].copy(),
@@ -1608,7 +1873,8 @@ def main():
                     tv[T0] = _carry[0]
                     ti[T0] = _carry[1]
                     pi[T0] = _carry[2]
-                    blk_probs[T0] = _carry[3]
+                    if not _SPARSE_EFF:
+                        blk_probs[T0] = _carry[3]
                 _carry = (tv_f[-1].copy(), ti_f[-1].copy(),
                           pi_f[-1].copy(), blk_f[-1].copy())
                 del tv_f, ti_f, pv_f, pi_f, blk_f
@@ -1818,6 +2084,7 @@ def main():
                     _futs = []
                 elif (NUMBA_DRIVER and _range_numba is not None
                         and not USE_PROC_LOOP and USE_GPU_TOPK
+                        and not SPARSE_BLK
                         and not _EXCLPROBE and N_LOOP_WORKERS >= 1):
                     _futs = [_pool.submit(
                         _range_numba_wrap, V, block, T0, T0, T0 + NC,

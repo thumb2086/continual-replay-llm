@@ -231,4 +231,14 @@ Prefilter 2048→1024：+6e-4、4.6 秒，雙軸 null（prefilter 卡的是暫�
 
 1 秒 verdict：地板是 4 發×0.8s＋loop 0.7s≈4s，本輪所有更快路徑全輸全死（ORT 149s、量化×4、剪層×2、batch×2、multicore、PF、SDPA-mem、skip-oracle、SWA）。sub-1s 要更少發射＝更長 context 更小模型——那是新專案（新 tokenizer、全重做科學），不是優化。ledger 共 226 條。
 
+## 29. 三殺達成：chunk-exact 2.9 秒、Qwen 王座 0.8442、峰值 -63%（2026-09-15）
+
+三條停止條件一輪全達成。ledger 共 235 條。
+
+**Chunk 突破（停止 a＋c）。**CHUNK_PRE=4096（cache 接力分段 prefill，數學一致）＋CHUNK_HEAD=2048（分段 lm_head＋topk，[T,V] 全 logits 永不落地）＋SPARSE_BLK（只留 pi/pv，blend 時逐行在 scratch 展開——nb_blend 只讀 pre_idx，全在 pi 內，所以一致）。SmolLM2 A/B：兩次逐位一致（0.9276 @ 3.0s/2.9s，220×2）。forward 牆 3.8→2.4s（無 800MB logits、WDDM 暫存變小），PEAK 4.01→1.50GB（-63%）。新速度紀錄 2.9s＝34.5KB/s，+0e-4。兩個教訓都是拿跑次換的：(1) position 必須窗內相對——被鏡像的 recompute 路從不傳 position_ids（每窗都從 0 開始），絕對位置給出 1.5222；(2) 第一版 vecplain segfault（共用的 trailing block 只跑一次）才換來 exact mirror—— infra 留旗保留。停止 (a)：2.9＜4.4 一字不差 ✓。停止 (c)：-63% 還更快 ✓。
+
+**Qwen 線（停止 b）。**Qwen2.5-0.5B（Apache-2.0，942MB，新 tokenizer/id 空間所以另記線；MODEL_OVERRIDE 鉤子，解碼端同 env）。單段 28K tokens：K1024→0.8559 @ 5.4s（216 單位）；K2048→**0.8442** @ 5.6s（219 單位，PEAK 5.32GB——王座 pick，乾淨不分頁）；K4096/PF4096→0.8391 @ 14.9s 但 PEAK 9.11GB 爆出 8GB 卡（fwd 14.0s 抖動）——記為大詞表顯存牆證據，不當王座。Enabler：chunk 路（否則 8.7GB logits 直接 OOM）、sparse 路（避開 17GB dense blk）、uniform_cum_32 確定性 alphabet clamp（floor 自適 V，兩端無新 knob 一致）。停止 (b)：0.8442＜0.9003 ✓。
+
+**誠實剩餘。**1 秒還沒到：Qwen 只打一發，但一發 5.1s——發射少了，發射貴了；地板搬家，沒有消失。最明顯的未建組合是 chunk＋overlap（chunk 目前拒 OVERLAP＞0；SmolLM2 王座還跑 classic）。Qwen 調參剛起步（3 跑：無 gate/CONF/LAMBDA/PF 梯子、無 1MB 梯子）。Pareto 圖維持 SmolLM2 純血；Qwen 線先住本節，掙到自己的圖再說。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

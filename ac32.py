@@ -71,8 +71,11 @@ def stage1_cum_32(topk_probs, escape_mass, floor_frac=6.1035e-5):
 
 def uniform_cum_32(n, floor_frac=2.0e-5):
     # Big-n uniform needs a small floor (n x 64 counts > TOTAL32).
+    # Auto-clamp so big vocabs (152K) fit: deterministic in n, so both
+    # sides agree without new knobs.
+    _f = min(floor_frac, ((TOTAL32 - 1) // max(1, n)) / TOTAL32)
     p = np.ones(n, dtype=np.float64) / n
-    return probs_to_freqs_32(p, floor_frac)[1]
+    return probs_to_freqs_32(p, _f)[1]
 
 
 def cache_rest_cum_32(cache_full, rest_ids, floor_frac=2.2e-5):

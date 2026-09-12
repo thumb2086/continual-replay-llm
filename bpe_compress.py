@@ -23,7 +23,7 @@ from real_compression import (
     probs_to_freqs, ArithmeticEncoder, ArithmeticDecoder, TOTAL,
 )
 
-MODEL_DIR = "./data/cloud/SmolLM2-135M"
+MODEL_DIR = os.environ.get("MODEL_OVERRIDE", "./data/cloud/SmolLM2-135M")
 TOP_K = int(os.environ.get("TOP_K", "2048"))
 BLOCK_TOKENS = int(os.environ.get("BLOCK_TOKENS", "8192"))
 

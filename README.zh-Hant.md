@@ -1,12 +1,13 @@
 # Continual Replay LLM＋實用神經壓縮
 
-Replay-first 的小串流語言模型持續學習——用在**實用神經文本壓縮**：SmolLM2-135M ensemble 在 enwik8 上 **0.9003 bits/byte**（同級切片贏 0.9389 SOTA 線 4.1%），每個數字都是實測，每次失敗都留著。英文版見 [`README.md`](README.md)。
+Replay-first 的小串流語言模型持續學習——用在**實用神經文本壓縮**：SmolLM2-135M ensemble 在 enwik8 上 **0.9003 bits/byte**（同級切片贏 0.9389 SOTA 線 4.1%），chunked-exact 速度線 **2.9 秒**（34.5KB/s，峰值 1.50GB），Qwen2.5-0.5B 線 **0.8442 bits/byte**，每個數字都是實測，每次失敗都留著。英文版見 [`README.md`](README.md)。
 
-## 頭條數字（全實測，2026-09-14）
+## 頭條數字（全實測，2026-09-15）
 
 | 系統 | bpb ↓ | 速度 | 無損檢查 |
 |---|---|---|---|
-| **我們 v13（本 repo）** | **0.9003** | 忙碌箱 **18.9 KB/s**（ov0/K1024＋gather，5.3 秒） | 220/220 roundtrip |
+| **我們 v13 chunked（速度）** | 0.9276 | 忙碌箱 **34.5 KB/s**（ov0/K1024＋chunk，2.9 秒，峰值 1.50GB） | 220/220 roundtrip |
+| **我們 Qwen2.5-0.5B（比率王座）** | **0.8442** | 18.3 KB/s（單段 28K K2048，5.6 秒） | 219/219 roundtrip |
 | Nacrith（SOTA，同切片 H2H） | 1.2248 | 0.25 KB/s（他們的 CPU 版） | byte-exact ✓ |
 | NNCP v2（參考值） | ~0.94 | 3.25 KB/s | — |
 | CMIX（文獻） | ~0.9 | ~0.1–1 KB/s | — |
