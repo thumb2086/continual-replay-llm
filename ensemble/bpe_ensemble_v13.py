@@ -106,11 +106,19 @@ def block_topk_gpu(probs_b, idx):
         # identical results, ~4x smaller sort workspace. (Unchunked
         # topk(k=8192) over [8192,49K] spiked VRAM -> WDDM paging -> 12GB
         # host RSS + GPU 100% thrash. See memdiag notes.)
-        for c0 in range(0, probs_b.shape[0], 2048):
-            pc = probs_b[c0:c0 + 2048]
-            _tv, _ti = torch.topk(pc, TOP_K, dim=1)
+        # v13-unchunk: retry single-shot (flash-era workspace is smaller;
+        # fewer launches = tighter burst = better boost residency).
+        _UNCH = int(os.environ.get("UNCHUNKED_TOPK", "1"))
+        _step = probs_b.shape[0] if _UNCH else 2048
+        for c0 in range(0, probs_b.shape[0], _step):
+            pc = probs_b[c0:c0 + _step]
             _pv, _pi = torch.topk(pc, PREFILTER, dim=1)
-            tvs.append(_tv)
+            # v13-1topk: ti is the exact global top-TOP_K (subset of pi,
+            # PREFILTER > TOP_K) -- one full-V topk pass killed, zero
+            # numerical change (same values, same set).
+            _tv2, _tpos = torch.topk(_pv, TOP_K, dim=1)
+            _ti = torch.gather(_pi, 1, _tpos)
+            tvs.append(_tv2)
             tis.append(_ti)
             pvs.append(_pv)
             pis.append(_pi)
@@ -485,6 +493,15 @@ def main():
     ).to(device).eval()
     V = model.config.vocab_size
     print(f"  Vocab: {V}")
+    # v13-sdpa: auto SDPA picks the MATH fallback on this model (2.3s/fwd);
+    # forcing flash/mem-efficient gives 0.20s/fwd (11x) on identical input.
+    # SDPA_BACKEND=flash|mem disables math globally; =auto keeps stock.
+    _sdpa_be = os.environ.get("SDPA_BACKEND", "flash")
+    if _sdpa_be in ("flash", "mem"):
+        torch.backends.cuda.enable_math_sdp(False)
+        torch.backends.cuda.enable_flash_sdp(True)
+        torch.backends.cuda.enable_mem_efficient_sdp(True)
+        print(f"  SDPA backend forced: {_sdpa_be} (math disabled)")
     # v13-rope: rotary cos/sin are identical every same-length forward
     # (9.9s/73s in profile, pure recompute). Cache them: bitwise-identical
     # (same tensors reused), tripwire falls back on non-arange positions
@@ -697,6 +714,10 @@ def main():
     t = time.time()
     ph_fwd = ph_st = ph_xfer = ph_loop = ph_code = ph_esc = ph_verify = ph_frz = 0.0
     ph_fwd_gpu = 0.0  # CUDA-event pure-GPU forward (immune to CPU contention)
+    _ev_pairs = []  # (ev0, ev1) per forward; elapsed summed lazily at end
+    # v13-subclocks: split the contaminated fwd window (attn vs topk-launch
+    # vs D2H-sync vs shm-writes). Wall clocks; topk is launch-only (async).
+    t_attn = t_topk = t_d2h = t_shmw = 0.0
     _cpu = time.process_time  # CPU-time clock: time stolen by other apps doesn't count
     _FLOOR_INT = max(1, int(round(FLOOR_FRAC * TOTAL32)))
     # ---- v6 segments: (input ids, T0, NC, n_new) ----
@@ -936,6 +957,9 @@ def main():
             _ev0.record()
             _xin = torch.tensor(_fresh, device=device).unsqueeze(0)
             _nfr = len(_fresh)
+            if int(os.environ.get("SHAPE_DEBUG", "0")) and si == 1:
+                print(f"  [shdbg] fresh={_nfr} B={_B} NC={NC} F0={_F0} xin={tuple(_xin.shape)}", flush=True)
+            _t_attn0 = time.time()
             if USE_ORT:
                 # EXPERIMENTAL/UNRUN path (see _ort_forward).
                 _lg_b = _ort_forward(_xin, _abs_pos, device)
@@ -964,16 +988,31 @@ def main():
                 # entries (~0.7GB, fits). Full-file needs chain-restarts.
                 _lg_b = _out.logits[0]  # [nfr, V] fp16 GPU
                 del _out, _xin
+            if int(os.environ.get("SHAPE_DEBUG", "0")) and si == 1:
+                print(f"  [shdbg] lg={tuple(_lg_b.shape)}", flush=True)
+            t_attn += time.time() - _t_attn0
             if USE_GPU_TOPK:
+                _t_topk0 = time.time()
+                # v13-fp16sm: fp16 softmax halves GPU traffic (WDDM-proven:
+                # pure PCIe is 0.12s; the 6.1s d2h is GPU fp32-softmax exec).
+                # Values shift in last bits -> ratio gate +/-3e-4, verify must pass.
+                _FP16SM = int(os.environ.get("USE_FP16_SOFTMAX", "1"))
                 with torch.no_grad():
-                    probs_b = torch.softmax(_lg_b.float(), dim=-1)
+                    probs_b = torch.softmax(
+                        _lg_b if _FP16SM else _lg_b.float(), dim=-1)
                 (tv_f, ti_f), (pv_f, pi_f) = block_topk_gpu(probs_b, 0)
+                if int(os.environ.get("SHAPE_DEBUG", "0")) and si == 1:
+                    print(f"  [shdbg] probs={tuple(probs_b.shape)} tv_f={tuple(np.shape(tv_f))} ti_f={tuple(np.shape(ti_f))}", flush=True)
+                t_topk += time.time() - _t_topk0
+                _t_d2h0 = time.time()
                 # (no explicit sync: stream order + the .cpu() below already syncs)
                 if USE_FP16_XFER:
                     blk_f = probs_b.half().cpu().numpy().astype(np.float32)
                 else:
                     blk_f = probs_b.float().cpu().numpy()
                 probs_b = None
+                t_d2h += time.time() - _t_d2h0
+                _t_shmw0 = time.time()
                 _par = si % 2  # ping-pong: prev seg's finish may still read the other slice
                 tv = _shm_tv[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, TOP_K), dtype=np.float32)
                 ti = _shm_ti[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, TOP_K), dtype=np.int64)
@@ -992,6 +1031,7 @@ def main():
                 _carry = (tv_f[-1].copy(), ti_f[-1].copy(),
                           pi_f[-1].copy(), blk_f[-1].copy())
                 del tv_f, ti_f, pv_f, pi_f, blk_f
+                t_shmw += time.time() - _t_shmw0
             else:
                 _par = si % 2  # same ping-pong (submit always references it)
                 lg_f = _lg_b.float().cpu().numpy()
@@ -1010,11 +1050,13 @@ def main():
             del _lg_b
             torch.cuda.empty_cache()
             _ev1.record()
-            torch.cuda.synchronize()
+            # (no explicit sync: ordering via stream + .cpu() syncs; GPU
+            # time is summed lazily at end from recorded events, so this
+            # segment's queue-wait is not paid here)
             if _hi_stream is not None:
                 torch.cuda.set_stream(_prev_stream)
-                ph_fwd += time.time() - _ta
-                ph_fwd_gpu += _ev0.elapsed_time(_ev1) / 1000.0
+            ph_fwd += time.time() - _ta
+            _ev_pairs.append((_ev0, _ev1))
             _t0w = time.time()
             if Pend is not None:
                 if _fr is not None:
@@ -1171,8 +1213,12 @@ def main():
     print(f"  PHASES: fwd={ph_fwd:.1f}s topk={ph_st:.1f}s xfer={ph_xfer:.1f}s "
           f"frz={ph_frz:.1f}s loop={ph_loop:.1f}s code={ph_code:.1f}s esc={ph_esc:.1f}s verify={ph_verify:.1f}s")
     print(f"  MIX: plain={_n_plain} blend={_n_blend} loopA_cpu={ph_loopA:.1f}s loopB_cpu={ph_loopB:.1f}s loop_wall={ph_loop:.1f}s")
+    torch.cuda.synchronize()  # single drain: all recorded events complete here
+    for _a, _b in _ev_pairs:
+        ph_fwd_gpu += _a.elapsed_time(_b) / 1000.0
     print(f"  CLOCKS: gpu_fwd={ph_fwd_gpu:.1f}s fwd_wall={ph_fwd:.1f}s "
-          f"stolen_fwd~={ph_fwd - ph_fwd_gpu:.1f}s stolen_loop~={ph_loop - (ph_loopA / 4 + ph_loopB):.1f}s")
+           f"stolen_fwd~={ph_fwd - ph_fwd_gpu:.1f}s stolen_loop~={ph_loop - (ph_loopA / 4 + ph_loopB):.1f}s")
+    print(f"  SUBCLOCKS: attn={t_attn:.1f}s topk_launch={t_topk:.1f}s d2h={t_d2h:.1f}s shmw={t_shmw:.1f}s")
     _pool.shutdown()
     _rest_pool.shutdown()
     if _proc_pool is not None:

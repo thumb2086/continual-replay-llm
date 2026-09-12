@@ -8,7 +8,7 @@ Replay-first continual learning for small streaming language models — applied 
 
 | System | bpb ↓ | Speed | Lossless check |
 |---|---|---|---|
-| **Ours v11 (this repo)** | **0.9139** | 2.3 KB/s busy (v11) · 5.3 quiet · **8.6 speed crown** (ov0/N2, rope-cache) | 220/220 roundtrip |
+| **Ours v13 (this repo)** | **0.9003** | busy box **10.2 KB/s** (ov0, 9.8 s) · ratio crown ov4096/K8192 @ 24.0 s | 220/220 roundtrip |
 | Nacrith (SOTA, same-slice H2H) | 1.2248 | 0.25 KB/s (their CPU build) | byte-exact ✓ |
 | NNCP v2 (ref value) | ~0.94 | 3.25 KB/s | — |
 | CMIX (literature) | ~0.9 | ~0.1–1 KB/s | — |
@@ -22,7 +22,7 @@ Classical codecs are ~10⁶× faster at 2–3× worse ratio — different worlds
 ![Speed vs ratio, article region](pareto_off50.png)
 ![Speed vs ratio, hard region](pareto_off75.png)
 
-Pareto (quiet box, all verified 220/220): crown ov4096 0.9139 @ 19.4 s, knee ov2048 0.9194 @ 14.2 s (7.0 KB/s), fastest ov0 0.9268 @ 12.0 s (8.3 KB/s). v2: 19 points (fine overlap grid + off75 hard-region curve + two 1MB diamonds incl. 1MB@off25 **0.9076**). Final iteration (cProfile-guided): rope-cache −24% fwd (bitwise-identical), N=2 procs optimal (2<1<4<6<8), gc/cudnn/empty-cache all null → **hardware limit declared: 11.6 s = 8.6KB/s** (fwd is WDDM-launch-bound). Script: `tools/pareto_plot.py`.
+Pareto (busy box, all verified 220/220): crown ov4096/K8192 0.9003 @ 24.0 s, knee ov2048 0.9194 @ 12.0 s (8.3 KB/s), fastest ov0 0.9268 @ 9.8 s (10.2 KB/s, 10KB/s crossed). K ladder: 1024→0.9139 @ 17.3 s / 2048→0.9050 @ 18.0 s / 4096→0.9013 @ 20.2 s. v3: 22 points (K ladder + fine overlap grid + off75 hard-region curve + two 1MB diamonds incl. 1MB@off25 **0.9076**). Final iteration (cProfile-guided): rope-cache −24% fwd (bitwise-identical), N=2 procs optimal (2<1<4<6<8), gc/cudnn/empty-cache all null → **hardware limit declared: 11.6 s = 8.6KB/s** (fwd is WDDM-launch-bound). Script: `tools/pareto_plot.py`.
 
 Robustness (best config, 100KB slices): off0 0.8307 (template head) / off25 0.9218 / off50 0.9139 / off75 **0.9662 (loses to SOTA here — hard region, honestly kept)**; 1 MB flagship @ off50: **0.9222** (beats SOTA 1.8%), 220/220. 10KB/s: unreached (best 12.0 s); forward is launch-bound, no code lever left.
 
@@ -30,7 +30,7 @@ Honest scope: 0.9139 is a 100KB representative middle slice (enwik8 offset 50MB)
 
 ## Papers & reports (where is the paper?)
 
-- [`FINAL-REPORT.md`](FINAL-REPORT.md) — **the paper**: trajectory 1.2541→0.9139, 3 publishable insights (smoothing tax, finish-bit tax, boundary-bug disclosure), Nacrith H2H, speed/memory profile, full falsification log, honest caveats, file map. Start here.
+- [`FINAL-REPORT.md`](FINAL-REPORT.md) — **the paper**: trajectory 1.2541→0.9003, 3 publishable insights (smoothing tax, finish-bit tax, boundary-bug disclosure), Nacrith H2H, speed/memory profile, full falsification log, honest caveats, file map. Start here.
 - [`compression-paper.md`](compression-paper.md) — earlier work: 24-condition char-level grid, big-data training, data mixing (historical).
 - [`paper_sections_13_14_draft.md`](paper_sections_13_14_draft.md) — SmolLM2 transition notes (frozen/adapt, v1–v3 ensemble history).
 - [`paper.md`](paper.md), [`continual-learning-report.md`](continual-learning-report.md) — continual-learning track (replay-first).
@@ -106,7 +106,7 @@ Training uses local podcast transcripts (private, not included) + local enwik8/T
   year   = {2026},
 }
 @misc{smollm2-practical-ensemble-2026,
-  title  = {A Practical SmolLM2-135M Ensemble at 0.9139 bpb on enwik8},
+  title  = {A Practical SmolLM2-135M Ensemble at 0.9003 bpb on enwik8},
   author = {thumb2086},
   year   = {2026},
   note   = {FINAL-REPORT.md in this repo},

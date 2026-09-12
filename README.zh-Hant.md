@@ -1,12 +1,12 @@
 # Continual Replay LLM＋實用神經壓縮
 
-Replay-first 的小串流語言模型持續學習——用在**實用神經文本壓縮**：SmolLM2-135M ensemble 在 enwik8 上 **0.9139 bits/byte**（同級切片贏 0.9389 SOTA 線 2.7%），每個數字都是實測，每次失敗都留著。英文版見 [`README.md`](README.md)。
+Replay-first 的小串流語言模型持續學習——用在**實用神經文本壓縮**：SmolLM2-135M ensemble 在 enwik8 上 **0.9003 bits/byte**（同級切片贏 0.9389 SOTA 線 4.1%），每個數字都是實測，每次失敗都留著。英文版見 [`README.md`](README.md)。
 
 ## 頭條數字（全實測，2026-09-13）
 
 | 系統 | bpb ↓ | 速度 | 無損檢查 |
 |---|---|---|---|
-| **我們 v11（本 repo）** | **0.9139** | 忙碌箱 ~2.3 KB/s（v13＋proc＋pipeline ~3.7） | 220/220 roundtrip |
+| **我們 v13（本 repo）** | **0.9003** | 忙碌箱 **10.2 KB/s**（ov0，9.8 秒） | 220/220 roundtrip |
 | Nacrith（SOTA，同切片 H2H） | 1.2248 | 0.25 KB/s（他們的 CPU 版） | byte-exact ✓ |
 | NNCP v2（參考值） | ~0.94 | 3.25 KB/s | — |
 | CMIX（文獻） | ~0.9 | ~0.1–1 KB/s | — |
@@ -20,13 +20,13 @@ Replay-first 的小串流語言模型持續學習——用在**實用神經文�
 ![速度-比率，文章區](pareto_off50.png)
 ![速度-比率，硬區](pareto_off75.png)
 
-Pareto（安靜箱，全 220/220 驗證）：crown ov4096 0.9139 @ 19.4 秒，knee ov2048 0.9194 @ 14.2 秒（7.0 KB/s），最快 ov0 0.9268 @ 12.0 秒（8.3 KB/s）。v2：19 點（overlap 加密＋off75 硬區曲線＋兩顆 1MB 鑽石，含 1MB@off25 **0.9076**）。最終迭代（cProfile 指引）：rope-cache 省 forward 24%（逐位一致）、N=2 進程最優（2＜1＜4＜6＜8）、gc/cudnn/empty 全 null → **硬體極限宣告：11.6 秒＝8.6KB/s**（forward 卡在 WDDM-launch）。腳本：`tools/pareto_plot.py`。
+Pareto（忙碌箱，全 220/220 驗證）：crown ov4096/K8192 0.9003 @ 24.0 秒，knee ov2048 0.9194 @ 12.0 秒（8.3 KB/s），最快 ov0 0.9268 @ 9.8 秒（10.2 KB/s，10KB/s 過線）。K 階梯：1024→0.9139 @ 17.3 秒／2048→0.9050 @ 18.0 秒／4096→0.9013 @ 20.2 秒。v3：22 點（K 階梯＋overlap 加密＋off75 硬區曲線＋兩顆 1MB 鑽石，含 1MB@off25 **0.9076**）。最終迭代（cProfile 指引）：rope-cache 省 forward 24%（逐位一致）、N=2 進程最優（2＜1＜4＜6＜8）、gc/cudnn/empty 全 null → **硬體極限宣告：11.6 秒＝8.6KB/s**（forward 卡在 WDDM-launch）。腳本：`tools/pareto_plot.py`。
 
 穩健性（最佳配置，100KB 切片）：off0 0.8307（模板頭）／off25 0.9218／off50 0.9139／off75 **0.9662（這裡輸 SOTA——硬區間，如實保留）**；1MB flagship @ off50：**0.9222**（贏 SOTA 1.8%），220/220。10KB/s：未達（最快 12.0 秒）；forward 是 launch-bound，code 端無牌可打。
 
 ## 論文與報告（論文在哪？）
 
-- [`FINAL-REPORT.md`](FINAL-REPORT.md)——**交卷論文**：軌跡 1.2541→0.9139、3 個可發表洞察（smoothing 稅、finish-bit 稅、邊界 bug 揭露）、Nacrith H2H、速度/記憶體 profile、完整證偽史、誠實但書、文件地圖。從這裡開始看。
+- [`FINAL-REPORT.md`](FINAL-REPORT.md)——**交卷論文**：軌跡 1.2541→0.9003、3 個可發表洞察（smoothing 稅、finish-bit 稅、邊界 bug 揭露）、Nacrith H2H、速度/記憶體 profile、完整證偽史、誠實但書、文件地圖。從這裡開始看。
 - [`FINAL-REPORT.en.md`](FINAL-REPORT.en.md)——交卷論文英文版。
 - [`compression-paper.md`](compression-paper.md)——前期工作：24 條件 char 網格、大資料訓練、資料混合（歷史）。
 - [`paper_sections_13_14_draft.md`](paper_sections_13_14_draft.md)——SmolLM2 過渡筆記（frozen/adapt、v1–v3 ensemble 史）。
@@ -100,7 +100,7 @@ Ablation：replay-only 保住 Topic A 0.981x＋B 進步 21.96%（EWC-only 1.015x
   year   = {2026},
 }
 @misc{smollm2-practical-ensemble-2026,
-  title  = {A Practical SmolLM2-135M Ensemble at 0.9139 bpb on enwik8},
+  title  = {A Practical SmolLM2-135M Ensemble at 0.9003 bpb on enwik8},
   author = {thumb2086},
   year   = {2026},
   note   = {FINAL-REPORT.md in this repo},

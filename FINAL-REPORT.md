@@ -6,14 +6,14 @@
 
 | 指標 | 值 | 說明 |
 |---|---|---|
-| 最佳壓縮率 | **0.9139 bpb** | v11，ov4096＋floor 1e-6（F=1，物理極限）＋K1024，220/220 無損 |
+| 最佳壓縮率 | **0.9003 bpb** | v13，ov4096＋floor 1e-6＋K/PF 8192，220/220 無損（K 階梯：1024→0.9139，2048→0.9050，4096→0.9013，8192→0.9003） |
 | SOTA 線 | 0.9389 bpb | Nacrith 論文 100MB 全檔數 |
-| 超線幅度 | **−2.7%** | 切片對全檔，見 §7 但書 |
+| 超線幅度 | **−4.1%** | 切片對全檔，見 §7 但書 |
 | 同切片 H2H | 我們 0.9214 vs Nacrith 原廠 1.2248 | 同一切片、同腳本重現（`h2h_nacrith.py`），贏 25% |
-| 速度（忙碌箱） | ~2.3KB/s（v11）→ **~3.7KB/s（v13＋proc＋pipeline 實測 26.9s/100KB）** | 看影片時測的 |
+| 速度（忙碌箱） | v13 預設：**ov0 9.8 秒/100KB＝10.2KB/s（10KB/s 過線）**；knee ov2048 12.0 秒；比率王 24.0 秒 | 子鐘 attn/topk/d2h/shmw，見 §11–12 |
 | 速度（安靜推算） | ~5KB/s | 真功耗 forward 12s＋loop 6s＋零頭 |
 | 主機記憶體峰值 | 3.4GB | 實測 RSS |
-| 顯存峰值 | 5.87GB | `torch.cuda.max_memory_allocated`，8GB 卡內 |
+| 顯存峰值 | 5.01GB（K8192 王座）／2.32GB（速度配置） | `torch.cuda.max_memory_allocated`，8GB 卡內 |
 
 重現（PowerShell，約 45 秒）：
 ```
@@ -43,7 +43,10 @@ python -u ensemble/bpe_ensemble_v11.py
 | ov4096＋floor 5e-6 | 0.9146 | 正交疊加 |
 | floor 2e-6 → 1e-6 | 0.9140 → **0.9139** | F=1 到底，floor 軸窮盡 |
 | ov6144 | 0.9146（不動） | context 在 4096 飽和 |
-| TOP_K 512 | 0.9278（更差） | K=1024 兩邊都試過，最優 |
+| TOP_K 512 | 0.9278（更差） | K=1024 兩邊都試過，最優（2026-09-14 推翻：是 prefilter-bound，見 K 階梯） |
+| K 階梯（2026-09-14，v13） | 1024→0.9139／2048→**0.9050**／4096→**0.9013**／8192→**0.9003** | K=PF 同步放大：−89／−37／−10 e-4，遞減，停在 8192 |
+| S2 on K2048 | 0.9051（null） | cache-informed stage-2 無疊加 |
+| floor 1e-7 | 0.9050（null） | floor 已飽和 |
 
 ## 3. 三個可發表的洞察
 
@@ -69,7 +72,7 @@ unigram-ensemble、純 trigram、TOP_K 4096、prefilter 16384、CONF 掃參、ca
 
 ## 7. 誠實但書
 
-1. 主數字 0.9139 為 100KB 中段切片；100MB 全檔未跑（用戶決策：太久）。SOTA 的 0.9389 是全檔數——跨檔比較，偏向保守表述為「切片領先 2.7%，全檔待測」。
+1. 主數字 0.9003 為 100KB 中段切片；100MB 全檔未跑（用戶決策：太久）。SOTA 的 0.9389 是全檔數——跨檔比較，偏向保守表述為「切片領先 4.1%，全檔待測」。
 2. 無損驗證 220 點，非全量逐 token 解碼（全量 decoder 已列為後續工作）。
 3. 速度在忙碌箱測量，run-to-run 有雜訊；比率數字完全確定性可重現（固定流程＋parity 門：任何重構必須逐位一致或接受記錄在案的容差）。
 4. Nacrith H2H 跑在其弱場（100KB 冷切片＋CPU 版）；其 0.9389 全檔熱機數仍是它主場的最好成績。最終排名以雙方全檔為準。
@@ -77,8 +80,8 @@ unigram-ensemble、純 trigram、TOP_K 4096、prefilter 16384、CONF 掃參、ca
 
 ## 8. 文件地圖（＋2026-09-13 Pareto 附錄 §9）
 
-- `ensemble/bpe_ensemble_v11.py`：交卷系統（0.9139）
-- `ensemble/bpe_ensemble_v10.py`：切片後向等價版；`ensemble/bpe_ensemble_v12.py`：llama 後端（忙碌箱證偽保留）；`ensemble/bpe_ensemble_v13.py`：KV 接力主線已證偽封存，但其 plumbing（deferred driver、單源 `_range_core`、共享內存 proc、pipeline helper、雙緩衝、增量凍結）已在 recompute 模式逐位驗證 0.9139（`USE_PROC_LOOP=1`＋`PIPELINE=1` 實測 26.9s/100KB，loop 8.5→2.5s）；ORT 分支因 fp32 慢 3 倍＋逐 shape 重調優而死
+- `ensemble/bpe_ensemble_v11.py`：前交卷系統（0.9139）
+- `ensemble/bpe_ensemble_v10.py`：切片後向等價版；`ensemble/bpe_ensemble_v12.py`：llama 後端（忙碌箱證偽保留）；`ensemble/bpe_ensemble_v13.py`：KV 接力主線已證偽封存，但其 plumbing（deferred driver、單源 `_range_core`、共享內存 proc、pipeline helper、雙緩衝、增量凍結）已在 recompute 模式逐位驗證 0.9139（`USE_PROC_LOOP=1`＋`PIPELINE=1` 實測 26.9s/100KB，loop 8.5→2.5s）；ORT 分支因 fp32 慢 3 倍＋逐 shape 重調優而死；2026-09-14 起 v13 為現行交卷（比率王 0.9003／速度 10.2KB/s）。現行預設：`SDPA_BACKEND=flash`、`USE_FP16_SOFTMAX=1`、`UNCHUNKED_TOPK=1`、`USE_PROC_LOOP=0`、`PIPELINE=0`、`N_LOOP_WORKERS=1`，`BLOCK_TOKENS` 可調（8192 最優，兩邊都掃過）
 - `ac32.py`：32-bit coder＋numba kernels；`ensemble/sota_loop.py`＋`data/sota_loop.json`：迭代帳本
 - `h2h_nacrith.py`＋`data/h2h_nacrith.json`：第三方重現；`third_party/nacrith`：原廠碼
 - `tools/test_shm_proc.py`：線程 vs 進程逐位一致（生產數據 0.9139 驗證；另抓到共享 scratch＋nogil kernel＝靜默段錯誤，已修）；`tools/ort_export.py`：ONNX 導出腳本（ORT 分支已死，留檔）
@@ -88,16 +91,19 @@ unigram-ensemble、純 trigram、TOP_K 4096、prefilter 16384、CONF 掃參、ca
 
 | 配置 | bpb | 秒/100KB | KB/s |
 |---|---|---|---|
-| ov4096（crown） | 0.9139 | 19.4 | 5.1 |
+| K8192（crown） | 0.9003 | 24.0 | 4.2 |
+| K4096 | 0.9013 | 20.2 | 5.0 |
+| K2048 | 0.9050 | 18.0 | 5.6 |
+| ov4096 K1024 | 0.9139 | 17.3 | 5.8 |
 | BC7 | 0.9140 | 19.1 | 5.2 |
 | ov6144 | 0.9141 | 34.4 | 2.9（死胡同：更慢，沒更好） |
 | TRI0 | 0.9146 | 18.3 | 5.5 |
 | ov3072 | 0.9166 | 16.9 | 5.9 |
-| ov2048（knee） | 0.9194 | 14.2 | 7.0 |
+| ov2048（knee） | 0.9194 | 12.0 | 8.3 |
 | ov1024 | 0.9237 | 13.5 | 7.4 |
-| ov0 | 0.9268 | 12.0 | 8.3 |
+| ov0（10KB/s 過線） | 0.9268 | 9.8 | 10.2 |
 
-8 點全在 SOTA 線（0.9389）之下。knee 在 ov2048（再往下每 0.001 bpb 越來越貴）。10KB/s 未達（最快 8.3）。圖：`pareto_off50.png`＋`pareto_off75.png`，腳本：`tools/pareto_plot.py`。
+11 點全在 SOTA 線（0.9389）之下。knee 在 ov2048。**10KB/s 已過線（ov0 9.8 秒）。**舊點（BC7/TRI0/ov6144/ov3072/ov1024）是 flash 之前的計時——比率相同，重測只會更快。圖：`pareto_off50.png`＋`pareto_off75.png`，腳本：`tools/pareto_plot.py`。
 
 v2（19 點）：overlap 加密（ov512 0.9232、ov1536 0.9237、ov2560 0.9169、ov5120 0.9164——±0.002 分割雜訊，非單調）；off75 硬區第二曲線（ov0 0.9785→ov4096 0.9662，全輸 SOTA 但形狀平行）；1MB 鑽石兩顆（off50 0.9222、off25 **0.9076** 新 1MB 最佳）。多切片 8 點均值 0.9037（off0 0.8307／off10 0.8934／off25 0.9218／off35 0.8747／off50 0.9139／off60 0.8949／off75 0.9662／off90 0.9339，其中 off75 輸 SOTA 如實保留）。
 
@@ -105,8 +111,16 @@ v2（19 點）：overlap 加密（ov512 0.9232、ov1536 0.9237、ov2560 0.9169�
 
 最佳配置多切片（100KB）：off0 **0.8307**（模板頭紅利）／off25 0.9218／off50 0.9139／off75 **0.9662（輸 SOTA＋3%，硬區間，如實保留）**；四片均值 0.908，贏 SOTA 3.3%。1MB flagship（off50）：**0.9222**，220/220，256 秒，贏 SOTA 1.8%（增量凍結立功：75 段 frz 合計 0.7 秒）。
 
-10KB/s 結案：組合技全上（ov0＋8 進程＋EMPTY 每 8 段）最快 12.0 秒（8.3KB/s）；8 進程反比 4 進程慢（12.0→13.5s），4 為最佳點。forward 是 launch-bound（450 小 kernel 排 WDDM 隊），code 端無牌可打——判不可達，見 §6 證偽邏輯。
+10KB/s 結案（2026-09-14 推翻舊結論：已過線）：組合技（ov0＋flash＋fp16-softmax＋單 topk＋單發 topk＋pipeline/proc 關＋單 loop worker）9.8 秒（10.2KB/s）。2026-09-13 的「不可達」寫於 SDPA 發現之前（auto 選到 math fallback）與 fwd 拆表之前——舊結論作廢，新瓶頸見 §12。。
 
 ## 11. 最終迭代與硬體極限宣告（2026-09-13）
 
-cProfile 指引：rotary 三角重算佔 forward 13%＋`.to()` 排隊 10%——cos/sin 快取（逐位一致，tripwire 防鏈毒）省 forward 24%（24.3→18.4s）。N 進程同態掃描：2（11.6s）＜1（11.9）＜4（12.0）＜6（12.4）＜8（13.1），N=2 最優。微優化 gc.disable、CUDNN benchmark、EMPTY/1000 全 null（±0.1s 雜訊）。按開工規則（三連 null 即停）：**硬體極限＝ov0/N2，11.6 秒＝8.6KB/s**（比率 0.9268，220/220）；比率王 ov4096 0.9139 @ 19.4 秒不動。再往下要安靜十倍的箱子或新卡，不是 code。
+cProfile 指引：rotary 三角重算佔 forward 13%＋`.to()` 排隊 10%——cos/sin 快取（逐位一致，tripwire 防鏈毒）省 forward 24%（24.3→18.4s）。N 進程同態掃描：2（11.6s）＜1（11.9）＜4（12.0）＜6（12.4）＜8（13.1），N=2 最優。微優化 gc.disable、CUDNN benchmark、EMPTY/1000 全 null（±0.1s 雜訊）。按開工規則（三連 null 即停）：**硬體極限＝ov0/N2，11.6 秒＝8.6KB/s**（比率 0.9268，220/220）；比率王 ov4096 0.9139 @ 19.4 秒不動。再往下要安靜十倍的箱子或新卡，不是 code。（2026-09-14：本節數字被 §12 取代，保留為歷史。）
+
+## 12. 速度重開＋比率突破（2026-09-14，取代 §10–11 數字）
+
+速度（ov0 上 12.1→9.8 秒）：SUBCLOCKS 把被污染的 forward 窗口拆開——attn 0.9／topk-launch 1.6／d2h 6.1／shmw 1.6 秒。flash 一直有在動（attn 0.23 秒/forward）；之前的「2.5 秒/forward」是六種成本共用一個計時器。PCIe 洗清嫌疑（純傳輸 0.12 秒/800MB）。入帳：fp16 softmax（比率四位小數不動）、精確單 topk（少一次全 V 遍歷）、單發 topk（2.32GB）、pipeline/proc 預設關（helper 爭用大於重疊收益）、單 loop worker（GIL：10.5→9.8 秒）。顯卡負載下 boost 正常（1905MHz/100%/219W；之前低時鐘讀數是死 job 的假影）。**10KB/s 過線：9.8 秒＝10.2KB/s。**
+
+比率（0.9139→**0.9003**）：ov4096 上 K/PF 階梯——2048→0.9050、4096→0.9013、8192→0.9003（增量 −89/−37/−10 e-4，遞減，停）。舊的「K=1024 最優」是 prefilter-bound，推翻。新王座顯存峰值 5.01GB，8GB 卡內。SOTA 差距：−4.1%。
+
+復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

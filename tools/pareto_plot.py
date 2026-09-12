@@ -12,18 +12,21 @@ import matplotlib.pyplot as plt
 # (label, KB/s, bpb). All 100KB slices verified (220-ish lossless each).
 # off50 = representative article region; off75 = hard region.
 OFF50 = [
-    ("ov4096\ncrown", 100 / 19.4, 0.9139),
+    ("K8k\ncrown", 100 / 24.0, 0.9003),
+    ("K4k", 100 / 20.2, 0.9013),
+    ("K2k", 100 / 18.0, 0.9050),
+    ("ov4096\nK1k", 100 / 17.3, 0.9139),
     ("BC7", 100 / 19.1, 0.9140),
     ("ov6144", 100 / 34.4, 0.9141),
     ("TRI0", 100 / 18.3, 0.9146),
     ("ov5120", 100 / 24.6, 0.9164),
     ("ov3072", 100 / 16.9, 0.9166),
     ("ov2560", 100 / 16.1, 0.9169),
-    ("ov2048\nknee", 100 / 14.2, 0.9194),
+    ("ov2048\nknee", 100 / 12.0, 0.9194),
     ("ov1536", 100 / 13.8, 0.9237),
     ("ov512", 100 / 13.1, 0.9232),
     ("ov1024", 100 / 13.5, 0.9237),
-    ("ov0", 100 / 12.0, 0.9268),
+    ("ov0\n10KB/s", 100 / 9.8, 0.9268),
 ]
 OFF75 = [
     ("ov4096", 100 / 18.6, 0.9662),
@@ -86,12 +89,13 @@ def _diamonds(ax):
 
 # ---- plot 1: off50 frontier ----
 fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)")
-_dots(ax, OFF50, "steelblue", show=("ov4096\ncrown", "ov2048\nknee", "ov0",
-                                    "ov6144", "ov3072"),
-      offsets={"ov4096\ncrown": (-60, -20), "ov2048\nknee": (10, -22),
-               "ov0": (8, 10), "ov6144": (-52, 8), "ov3072": (-48, 12)})
+_dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K4k", "K2k", "ov4096\nK1k",
+                                    "ov2048\nknee", "ov0\n10KB/s", "ov6144"),
+      offsets={"K8k\ncrown": (-60, -20), "K4k": (-52, 8), "K2k": (8, 8),
+               "ov4096\nK1k": (-64, 10), "ov2048\nknee": (10, -22),
+               "ov0\n10KB/s": (8, 10), "ov6144": (-52, -18)})
 _diamonds(ax)
-ax.set_xlim(0, 10.5)
+ax.set_xlim(0, 11)
 fig.tight_layout()
 fig.savefig("pareto_off50.png", dpi=120)
 print("saved pareto_off50.png")

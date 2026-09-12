@@ -1222,9 +1222,108 @@
    "id": "HW-LIMIT",
    "status": "declared",
    "note": "3 nulls (gc/cudnn/empty) + idea space exhausted (profile clean, backends optimal, fusion dead x4, batching OOM, precision floored). LIMIT: ov0/N2 11.6s = 8.6KB/s; ratio crown ov4096 0.9139 @ 19.4s. fwd is WDDM-launch-bound; only quieter box or new GPU moves it."
+  },
+  {
+   "id": "trace-fused",
+   "status": "dead",
+   "note": "torch.jit.trace falsified x3: dataclass output, grad-constants, unordered_map internals. dynamo/inductor needs Triton (no Windows). fusion-via-torch CLOSED."
+  },
+  {
+   "id": "sdpa-flash",
+   "status": "kept",
+   "bpb": 0.9268,
+   "elapsed_s": 12.0,
+   "note": "SDPA math->flash/mem: micro 2.32s->0.20s/fwd (11x). v13 SDPA_BACKEND=flash now default. attn subclock 0.9s/4fwd."
+  },
+  {
+   "id": "subclocks",
+   "status": "kept",
+   "note": "attn/topk_launch/d2h/shmw split: 0.9/1.6/6.1/1.6s. d2h proven = GPU softmax+topk exec pile-up (pure PCIe only 0.12s), not transfer."
+  },
+  {
+   "id": "fp16-softmax",
+   "status": "kept",
+   "bpb": 0.9268,
+   "elapsed_s": 11.6,
+   "note": "USE_FP16_SOFTMAX default 1. bpb EXACT at 4 decimals, -0.4s. Softmax exec, not bandwidth, dominates."
+  },
+  {
+   "id": "1topk-exact",
+   "status": "kept",
+   "bpb": 0.9268,
+   "elapsed_s": 11.6,
+   "note": "ti derived from pi (subset, exact). One full-V topk pass killed, zero numerical change."
+  },
+  {
+   "id": "gpu-clocks",
+   "status": "note",
+   "note": "nvidia-smi: idle 210MHz -> load 1905MHz/100%/219W. Boost OK under sustained load; first poll was dead-job artifact. v13 burst-sag remains (WDDM)."
+  },
+  {
+   "id": "pipeline-off",
+   "status": "kept",
+   "bpb": 0.9268,
+   "elapsed_s": 10.5,
+   "note": "PIPELINE=0 + PROC=0 beats pipelined 11.6s. Helper-thread contention cost > overlap gain. Defaults already 0."
+  },
+  {
+   "id": "loopw1-gil",
+   "status": "kept",
+   "bpb": 0.9268,
+   "elapsed_s": 9.8,
+   "note": "N_LOOP_WORKERS=1 beats 8 (10.5s). GIL convicted: fewer threads = tighter launch cadence."
+  },
+  {
+   "id": "unchunked-topk",
+   "status": "kept",
+   "bpb": 0.9268,
+   "elapsed_s": 9.9,
+   "note": "UNCHUNKED_TOPK default 1. Single-shot topk, PEAK_VRAM 2.32GB (v8 OOM fear obsolete). Slice-bug fixed (c0:c0+_step)."
+  },
+  {
+   "id": "crown-newdefaults",
+   "status": "kept",
+   "bpb": 0.9139,
+   "elapsed_s": 17.3,
+   "note": "Crown ov4096/K1024/floor1e-6 re-validated EXACT under all new defaults. 19.4s->17.3s."
+  },
+  {
+   "id": "K2048",
+   "status": "kept",
+   "bpb": 0.905,
+   "elapsed_s": 18.0,
+   "note": "NEW RATIO RECORD (was 0.9139). K1024->2048 on crown ov4096 base. -89e-4."
+  },
+  {
+   "id": "S2-on-K2048",
+   "status": "null",
+   "bpb": 0.9051,
+   "elapsed_s": 18.0,
+   "note": "USE_CACHE_S2=1: 0.9051 vs 0.9050, noise. S2 dead on K2048 base."
+  },
+  {
+   "id": "floor1e-7",
+   "status": "null",
+   "bpb": 0.905,
+   "elapsed_s": 17.9,
+   "note": "FLOOR 1e-6->1e-7 identical. Floor saturated."
+  },
+  {
+   "id": "K4096",
+   "status": "kept",
+   "bpb": 0.9013,
+   "elapsed_s": 20.2,
+   "note": "NEW RECORD. K/PF 4096. -37e-4. The 1topk-exact subset property holds at all K."
+  },
+  {
+   "id": "K8192",
+   "status": "crown",
+   "bpb": 0.9003,
+   "elapsed_s": 24.0,
+   "note": "NEW RATIO CROWN. K/PF 8192, PEAK 5.01GB safe. Diminishing (-89/-37/-10): K scaling stops here."
   }
  ],
  "done": false,
- "best_slice_bpb": 0.9139,
+ "best_slice_bpb": 0.9003,
  "status": "handed-in-B"
 }

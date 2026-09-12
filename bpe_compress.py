@@ -25,7 +25,7 @@ from real_compression import (
 
 MODEL_DIR = "./data/cloud/SmolLM2-135M"
 TOP_K = int(os.environ.get("TOP_K", "2048"))
-BLOCK_TOKENS = 8192
+BLOCK_TOKENS = int(os.environ.get("BLOCK_TOKENS", "8192"))
 
 # ---- Ensemble config: blend LLM probs with causal unigram cache ----
 # p_mix = LAMBDA * p_llm + (1-LAMBDA) * p_cache, all on GPU.
