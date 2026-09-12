@@ -167,4 +167,12 @@ gather（logits 上 topk＋lse＋pi-gather＋CPU exp＋稀疏 blk，numba V-stam
 
 刪 10 個前 flash 計時（BC7/ov6144/TRI0/ov5120/ov3072/ov2560/ov1536/ov512/ov1024/ov0-classic——舊調度時代）。6 新跑全 220/220：王座 classic 重驗一字不差 0.9003（後面所有改動在旗關時零影響）；knee＋gather 0.9194 不動 @ 5.9 秒（knee 處 pi-only 代價約 0，12.0→5.9 秒）；ov1024＋gather 0.9241@5.5 秒；K3072＋gather 0.9029@9.7 秒（階梯填補）；ov3072K8＋gather 0.9026@15.0 秒（大 K 下 overlap 還有 0.002 差距）；ov0K2＋gather 0.9183@5.7 秒。OFF50 現 17 個現行 code 點。王座 0.9003／速度 18.9KB/s 不動。
 
+## 20. WSL 速度電池：12.9→6.6 秒、1 秒判決（2026-09-14）
+
+Windows 微調：K512＋gather 史上最快 4.9 秒但＋146e-4 比率（拒收——不要比率的速度不值錢）；alloc 兩次 null；安靜箱 alone 5.3–7.4→5.0 秒（箱子狀態約 2 秒擺幅——所有速度數都帶這個 band）。
+
+WSL（100KB，全程 0.9271±1e-4，全 220/220）：eager 12.9→graph 7.9（−39%：無 WDDM replay 終於生效——差分證明牆就是 WDDM）→線程 2 配 7.2（Linux 翻轉 Windows GIL 結論）→proc-fork-2 **6.6 秒**（無 spawn 罰則＋自家 GIL）→proc-4/線程-4 null（N=2 到處最優）。
+
+1 秒判決：這片矽到不了。地板數學（100KB 4 段）：attention-GPU 4×0.2＋後處理 4×0.3＋CPU loop/code≈3 秒不可約；forward 減不到 4 發（模型天花板 8192，16K 證過垃圾）。已入帳最佳：安靜 Win 5.0 秒／WSL 6.6 秒。重開條件：forward 更少的模型、5 倍矽、或全閒置。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

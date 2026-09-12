@@ -1628,6 +1628,67 @@
    "bpb": 0.9026,
    "elapsed_s": 15.0,
    "note": "ov3072/K8192+gather: 0.9026@15s=6.7KB/s. Overlap still matters at big K (0.002 gap to ov4096). New Pareto point."
+  },
+  {
+   "id": "K512-gather",
+   "status": "dead",
+   "bpb": 0.9414,
+   "elapsed_s": 4.9,
+   "note": "K512+gather: fastest ever 4.9s BUT +146e-4 ratio (tail compounds at small K; classic K512 was only +10e-4). REJECTED on ratio gate. Speed without ratio is cheap."
+  },
+  {
+   "id": "alloc-gather",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 4.9,
+   "note": "alloc-conf on gather path: 4.9 vs control 5.0, in noise. Null twice."
+  },
+  {
+   "id": "quiet-band",
+   "status": "kept",
+   "bpb": 0.9272,
+   "elapsed_s": 5.0,
+   "note": "Box went quiet: baseline 5.3-7.4 band -> 5.0s same config. Box state ~=2s swing. All speed numbers must be read with band."
+  },
+  {
+   "id": "wsl-graphs",
+   "env": "wsl",
+   "status": "kept",
+   "bpb": 0.9271,
+   "elapsed_s": 7.9,
+   "note": "GRAPHS WIN ON LINUX: 12.9s->7.9s (-39%), parity -1e-4. Differential proof the wall was WDDM: same replay null on Windows. PEAK 4.77GB."
+  },
+  {
+   "id": "wsl-loopw2",
+   "env": "wsl",
+   "status": "kept",
+   "bpb": 0.9271,
+   "elapsed_s": 7.2,
+   "note": "WSL LOOPW=2+graphs: 7.2s (beats 1 worker 7.9s). Linux thread contention differs from Windows GIL verdict."
+  },
+  {
+   "id": "wsl-loopw4",
+   "env": "wsl",
+   "status": "null",
+   "bpb": 0.9271,
+   "elapsed_s": 7.3,
+   "note": "WSL LOOPW=4 ties 2 (7.3 vs 7.2). 2 optimal on WSL."
+  },
+  {
+   "id": "wsl-proc2",
+   "env": "wsl",
+   "status": "kept",
+   "bpb": 0.9271,
+   "elapsed_s": 6.6,
+   "note": "WSL PROC fork N=2+graphs: 6.6s (beats threads 7.2s). Fork has no spawn penalty on Linux + own GIL. WSL trajectory: 12.9->7.9->7.2->6.6 (-49%)."
+  },
+  {
+   "id": "wsl-proc4",
+   "env": "wsl",
+   "status": "null",
+   "bpb": 0.9271,
+   "elapsed_s": 7.2,
+   "note": "WSL PROC N=4 loses to N=2 (7.2 vs 6.6). N=2 optimal everywhere. WSL BATTERY COMPLETE: 12.9->7.9->7.2->6.6."
   }
  ],
  "done": false,
