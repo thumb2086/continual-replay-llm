@@ -20,7 +20,7 @@ Reproduce (PowerShell, ~45 s):
 $env:BIGRAM_LAMBDA='0.99'; $env:ENWIK8_OFFSET_MB='50'; $env:BIGRAM_CONF='10'
 $env:TRIGRAM_CONF='3'; $env:TOP_K='1024'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
 $env:USE_CACHE_S2='0'; $env:USE_FP16_XFER='1'; $env:PREFILTER='2048'
-python -u bpe_ensemble_v11.py
+python -u ensemble/bpe_ensemble_v11.py
 # accept: bits/byte: 0.9139, Verified: 220 lossless, fails: 0
 ```
 
@@ -77,11 +77,11 @@ unigram-ensemble, pure trigram, TOP_K 4096, prefilter 16384, CONF sweep, cache-i
 
 ## 8. File map (+ 2026-09-13 Pareto appendix §9)
 
-- `bpe_ensemble_v11.py`: hand-in system (0.9139)
-- `bpe_ensemble_v10.py`: slice-backward-equivalent; `bpe_ensemble_v12.py`: llama backend (busy-box falsification kept); `bpe_ensemble_v13.py`: KV-chaining trunk falsified and shelved, but its plumbing (deferred driver, single-source `_range_core`, shared-memory procs, pipeline helper, double-buffering, incremental freeze) bitwise-validated 0.9139 in recompute mode (`USE_PROC_LOOP=1` + `PIPELINE=1`, 26.9 s/100KB, loop 8.5→2.5 s); ORT branch dead (fp32 3× slower + per-shape retuning)
-- `ac32.py`: 32-bit coder + numba kernels; `sota_loop.py` + `data/sota_loop.json`: iteration ledger
+- `ensemble/bpe_ensemble_v11.py`: hand-in system (0.9139)
+- `ensemble/bpe_ensemble_v10.py`: slice-backward-equivalent; `ensemble/bpe_ensemble_v12.py`: llama backend (busy-box falsification kept); `ensemble/bpe_ensemble_v13.py`: KV-chaining trunk falsified and shelved, but its plumbing (deferred driver, single-source `_range_core`, shared-memory procs, pipeline helper, double-buffering, incremental freeze) bitwise-validated 0.9139 in recompute mode (`USE_PROC_LOOP=1` + `PIPELINE=1`, 26.9 s/100KB, loop 8.5→2.5 s); ORT branch dead (fp32 3× slower + per-shape retuning)
+- `ac32.py`: 32-bit coder + numba kernels; `ensemble/sota_loop.py` + `data/sota_loop.json`: iteration ledger
 - `h2h_nacrith.py` + `data/h2h_nacrith.json`: third-party rerun; `third_party/nacrith`: upstream code
-- `test_shm_proc.py`: thread-vs-proc bitwise match (0.9139 on production data; also caught shared-scratch + nogil-kernel = silent segfault, fixed); `ort_export.py`: ONNX export script (ORT branch dead, kept for the record)
+- `tools/test_shm_proc.py`: thread-vs-proc bitwise match (0.9139 on production data; also caught shared-scratch + nogil-kernel = silent segfault, fixed); `tools/ort_export.py`: ONNX export script (ORT branch dead, kept for the record)
 - `compression-paper.md` + `paper_sections_13_14_draft.md`: earlier drafts (char pipeline and early ensemble history)
 
 ## 9. Pareto frontier (2026-09-13, quiet box, all 220/220)

@@ -38,42 +38,44 @@ Honest scope: 0.9139 is a 100KB representative middle slice (enwik8 offset 50MB)
 $env:BIGRAM_LAMBDA='0.99'; $env:ENWIK8_OFFSET_MB='50'; $env:BIGRAM_CONF='10'
 $env:TRIGRAM_CONF='3'; $env:TOP_K='1024'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
 $env:USE_CACHE_S2='0'; $env:USE_FP16_XFER='1'; $env:PREFILTER='2048'
-python -u bpe_ensemble_v11.py
+python -u ensemble/bpe_ensemble_v11.py
 # gate: bits/byte: 0.9139, Verified: 220 lossless, fails: 0
 ```
 
-Needs: `pip install torch numpy transformers` + SmolLM2-135M weights (`MODEL_DIR` in `bpe_compress.py`) + enwik8 at `data/cloud/enwik8` (not included).
+Needs: `pip install torch numpy transformers` + SmolLM2-135M weights (`MODEL_DIR` in `bpe_compress.py`) + enwik8 at `data/cloud/enwik8` (not included). Always run from this directory (scripts assume it for `data/` and imports).
 
 ## Structure
 
 ```
-bpe_ensemble_v11.py    Hand-in system (0.9139). v10 = equivalent predecessor
-bpe_ensemble_v12.py    llama.cpp CUDA backend (falsified on busy box, kept)
-bpe_ensemble_v13.py    v11 math + validated plumbing (proc pool, pipeline,
+ensemble/              SmolLM2 compression track (run as python ensemble/<script>.py)
+  bpe_ensemble_v11.py  Hand-in system (0.9139). v10 = equivalent predecessor
+  bpe_ensemble_v12.py  llama.cpp CUDA backend (falsified on busy box, kept)
+  bpe_ensemble_v13.py  v11 math + validated plumbing (proc pool, pipeline,
                        double-buffering, incremental freeze); KV-chaining and
                        ORT branches falsified, kept for the record
                        (USE_PROC_LOOP=1 + PIPELINE=1 → 0.9139, 26.9 s/100 KB)
-bpe_ensemble_v[3-9].py Iteration trail (each version = one idea)
-ac32.py                32-bit arithmetic coder + numba kernels (cached)
-bpe_compress.py        SmolLM2 base plumbing (env-driven knobs)
-sota_loop.py           Iteration driver (queue + ledger + stop rule)
+  sota_loop.py         Iteration driver (queue + ledger + stop rule;
+                       ledger cmds predate the move: prefix ensemble/ to rerun)
+  verify_enwik8_full.py / speed_ceiling.py / bench_onnx.py  Tooling
+continual/             Continual-learning track (run as python continual/<script>.py)
+  train_v3.py and compare_*/sweep_*/train_*/showdown/distill/eval/profile…
+  (train_v3.py + compare_ablation.py stay at root: imported by root core)
+archive/               Superseded trail (base + v3–v9, `git mv` kept history)
+tools/                 pareto_plot.py, test_shm_proc.py, ort_export.py
+ac32.py, real_compression.py, bpe_compress.py, train_v3.py, compare_ablation.py
+                       Shared core: imported by both tracks, stays at root
+                       (flat core is load-bearing; repackaging needs a 30-file
+                       import refactor, deferred)
+h2h_nacrith.py         Third-party H2H rerun (same slice, their code; root:
+                       needs sibling parallel/)
 data/sota_loop.json    The ledger: every idea's bpb/speed/verified
-h2h_nacrith.py         Third-party H2H rerun (same slice, their code)
 third_party/nacrith    Nacrith upstream (cloned, Apache-2.0; not committed)
 third_party/smollm2-135m-bf16.gguf  Official BF16 (not committed, 270 MB)
-test_shm_proc.py       Proc-loop plumbing test (standalone, CPU-only)
-ort_export.py          ONNX export for the ORT branch (unrun)
-verify_enwik8_full.py  Full-file verify tooling (see §7 caveats)
 logs/                  All run logs (stdout/stderr per experiment)
 data/*.json            Per-run result files (metrics only, no weights)
-train_v3.py, compare_*.py, sweep_*.py  Continual-learning track (see paper.md)
-archive/               Superseded trail (base + v3–v9, `git mv` kept history)
-                       (flat layout is load-bearing: 30+ scripts import
-                       real_compression/ac32 as siblings; repackaging needs
-                       a 30-file import refactor, deferred)
 ```
 
-Scripts run from this directory (`sys.path` assumes it); don't move them into subfolders without fixing imports. Experimental flags (`USE_PROC_LOOP`, `PIPELINE`, `USE_ORT`, `CHAIN`) default off — defaults are always the validated path.
+Scripts always run from this directory (`python ensemble/<script>.py`); subdir scripts resolve root imports via `sys.path.insert(0, ".")`. Experimental flags (`USE_PROC_LOOP`, `PIPELINE`, `USE_ORT`, `CHAIN`) default off — defaults are always the validated path.
 
 ## Continual-learning results (unchanged)
 

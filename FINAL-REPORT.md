@@ -20,7 +20,7 @@
 $env:BIGRAM_LAMBDA='0.99'; $env:ENWIK8_OFFSET_MB='50'; $env:BIGRAM_CONF='10'
 $env:TRIGRAM_CONF='3'; $env:TOP_K='1024'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
 $env:USE_CACHE_S2='0'; $env:USE_FP16_XFER='1'; $env:PREFILTER='2048'
-python -u bpe_ensemble_v11.py
+python -u ensemble/bpe_ensemble_v11.py
 # 判收：bits/byte: 0.9139，Verified: 220 lossless, fails: 0
 ```
 
@@ -77,11 +77,11 @@ unigram-ensemble、純 trigram、TOP_K 4096、prefilter 16384、CONF 掃參、ca
 
 ## 8. 文件地圖（＋2026-09-13 Pareto 附錄 §9）
 
-- `bpe_ensemble_v11.py`：交卷系統（0.9139）
-- `bpe_ensemble_v10.py`：切片後向等價版；`bpe_ensemble_v12.py`：llama 後端（忙碌箱證偽保留）；`bpe_ensemble_v13.py`：KV 接力主線已證偽封存，但其 plumbing（deferred driver、單源 `_range_core`、共享內存 proc、pipeline helper、雙緩衝、增量凍結）已在 recompute 模式逐位驗證 0.9139（`USE_PROC_LOOP=1`＋`PIPELINE=1` 實測 26.9s/100KB，loop 8.5→2.5s）；ORT 分支因 fp32 慢 3 倍＋逐 shape 重調優而死
-- `ac32.py`：32-bit coder＋numba kernels；`sota_loop.py`＋`data/sota_loop.json`：迭代帳本
+- `ensemble/bpe_ensemble_v11.py`：交卷系統（0.9139）
+- `ensemble/bpe_ensemble_v10.py`：切片後向等價版；`ensemble/bpe_ensemble_v12.py`：llama 後端（忙碌箱證偽保留）；`ensemble/bpe_ensemble_v13.py`：KV 接力主線已證偽封存，但其 plumbing（deferred driver、單源 `_range_core`、共享內存 proc、pipeline helper、雙緩衝、增量凍結）已在 recompute 模式逐位驗證 0.9139（`USE_PROC_LOOP=1`＋`PIPELINE=1` 實測 26.9s/100KB，loop 8.5→2.5s）；ORT 分支因 fp32 慢 3 倍＋逐 shape 重調優而死
+- `ac32.py`：32-bit coder＋numba kernels；`ensemble/sota_loop.py`＋`data/sota_loop.json`：迭代帳本
 - `h2h_nacrith.py`＋`data/h2h_nacrith.json`：第三方重現；`third_party/nacrith`：原廠碼
-- `test_shm_proc.py`：線程 vs 進程逐位一致（生產數據 0.9139 驗證；另抓到共享 scratch＋nogil kernel＝靜默段錯誤，已修）；`ort_export.py`：ONNX 導出腳本（ORT 分支已死，留檔）
+- `tools/test_shm_proc.py`：線程 vs 進程逐位一致（生產數據 0.9139 驗證；另抓到共享 scratch＋nogil kernel＝靜默段錯誤，已修）；`tools/ort_export.py`：ONNX 導出腳本（ORT 分支已死，留檔）
 - `compression-paper.md`＋`paper_sections_13_14_draft.md`：前期草稿（char 管線與早期 ensemble 史）
 
 ## 9. Pareto 前沿（2026-09-13，安靜箱，全部 220/220）

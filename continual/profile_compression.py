@@ -8,6 +8,7 @@ import time
 
 sys.stdout.reconfigure(encoding="utf-8")
 
+import sys as _sys_root; _sys_root.path.insert(0, ".")  # run-from-root: core lives at repo root
 from train_v3 import OnlineLLMV3, CharTokenizer, load_grouped_texts, create_chunks
 from compare_ablation import make_batch
 from real_compression import probs_to_freqs, ArithmeticEncoder

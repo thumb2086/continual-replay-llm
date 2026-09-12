@@ -35,7 +35,7 @@ Pareto（安靜箱，全 220/220 驗證）：crown ov4096 0.9139 @ 19.4 秒，kn
 $env:BIGRAM_LAMBDA='0.99'; $env:ENWIK8_OFFSET_MB='50'; $env:BIGRAM_CONF='10'
 $env:TRIGRAM_CONF='3'; $env:TOP_K='1024'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
 $env:USE_CACHE_S2='0'; $env:USE_FP16_XFER='1'; $env:PREFILTER='2048'
-python -u bpe_ensemble_v11.py
+python -u ensemble/bpe_ensemble_v11.py
 # 判收：bits/byte: 0.9139，Verified: 220 lossless, fails: 0
 ```
 
@@ -44,31 +44,32 @@ python -u bpe_ensemble_v11.py
 ## 目錄結構
 
 ```
-bpe_ensemble_v11.py    交卷系統（0.9139）。v10 是等價前代
-bpe_ensemble_v12.py    llama.cpp CUDA 後端（忙碌箱證偽，保留）
-bpe_ensemble_v13.py    v11 數學＋已驗證 plumbing（proc 池、pipeline、
+ensemble/              SmolLM2 壓縮線（`python ensemble/<腳本>.py` 跑）
+  bpe_ensemble_v11.py  交卷系統（0.9139）。v10 是等價前代
+  bpe_ensemble_v12.py  llama.cpp CUDA 後端（忙碌箱證偽，保留）
+  bpe_ensemble_v13.py  v11 數學＋已驗證 plumbing（proc 池、pipeline、
                        雙緩衝、增量凍結）；KV 接力與 ORT 分支已證偽留檔
                        （USE_PROC_LOOP=1 + PIPELINE=1 → 0.9139，26.9 秒/100KB）
-bpe_ensemble_v[3-9].py 迭代軌跡（每個版本＝一個想法）
-ac32.py                32-bit 算術編碼器＋numba kernels（帶緩存）
-bpe_compress.py        SmolLM2 底座 plumbing（環境變數開關）
-sota_loop.py           迭代驅動（想法隊列＋帳本＋停機規則）
+  sota_loop.py         迭代驅動（想法隊列＋帳本＋停機規則；
+                       帳本舊指令要加 ensemble/ 前綴才重跑）
+  verify_enwik8_full.py / speed_ceiling.py / bench_onnx.py  工具
+continual/             持續學習線（`python continual/<腳本>.py` 跑）
+  train/compare/sweep/showdown/distill/eval/profile…全在這
+  （train_v3.py＋compare_ablation.py 留守 root：被 root 核心 import）
+archive/               已退役軌跡（base＋v3–v9，`git mv` 保留歷史）
+tools/                 pareto_plot.py、test_shm_proc.py、ort_export.py
+ac32.py、real_compression.py、bpe_compress.py、train_v3.py、compare_ablation.py
+                       共享核心：兩線都 import，留守 root
+h2h_nacrith.py         第三方 H2H 重跑（同一切片，用他們的碼；留 root：
+                       要 sibling parallel/）
 data/sota_loop.json    帳本：每個想法的 bpb/速度/verified
-h2h_nacrith.py         第三方 H2H 重跑（同一切片，用他們的碼）
 third_party/nacrith    Nacrith 上游（clone，Apache-2.0；不進 repo）
 third_party/smollm2-135m-bf16.gguf  官方 BF16（不進 repo，270MB）
-test_shm_proc.py       proc-loop plumbing 測試（獨立，純 CPU）
-ort_export.py          ORT 分支的 ONNX 導出（未跑）
-verify_enwik8_full.py  全檔驗證工具（見誠實但書 §7）
 logs/                  所有跑 log（各實驗 stdout/stderr）
 data/*.json            各輪結果文件（只有指標，沒有權重）
-train_v3.py、compare_*.py、sweep_*.py  持續學習線（見 paper.md）
-archive/               已退役軌跡（base＋v3–v9，`git mv` 保留歷史）
-                       （扁平結構是承重的：30+ 腳本以 sibling 方式 import
-                       real_compression/ac32；打包重構需動 30 檔，先緩）
 ```
 
-腳本在本目錄跑（`sys.path` 假設如此）；不要搬進子目錄，否則 import 全斷。實驗開關（`USE_PROC_LOOP`、`PIPELINE`、`USE_ORT`、`CHAIN`）預設全關——預設值永遠是已驗證路徑。
+腳本永遠在本目錄跑（`python ensemble/<腳本>.py`）；子目錄腳本靠 `sys.path.insert(0, ".")` 找 root。實驗開關（`USE_PROC_LOOP`、`PIPELINE`、`USE_ORT`、`CHAIN`）預設全關——預設值永遠是已驗證路徑。
 
 ## 持續學習成績（不變）
 

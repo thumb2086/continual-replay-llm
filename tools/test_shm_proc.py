@@ -15,7 +15,7 @@ import time
 import numpy as np
 
 sys.path.insert(0, ".")
-from bpe_ensemble_v13 import (
+from ensemble.bpe_ensemble_v13 import (
     _range_core, _proc_init, _proc_range, _shm_alloc, _SHM_MAIN,
     _shm_cleanup,
 )
