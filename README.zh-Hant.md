@@ -20,7 +20,7 @@ Replay-first 的小串流語言模型持續學習——用在**實用神經文�
 ![速度-比率，文章區](pareto_off50.png)
 ![速度-比率，硬區](pareto_off75.png)
 
-Pareto（安靜箱，全 220/220 驗證）：crown ov4096 0.9139 @ 19.4 秒，knee ov2048 0.9194 @ 14.2 秒（7.0 KB/s），最快 ov0 0.9268 @ 12.0 秒（8.3 KB/s）。v2：19 點（overlap 加密＋off75 硬區曲線＋兩顆 1MB 鑽石，含 1MB@off25 **0.9076**）。8 切片均值 0.9037。腳本：`tools/pareto_plot.py`。
+Pareto（安靜箱，全 220/220 驗證）：crown ov4096 0.9139 @ 19.4 秒，knee ov2048 0.9194 @ 14.2 秒（7.0 KB/s），最快 ov0 0.9268 @ 12.0 秒（8.3 KB/s）。v2：19 點（overlap 加密＋off75 硬區曲線＋兩顆 1MB 鑽石，含 1MB@off25 **0.9076**）。最終迭代（cProfile 指引）：rope-cache 省 forward 24%（逐位一致）、N=2 進程最優（2＜1＜4＜6＜8）、gc/cudnn/empty 全 null → **硬體極限宣告：11.6 秒＝8.6KB/s**（forward 卡在 WDDM-launch）。腳本：`tools/pareto_plot.py`。
 
 穩健性（最佳配置，100KB 切片）：off0 0.8307（模板頭）／off25 0.9218／off50 0.9139／off75 **0.9662（這裡輸 SOTA——硬區間，如實保留）**；1MB flagship @ off50：**0.9222**（贏 SOTA 1.8%），220/220。10KB/s：未達（最快 12.0 秒）；forward 是 launch-bound，code 端無牌可打。
 

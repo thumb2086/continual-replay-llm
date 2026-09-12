@@ -84,6 +84,8 @@ USE_PROC_LOOP = int(os.environ.get("USE_PROC_LOOP", "0"))  # v13-proc: Phase-A i
 N_PROC = int(os.environ.get("N_PROC", "4"))
 PIPELINE = int(os.environ.get("PIPELINE", "0"))  # v13-pipe: helper-thread finish overlaps next fwd; default off
 EMPTY_EVERY = int(os.environ.get("EMPTY_EVERY", "1"))  # v13: empty_cache cadence (segs); default every seg
+GC_OFF = int(os.environ.get("GC_OFF", "0"))  # v13-micro: gc.disable() during run (cyclic trash can't form here); default off
+CUDNN_BM = int(os.environ.get("CUDNN_BM", "0"))  # v13-micro: cudnn.benchmark (no convs in Llama; expected null)
 RESTART_EVERY = int(os.environ.get("RESTART_EVERY", "16384"))  # v13-restart: fresh full-window chain restart bound (0 = pure chain = KNOWN GARBAGE beyond 8K positions)
 CHAIN = int(os.environ.get("CHAIN", "0"))  # v13: 1 = KV chaining (FALSIFIED: fp16-RoPE drift compounds to 2.64); 0 = full-window recompute (correct, v11 math)
 MEMDIAG = int(os.environ.get("MEMDIAG", "0"))  # v13: tracemalloc census (costs ~0.3s/seg); default off
@@ -457,6 +459,11 @@ def main():
     print("=" * 70)
     device = torch.device("cuda")
     t0 = time.time()
+    if GC_OFF:
+        import gc as _gc
+        _gc.disable()
+    if CUDNN_BM:
+        torch.backends.cudnn.benchmark = True
     try:
         _hi_stream = torch.cuda.Stream(priority=-5)
         print("  [stream] high-priority CUDA stream (-5): forward queue-jumps")
@@ -478,6 +485,31 @@ def main():
     ).to(device).eval()
     V = model.config.vocab_size
     print(f"  Vocab: {V}")
+    # v13-rope: rotary cos/sin are identical every same-length forward
+    # (9.9s/73s in profile, pure recompute). Cache them: bitwise-identical
+    # (same tensors reused), tripwire falls back on non-arange positions
+    # (which also keeps CHAIN=1 poisoning impossible).
+    _rope_cache = {}
+    _rope_mod = model.model.rotary_emb
+    _rope_orig_fwd = _rope_mod.forward
+
+    def _rope_cached(hidden_states, position_ids=None):
+        try:
+            _n = int(position_ids.shape[-1])
+            _p0 = int(position_ids[0, 0])
+            _p1 = int(position_ids[0, -1])
+            if _p0 != 0 or _p1 != _n - 1:
+                return _rope_orig_fwd(hidden_states, position_ids)
+            _key = (_n, str(position_ids.device), str(hidden_states.dtype))
+            _hit = _rope_cache.get(_key)
+            if _hit is None:
+                _hit = _rope_orig_fwd(hidden_states, position_ids)
+                _rope_cache[_key] = _hit
+            return _hit
+        except Exception:
+            return _rope_orig_fwd(hidden_states, position_ids)
+
+    _rope_mod.forward = _rope_cached
     if USE_ORT:
         _ort_init_session(model.config.num_key_value_heads,
                           model.config.hidden_size // model.config.num_attention_heads)  # raises loud if export/packages missing
@@ -1145,6 +1177,9 @@ def main():
     _rest_pool.shutdown()
     if _proc_pool is not None:
         _proc_pool.shutdown()
+    if GC_OFF:
+        _gc.enable()
+        _gc.collect()
     print(f"  PEAK_VRAM={torch.cuda.max_memory_allocated()/1024**3:.2f}GB "
           f"(bf={BATCH_FWD} ov={OVERLAP})")
 

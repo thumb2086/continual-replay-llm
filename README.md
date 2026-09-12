@@ -8,7 +8,7 @@ Replay-first continual learning for small streaming language models — applied 
 
 | System | bpb ↓ | Speed | Lossless check |
 |---|---|---|---|
-| **Ours v11 (this repo)** | **0.9139** | ~2.3 KB/s busy (~3.7 with v13＋proc＋pipeline) | 220/220 roundtrip |
+| **Ours v11 (this repo)** | **0.9139** | 2.3 KB/s busy (v11) · 5.3 quiet · **8.6 speed crown** (ov0/N2, rope-cache) | 220/220 roundtrip |
 | Nacrith (SOTA, same-slice H2H) | 1.2248 | 0.25 KB/s (their CPU build) | byte-exact ✓ |
 | NNCP v2 (ref value) | ~0.94 | 3.25 KB/s | — |
 | CMIX (literature) | ~0.9 | ~0.1–1 KB/s | — |
@@ -22,7 +22,7 @@ Classical codecs are ~10⁶× faster at 2–3× worse ratio — different worlds
 ![Speed vs ratio, article region](pareto_off50.png)
 ![Speed vs ratio, hard region](pareto_off75.png)
 
-Pareto (quiet box, all verified 220/220): crown ov4096 0.9139 @ 19.4 s, knee ov2048 0.9194 @ 14.2 s (7.0 KB/s), fastest ov0 0.9268 @ 12.0 s (8.3 KB/s). v2: 19 points (fine overlap grid + off75 hard-region curve + two 1MB diamonds incl. 1MB@off25 **0.9076**). 8-slice mean 0.9037. Script: `tools/pareto_plot.py`.
+Pareto (quiet box, all verified 220/220): crown ov4096 0.9139 @ 19.4 s, knee ov2048 0.9194 @ 14.2 s (7.0 KB/s), fastest ov0 0.9268 @ 12.0 s (8.3 KB/s). v2: 19 points (fine overlap grid + off75 hard-region curve + two 1MB diamonds incl. 1MB@off25 **0.9076**). Final iteration (cProfile-guided): rope-cache −24% fwd (bitwise-identical), N=2 procs optimal (2<1<4<6<8), gc/cudnn/empty-cache all null → **hardware limit declared: 11.6 s = 8.6KB/s** (fwd is WDDM-launch-bound). Script: `tools/pareto_plot.py`.
 
 Robustness (best config, 100KB slices): off0 0.8307 (template head) / off25 0.9218 / off50 0.9139 / off75 **0.9662 (loses to SOTA here — hard region, honestly kept)**; 1 MB flagship @ off50: **0.9222** (beats SOTA 1.8%), 220/220. 10KB/s: unreached (best 12.0 s); forward is launch-bound, no code lever left.
 

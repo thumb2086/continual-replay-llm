@@ -1189,6 +1189,39 @@
    "id": "PLOT-V2",
    "status": "done",
    "note": "19 points, KB/s axis, off50+off75 curves, 1MB diamonds."
+  },
+  {
+   "id": "rope-cache",
+   "status": "ok",
+   "bpb": 0.9139,
+   "elapsed_s": 20.3,
+   "note": "WIN: fwd -24% (24.3->18.4s). bitwise-identical by construction."
+  },
+  {
+   "id": "nproc-sweep",
+   "status": "ok",
+   "note": "N2 11.6 < N1 11.9 < N4 12.0 < N6 12.4 < N8 13.1. N=2 optimal. WIN (found optimum)."
+  },
+  {
+   "id": "micro-gc",
+   "status": "null",
+   "bpb": 0.9268,
+   "elapsed_s": 11.7
+  },
+  {
+   "id": "micro-cudnn",
+   "status": "null",
+   "bpb": 0.9268,
+   "elapsed_s": 11.6
+  },
+  {
+   "id": "micro-empty",
+   "status": "null"
+  },
+  {
+   "id": "HW-LIMIT",
+   "status": "declared",
+   "note": "3 nulls (gc/cudnn/empty) + idea space exhausted (profile clean, backends optimal, fusion dead x4, batching OOM, precision floored). LIMIT: ov0/N2 11.6s = 8.6KB/s; ratio crown ov4096 0.9139 @ 19.4s. fwd is WDDM-launch-bound; only quieter box or new GPU moves it."
   }
  ],
  "done": false,

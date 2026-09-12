@@ -106,3 +106,7 @@ v2 (19 points): fine overlap grid (ov512 0.9232, ov1536 0.9237, ov2560 0.9169, o
 Best config, multi-slice (100KB): off0 **0.8307** (template-head bonus) / off25 0.9218 / off50 0.9139 / off75 **0.9662 (loses to SOTA by 3%, hard region, honestly kept)**; 4-slice mean 0.908, beats SOTA by 3.3%. 1MB flagship (off50): **0.9222**, 220/220, 256 s, beats SOTA by 1.8% (incremental freeze earns it: 75 segs, 0.7 s total frz).
 
 10KB/s verdict: full combo (ov0 + 8 procs + EMPTY every 8) peaks at 12.0 s (8.3KB/s); 8 procs lose to 4 (12.0→13.5 s), 4 is optimal here. Forward is launch-bound (450 tiny kernels queueing at WDDM), no code lever left — ruled unreachable, same falsification logic as §6.
+
+## 11. Final iteration and hardware-limit declaration (2026-09-13)
+
+cProfile-guided: rotary trig recompute is 13% of forward + `.to()` queueing 10% — cos/sin cache (bitwise-identical, tripwire against chain poisoning) saves 24% forward (24.3→18.4 s). Controlled N-proc sweep: 2 (11.6 s) < 1 (11.9) < 4 (12.0) < 6 (12.4) < 8 (13.1), N=2 optimal. Micro-opts gc.disable, CUDNN benchmark, EMPTY/1000 all null (±0.1 s noise). Per the opening rule (three nulls stops it): **hardware limit = ov0/N2, 11.6 s = 8.6KB/s** (ratio 0.9268, 220/220); ratio crown ov4096 0.9139 @ 19.4 s stands. Beyond this needs a 10× quieter box or a new GPU, not code.
