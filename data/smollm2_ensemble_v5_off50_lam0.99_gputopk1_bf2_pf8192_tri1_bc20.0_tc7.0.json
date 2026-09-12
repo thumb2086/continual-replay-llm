@@ -1,0 +1,12 @@
+{
+  "model": "SmolLM2-135M-KNtrigram-ensemble-v5",
+  "bigram_lambda": 0.99,
+  "top_k": 2048,
+  "n_bytes": 102400,
+  "total_bits": 98281,
+  "bpb": 0.959775390625,
+  "escapes": 192,
+  "verified_ok": 200,
+  "verified_fail": 0,
+  "elapsed_s": 160.21536135673523
+}

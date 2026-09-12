@@ -1,0 +1,14 @@
+{
+  "model": "SmolLM2-135M-none",
+  "params": 134515008,
+  "trainable": 0,
+  "adapt_lr": 1e-05,
+  "top_k": 2048,
+  "n_bytes": 102400,
+  "total_bits": 128196,
+  "bpb": 1.2519140625,
+  "escapes": 207,
+  "verified_ok": 200,
+  "verified_fail": 0,
+  "elapsed_s": 76.23647332191467
+}

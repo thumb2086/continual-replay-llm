@@ -1,0 +1,12 @@
+{
+  "model": "SmolLM2-135M-frozen",
+  "params": 134515008,
+  "top_k": 2048,
+  "n_bytes": 102400,
+  "total_bits": 128422,
+  "bpb": 1.25412109375,
+  "escapes": 209,
+  "verified_ok": 200,
+  "verified_fail": 0,
+  "elapsed_s": 19.051023244857788
+}

@@ -1,0 +1,14 @@
+{
+  "model": "SmolLM2-135M-floor32-ensemble-v7",
+  "floor_frac": 1e-05,
+  "use_cache_s2": 1,
+  "bigram_lambda": 0.99,
+  "top_k": 1024,
+  "n_bytes": 102400,
+  "total_bits": 94377,
+  "bpb": 0.921650390625,
+  "escapes": 383,
+  "verified_ok": 220,
+  "verified_fail": 0,
+  "elapsed_s": 280.40102219581604
+}

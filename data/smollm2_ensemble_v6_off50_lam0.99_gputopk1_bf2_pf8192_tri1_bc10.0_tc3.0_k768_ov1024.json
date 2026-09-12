@@ -1,0 +1,12 @@
+{
+  "model": "SmolLM2-135M-overlapKN-ensemble-v6",
+  "bigram_lambda": 0.99,
+  "top_k": 768,
+  "n_bytes": 102400,
+  "total_bits": 97383,
+  "bpb": 0.951005859375,
+  "escapes": 499,
+  "verified_ok": 220,
+  "verified_fail": 0,
+  "elapsed_s": 255.31856274604797
+}

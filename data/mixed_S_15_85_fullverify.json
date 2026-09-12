@@ -1,0 +1,21 @@
+{
+  "params": 1377513,
+  "best_val": 3.943767533302307,
+  "frozen": {
+    "bpc": 7.31890625,
+    "chars_per_s": 15062.461807864089,
+    "verified": 3
+  },
+  "prefix40": {
+    "bpc": 7.28037109375,
+    "chars_per_s": 36862.41944276987,
+    "verified": 3
+  },
+  "enwik8": {
+    "bpc": 4.37683776370059,
+    "chars_per_s": 36386.00150876494,
+    "unk_rate": 0.02788220551378446,
+    "verified_ok": 798,
+    "verified_fail": 0
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "model": "SmolLM2-135M-practical-ensemble-v11",
+  "floor_frac": 1e-06,
+  "use_cache_s2": 0,
+  "bigram_lambda": 0.99,
+  "top_k": 512,
+  "n_bytes": 102400,
+  "total_bits": 95011,
+  "bpb": 0.927841796875,
+  "escapes": 640,
+  "verified_ok": 220,
+  "verified_fail": 0,
+  "elapsed_s": 44.86325812339783
+}

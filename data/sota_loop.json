@@ -1,0 +1,962 @@
+{
+ "ideas": [
+  {
+   "id": "lam097",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "lam099",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v4repro",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v4repro2",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v4full3",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v5repro2",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v5full2",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v4bfull",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v5bfull",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "conf_b5",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "conf_b20",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "conf_t3",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "conf_t15",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "pre16384",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "topk4096",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "pre16k_k4k",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "topk1024",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "topk512",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "topk768",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v6repro2",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v6full2",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v6k1024ov1k_b",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v6k1024ov2k_b",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v6k768ov1k_b",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v7parity",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v7floor",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v7full_c",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v8numba",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v8clean",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v8prof",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v8prof100k",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "batch2",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "combo",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "ov1024b",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "pref2048",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "floor5e6",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "ov4096",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "fastcombo",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "ok"
+  },
+  {
+   "id": "v4full",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v4full2",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v5repro",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v5full",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v6repro",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v6full",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v6k1024ov1k",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v6k1024ov2k",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v6k768ov1k",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v7full",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v7full_b",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "v8prof",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "",
+   "env": "",
+   "status": "error"
+  },
+  {
+   "id": "full100mb",
+   "cmd": "python -u bpe_ensemble_v8.py",
+   "result": "data/smollm2_ensemble_v8_off0_lam0.99_gputopk1_bf1_pf2048_tri1_bc10.0_tc3.0_k1024_ov4096_f5e-06_s20_nb1_kb102400.json",
+   "env": "BIGRAM_LAMBDA=0.99;ENWIK8_OFFSET_MB=0;ENWIK8_KB=102400;BIGRAM_CONF=10;TRIGRAM_CONF=3;TOP_K=1024;OVERLAP=4096;FLOOR_FRAC=5e-6;USE_CACHE_S2=0;PREFILTER=2048",
+   "status": "pending"
+  },
+  {
+   "id": "v9parity",
+   "cmd": "python -u bpe_ensemble_v9.py",
+   "result": "data\\smollm2_ensemble_v9_off50_lam0.99_gputopk1_bf1_pf8192_tri1_bc10.0_tc3.0_k1024_ov2048_f1e-05_s20_nb1_kb100.json",
+   "env": "v9 defaults=ov2048/floor1e-5",
+   "status": "ok"
+  },
+  {
+   "id": "full100mb-v9",
+   "cmd": "python -u bpe_ensemble_v9.py",
+   "result": "data/smollm2_ensemble_v9_off0_lam0.99_gputopk1_bf1_pf2048_tri1_bc10.0_tc3.0_k1024_ov4096_f5e-06_s20_nb1_kb102400.json",
+   "env": "BIGRAM_LAMBDA=0.99;ENWIK8_OFFSET_MB=0;ENWIK8_KB=102400;BIGRAM_CONF=10;TRIGRAM_CONF=3;TOP_K=1024;OVERLAP=4096;FLOOR_FRAC=5e-6;USE_CACHE_S2=0;PREFILTER=2048",
+   "status": "superseded-by-v10"
+  },
+  {
+   "id": "full100mb-v10",
+   "cmd": "python -u bpe_ensemble_v10.py",
+   "result": "data/smollm2_ensemble_v10_off0_lam0.99_gputopk1_bf1_pf2048_tri1_bc10.0_tc3.0_k1024_ov4096_f5e-06_s20_nb1_kb102400.json",
+   "env": "OFF0/KB102400/ov4096/floor5e-6/pf2048/xfer1",
+   "status": "stopped-by-user-speed-first",
+   "pid": 24432
+  }
+ ],
+ "history": [
+  {
+   "id": "lam097",
+   "status": "ok",
+   "bpb": 0.9607,
+   "kbs": 2.42,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 41.4
+  },
+  {
+   "id": "lam099",
+   "status": "ok",
+   "bpb": 0.9605,
+   "kbs": 2.45,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 40.8
+  },
+  {
+   "id": "v4repro",
+   "status": "ok",
+   "bpb": 3.8984,
+   "kbs": 0.4,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 252.8
+  },
+  {
+   "id": "v4repro2",
+   "status": "ok",
+   "bpb": 0.9605,
+   "kbs": 0.47,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 214.8
+  },
+  {
+   "id": "v4full3",
+   "status": "ok",
+   "bpb": 0.9604,
+   "kbs": 0.49,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 203.0
+  },
+  {
+   "id": "v5repro2",
+   "status": "ok",
+   "bpb": 0.9607,
+   "kbs": 0.41,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 244.0
+  },
+  {
+   "id": "v5full2",
+   "status": "ok",
+   "bpb": 0.9597,
+   "kbs": 0.43,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 232.5
+  },
+  {
+   "id": "v4bfull",
+   "status": "ok",
+   "bpb": 0.9604,
+   "kbs": 0.63,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 159.4
+  },
+  {
+   "id": "v5bfull",
+   "status": "ok",
+   "bpb": 0.9597,
+   "kbs": 0.61,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 163.1
+  },
+  {
+   "id": "conf_b5",
+   "status": "ok",
+   "bpb": 0.9597,
+   "kbs": 0.6,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 167.8
+  },
+  {
+   "id": "conf_b20",
+   "status": "ok",
+   "bpb": 0.9598,
+   "kbs": 0.62,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 160.2
+  },
+  {
+   "id": "conf_t3",
+   "status": "ok",
+   "bpb": 0.9595,
+   "kbs": 0.63,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 158.0
+  },
+  {
+   "id": "conf_t15",
+   "status": "ok",
+   "bpb": 0.96,
+   "kbs": 0.65,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 153.9
+  },
+  {
+   "id": "pre16384",
+   "status": "ok",
+   "bpb": 0.9597,
+   "kbs": 0.71,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 141.5
+  },
+  {
+   "id": "topk4096",
+   "status": "ok",
+   "bpb": 1.0132,
+   "kbs": 0.6,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 166.1
+  },
+  {
+   "id": "pre16k_k4k",
+   "status": "ok",
+   "bpb": 1.0131,
+   "kbs": 0.46,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 216.7
+  },
+  {
+   "id": "topk1024",
+   "status": "ok",
+   "bpb": 0.9499,
+   "kbs": 0.81,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 123.1
+  },
+  {
+   "id": "topk512",
+   "status": "ok",
+   "bpb": 0.9608,
+   "kbs": 0.71,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 139.9
+  },
+  {
+   "id": "topk768",
+   "status": "ok",
+   "bpb": 0.9531,
+   "kbs": 0.69,
+   "verified_ok": 200,
+   "verified_fail": 0,
+   "elapsed_s": 145.5
+  },
+  {
+   "id": "v6repro2",
+   "status": "ok",
+   "bpb": 0.9597,
+   "kbs": 0.68,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 146.2
+  },
+  {
+   "id": "v6full2",
+   "status": "ok",
+   "bpb": 0.957,
+   "kbs": 0.39,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 256.0
+  },
+  {
+   "id": "v6k1024ov1k_b",
+   "status": "ok",
+   "bpb": 0.9471,
+   "kbs": 0.38,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 264.5
+  },
+  {
+   "id": "v6k1024ov2k_b",
+   "status": "ok",
+   "bpb": 0.9431,
+   "kbs": 0.39,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 258.0
+  },
+  {
+   "id": "v6k768ov1k_b",
+   "status": "ok",
+   "bpb": 0.951,
+   "kbs": 0.39,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 255.3
+  },
+  {
+   "id": "v7parity",
+   "status": "ok",
+   "bpb": 0.9375,
+   "kbs": 0.35,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 286.3
+  },
+  {
+   "id": "v7floor",
+   "status": "ok",
+   "bpb": 0.9214,
+   "kbs": 0.37,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 269.9
+  },
+  {
+   "id": "v7full_c",
+   "status": "ok",
+   "bpb": 0.9217,
+   "kbs": 0.36,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 280.4
+  },
+  {
+   "id": "v8numba",
+   "status": "ok",
+   "bpb": 0.9213,
+   "kbs": 0.39,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 259.6
+  },
+  {
+   "id": "v8clean",
+   "status": "ok",
+   "bpb": 0.9213,
+   "kbs": 0.43,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 234.1
+  },
+  {
+   "id": "v8prof",
+   "status": "ok",
+   "bpb": 0.9707,
+   "kbs": 3.49,
+   "verified_ok": 52,
+   "verified_fail": 0,
+   "elapsed_s": 5.7
+  },
+  {
+   "id": "v8prof100k",
+   "status": "ok",
+   "bpb": 0.9213,
+   "kbs": 2.5,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 39.9
+  },
+  {
+   "id": "batch2",
+   "status": "ok",
+   "bpb": 0.9213,
+   "kbs": 0.52,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 193.0
+  },
+  {
+   "id": "combo",
+   "status": "ok",
+   "bpb": 0.9254,
+   "kbs": 0.56,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 180.2
+  },
+  {
+   "id": "ov1024b",
+   "status": "ok",
+   "bpb": 0.9254,
+   "kbs": 2.55,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 39.2
+  },
+  {
+   "id": "pref2048",
+   "status": "ok",
+   "bpb": 0.9213,
+   "kbs": 1.84,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 54.3
+  },
+  {
+   "id": "floor5e6",
+   "status": "ok",
+   "bpb": 0.9201,
+   "kbs": 1.69,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 59.0
+  },
+  {
+   "id": "ov4096",
+   "status": "ok",
+   "bpb": 0.9157,
+   "kbs": 1.55,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 64.4
+  },
+  {
+   "id": "fastcombo",
+   "status": "ok",
+   "bpb": 0.9254,
+   "kbs": 1.9,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 52.7
+  },
+  {
+   "id": "v4full",
+   "status": "error",
+   "wall_s": 122.7
+  },
+  {
+   "id": "v4full2",
+   "status": "error",
+   "wall_s": 128.2
+  },
+  {
+   "id": "v5repro",
+   "status": "error",
+   "wall_s": 105.2
+  },
+  {
+   "id": "v5full",
+   "status": "error",
+   "wall_s": 150.8
+  },
+  {
+   "id": "v6repro",
+   "status": "error",
+   "wall_s": 5.8
+  },
+  {
+   "id": "v6full",
+   "status": "error",
+   "wall_s": 5.7
+  },
+  {
+   "id": "v6k1024ov1k",
+   "status": "error",
+   "wall_s": 5.8
+  },
+  {
+   "id": "v6k1024ov2k",
+   "status": "error",
+   "wall_s": 5.7
+  },
+  {
+   "id": "v6k768ov1k",
+   "status": "error",
+   "wall_s": 5.7
+  },
+  {
+   "id": "v7full",
+   "status": "error",
+   "wall_s": 97.3
+  },
+  {
+   "id": "v7full_b",
+   "status": "error",
+   "wall_s": 111.4
+  },
+  {
+   "id": "v8prof",
+   "status": "error",
+   "wall_s": 139.6
+  },
+  {
+   "id": "v9parity",
+   "status": "ok",
+   "bpb": 0.9213,
+   "kbs": 1.71,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 58.5
+  },
+  {
+   "id": "v10parity",
+   "status": "ok",
+   "bpb": 0.9213,
+   "kbs": 2.4,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 41.6,
+   "peak_gb": 5.87,
+   "mix": "plain13309/blend17482"
+  },
+  {
+   "id": "pf512",
+   "status": "fail",
+   "note": "candidate shortfall 517<1024 by construction; prefilter floor dead end"
+  },
+  {
+   "id": "combo100k",
+   "status": "ok",
+   "bpb": 0.9146,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 51.2,
+   "env": "ov4096/floor5e-6/pf2048/xfer1"
+  },
+  {
+   "id": "full100mb-v10",
+   "status": "stopped",
+   "note": "user: speed-sprint on 100KB first, full run only once at the end"
+  },
+  {
+   "id": "v11thread",
+   "status": "ok",
+   "bpb": 0.9213,
+   "kbs": 2.34,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "elapsed_s": 42.8,
+   "note": "ratio gate holds x4; loopA 6.9s (1.6x, GIL-bound) loopB 3.5s fat"
+  },
+  {
+   "id": "v11rankrest",
+   "status": "ok",
+   "bpb": 0.9213,
+   "elapsed_s": 46.7,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "ratio gate holds x5; timing buried in box noise (loopA +2s with zero code change) -> box too noisy for micro-measurement; change is provably-less-work, banked"
+  },
+  {
+   "id": "v11clocks",
+   "status": "ok",
+   "bpb": 0.9213,
+   "elapsed_s": 45.2,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "precise clocks live: gpu_fwd=25.1 (no CPU starvation), loop cpu-work 12.6s vs wall 12.8s?? stolen_loop 6.7s; ratio gate x6"
+  },
+  {
+   "id": "v11fast+prio",
+   "status": "ok",
+   "bpb": 0.9213,
+   "elapsed_s": 47.4,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "gate x7; esc 0.3->0.0s REAL (cpu clock); box tax 6.8s stolen (VPet/PhoneLink/browser); cpu clocks immune, wall is not; STOP blind runs, next: overnight quiet proof + v12 llama backend"
+  },
+  {
+   "id": "sweepA-ov4096-f2e6",
+   "status": "ok",
+   "bpb": 0.914,
+   "verified_fail": 0
+  },
+  {
+   "id": "sweepB-ov4096-f1e6",
+   "status": "ok",
+   "bpb": 0.9139,
+   "verified_fail": 0,
+   "note": "SLICE BEST (F=1 floor exhausted)"
+  },
+  {
+   "id": "sweepC-ov6144-f5e6",
+   "status": "ok",
+   "bpb": 0.9146,
+   "note": "context saturated at 4096, predicted-null confirmed"
+  },
+  {
+   "id": "sweepE-k512",
+   "status": "ok",
+   "bpb": 0.9278,
+   "note": "K=1024 sweet spot confirmed (512 escapes too much)"
+  },
+  {
+   "id": "v12a-graph",
+   "status": "fail",
+   "bpb": 2.193,
+   "note": "graph replay deterministic zeros (~uniform); verify still passes (roundtrip!=correct model)"
+  },
+  {
+   "id": "v12a-eager-nocache",
+   "status": "ok",
+   "bpb": 0.9139,
+   "note": "use_cache=False safe; best config restored"
+  },
+  {
+   "id": "v12a-graph-noemptycache",
+   "status": "fail",
+   "bpb": 2.193,
+   "note": "empty_cache exonerated; capture/replay itself broken vs transformers internals; SHELVED, gate stays default-off"
+  },
+  {
+   "id": "v12-llama-busy",
+   "status": "fail",
+   "bpb": 0.914,
+   "elapsed_s": 103.8,
+   "note": "ratio in tolerance (+0.0001), PEAK halved 3.0GB, BUT fwd 86s busy (11s/seg) LOSES to torch 4s/seg. fox A/B (1.71s quiet vs 11.18s busy) proves environmental. mechanism: giant kernels vs WDDM contention; torch many-small interleave better. v12 shelved for busy box. busy-box floor math: min 30K fwd-tokens ~14s + loop -> 5KB/s needs proc-loop + zero-redundancy fwd"
+  },
+  {
+   "id": "v11pin-stream8",
+   "status": "ok",
+   "bpb": 0.9139,
+   "elapsed_s": 46.3,
+   "note": "gate holds; stream-prio USELESS (WDDM ignores, fwd 31.5); 8-workers+pinning USELESS (GIL wall: cpu-sum==wall, threads add nothing). loop cost is serial Python, not parallelism. NEXT: KV-cache chaining (fwd 2x, favors high-overlap) + proc-loop + ORT"
+  },
+  {
+   "id": "v13-notrim",
+   "status": "fail",
+   "bpb": 2.6401,
+   "elapsed_s": 18.2,
+   "verified_ok": 190,
+   "verified_fail": 0,
+   "peak_vram_gb": 5.87,
+   "host_ws_mb": 3434,
+   "note": "trim removal changes nothing -> bug is 8192+ reuse itself, not trim. memory: host 3.4GB, vram 5.87GB peak. 12GB trauma buried. cpu clocks inflated ~2x with threads (footnote)"
+  },
+  {
+   "id": "cliff-7000-8192",
+   "status": "ok",
+   "note": "past7000+new64: 0.088, past8192+new64: 0.106. past-length innocent!"
+  },
+  {
+   "id": "cliff-bisect-new",
+   "status": "ok",
+   "note": "past8192 fixed: new64 0.11, new512 5.4, new1024 6.5, new2048 24, new4096 40.8. GRADUAL compounding drift, no cliff. killer = new-length, not past-length"
+  },
+  {
+   "id": "v13-verdict",
+   "status": "dead",
+   "note": "chaining diverges: absolute-vs-windowed rotary perturbs each step, compounds via cached K/V. usable only new<=~64 (uneconomical). v13 shelved. speed path reverts to v11-line (recompute) + ORT + pipeline + procs. busy-10 needs ORT>=1.7x, borderline."
+  },
+  {
+   "id": "v11-incr",
+   "status": "ok",
+   "bpb": 0.9139,
+   "elapsed_s": 41.6,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "incremental freeze: bitwise identical, full-file scaling fixed"
+  },
+  {
+   "id": "full100mb-final",
+   "status": "cancelled",
+   "note": "user: B means slice hand-in, no full run (too long). killed at ~1min (data loading)."
+  }
+ ],
+ "done": false,
+ "best_slice_bpb": 0.9139
+}

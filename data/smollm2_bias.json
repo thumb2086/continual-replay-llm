@@ -1,0 +1,14 @@
+{
+  "model": "SmolLM2-135M-bias",
+  "params": 134515008,
+  "trainable": 35136,
+  "adapt_lr": 0.0001,
+  "top_k": 2048,
+  "n_bytes": 102400,
+  "total_bits": 137376,
+  "bpb": 1.3415625,
+  "escapes": 290,
+  "verified_ok": 200,
+  "verified_fail": 0,
+  "elapsed_s": 41.50461149215698
+}

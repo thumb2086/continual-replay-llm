@@ -1,0 +1,14 @@
+{
+  "frozen_fp32": {
+    "bpc": 6.73662109375,
+    "chars_per_s": 45508.14062599334,
+    "peak_mem_mb": 2177.24658203125,
+    "verified": 3
+  },
+  "bias_prefix40_fp32": {
+    "bpc": 6.72826171875,
+    "chars_per_s": 43916.79994502945,
+    "peak_mem_mb": 1432.5087890625,
+    "verified": 3
+  }
+}

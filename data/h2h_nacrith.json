@@ -1,0 +1,10 @@
+{
+  "system": "nacrith-third-party",
+  "workers": 1,
+  "n_bytes": 102400,
+  "compressed_bytes": 15678,
+  "bpb": 1.22484375,
+  "elapsed_s": 393.56307554244995,
+  "kbs": 0.2540888772712468,
+  "roundtrip_exact": true
+}

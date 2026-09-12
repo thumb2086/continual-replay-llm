@@ -5,3 +5,12 @@ __pycache__/
 *.pth
 .DS_Store
 data/cloud/
+# session-local: venvs, logs, giant binaries, nested clones
+.venv*/
+*.log
+*.err
+*.gguf
+*.sarif
+logs/
+third_party/nacrith/
+*.bak

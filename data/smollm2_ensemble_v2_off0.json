@@ -1,0 +1,13 @@
+{
+  "model": "SmolLM2-135M-bigram-ensemble-v2",
+  "bigram_lambda": 0.85,
+  "bigram_conf": 10.0,
+  "top_k": 2048,
+  "n_bytes": 102400,
+  "total_bits": 89437,
+  "bpb": 0.873408203125,
+  "escapes": 187,
+  "verified_ok": 200,
+  "verified_fail": 0,
+  "elapsed_s": 54.51630973815918
+}
