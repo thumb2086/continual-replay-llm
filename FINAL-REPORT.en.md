@@ -154,3 +154,11 @@ Pareto v4: 28 points (OFF50 21). All 220/220. Crown 0.9003 / speed 10.2KB/s stan
 WSL (no network) got a full offline env: 63 wheels side-downloaded on Windows (dual `manylinux_2_17+2_28` platform tags — pip 26 dropped the bare alias; `sys_platform` markers silently drop nvidia deps on a Windows host so they were fetched explicitly; nvjitlink 12.4→12.9 fixed a cusparse undefined-symbol; tokenizers pin relaxed for transformers 4.57.6). torch 2.14+cu126 + triton 3.8 + CUDA 12.9 + gcc all live. Recipe: `pip download --platform manylinux_2_17_x86_64 --platform manylinux_2_28_x86_64 --python-version 3.12 --implementation cp --abi cp312` on Windows, copy to `~/wheels`, `pip install --no-index --no-deps`.
 
 Results: WSL eager 100KB = 12.9 s (SLOWER than Windows 9.7 s; paravirt overhead > WDDM) with cross-platform parity 0.9266 vs 0.9268 (2e-4). Inductor reduce-overhead 0.85 s/fwd loses to eager 0.33 (dynamo overhead on a tiny model); default mode ties (0.32). Max-autotune declined on the record: it tunes GEMMs, our proven wall is scheduling. Speed goal ≤8.0 s: UNMET with full evidence — 9.7 s stands as this box's wall. Remaining inputs that could reopen it: an idle box, a bigger GPU, or a different model.
+
+## 17. Gather era: 5.3 s, scale chart, PF16384 (2026-09-14)
+
+Gather (topk on logits + lse + pi-gather + CPU exp + sparse blk, numba V-stamp truncation) now DEFAULT: 100KB speed 9.7 → **5.3 s = 18.9KB/s** (−45%), ratio 0.9272 (+4e-4 pi-only cost, documented), 220/220 twice-confirmed (5.3/7.1/7.4 band — box noise, all ≤8.0). One-shot scatter beats chunked 3.0→1.7 s (opposite of micro-benchmark — recorded, unexplained). Crown+gather 0.9005@27.4 s (+2e-4, slower at big K: transfers scale with K — gather is a speed-config weapon).
+
+Ratio shots: PF16384/K8192 = 0.9004 (tail NOT recovered by width; PEAK 8.01GB red line — never exceed PF8192); LAMBDA=0.999 = 0.9010 (pure-LM loses blend). No new record; K/lambda/overlap/CONF/tri/PF/floor/S2 all closed.
+
+Scale ladder (all 220/220): speed-gather 5.3 s / 56.9 s / 632 s (100KB/1MB/10MB: 18.9/18.0/16.2 KB/s, PEAK 4.01GB flat); 10MB ratio 0.9039 (cache warms with scale). New `tools/scale_plot.py` → `scale_time_size.png` (size-vs-time log-log + bpb-vs-size). Pareto v5: 30 points. Full 100MB ≈ 1.7 h gather-speed — overnight-able.

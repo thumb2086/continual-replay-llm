@@ -87,6 +87,10 @@ PIPELINE = int(os.environ.get("PIPELINE", "0"))  # v13-pipe: helper-thread finis
 EMPTY_EVERY = int(os.environ.get("EMPTY_EVERY", "1"))  # v13: empty_cache cadence (segs); default every seg
 SKIP_EVERY = int(os.environ.get("SKIP_EVERY", "0"))  # v13-skip: skip LM forward every Nth seg (1st kept); 0 = off. Cache-only topk (lam=0), decoder mirrors via same seg counter; verify guards.
 SKIP_MOD = int(os.environ.get("SKIP_MOD", "1"))  # which residue to skip: (si-1)%N==MOD. MOD=3 skips the 4th seg (warmest tables: best-case probe).
+_EXCLPROBE = int(os.environ.get("EXCLPROBE", "0"))  # v13-exclprobe: count exclusive-key target hits (pi-only gather safety)
+_PIONLY = int(os.environ.get("PI_ONLY", "0"))  # v13-pionly: truncate brow/trow to pi-members (ratio-cost probe)
+GATHER_PI = int(os.environ.get("GATHER_PI", "1"))  # v13-gather: kill full-V softmax+transfer (topk on logits + lse + gather pi-logits + CPU exp). Implies pi-only math; ratio gate vs PI_ONLY number.
+_PIONLY_EFF = 1 if (_PIONLY or GATHER_PI) else 0  # run-constant: no cross-seg race
 GC_OFF = int(os.environ.get("GC_OFF", "0"))  # v13-micro: gc.disable() during run (cyclic trash can't form here); default off
 CUDNN_BM = int(os.environ.get("CUDNN_BM", "0"))  # v13-micro: cudnn.benchmark (no convs in Llama; expected null)
 RESTART_EVERY = int(os.environ.get("RESTART_EVERY", "16384"))  # v13-restart: fresh full-window chain restart bound (0 = pure chain = KNOWN GARBAGE beyond 8K positions)
@@ -334,6 +338,20 @@ def _range_core(block, T0, lo, hi, coded, prev_tail,
             _le = 1.0 - (1.0 - BIGRAM_LAMBDA) * _wc
             if nolm:
                 _le = 0.0  # cache-only: LM term exactly zero
+            # v13-gather: numba pi-truncation (V-stamp, exact: pi-subset
+            # always fits PREFILTER temps). Replaces the np.isin probe
+            # path (~3s/run). _sp doubles as stamp (fresh tag from the
+            # shared counter; the kernel re-stamps with its own tag after).
+            if _PIONLY_EFF:
+                _ctag = _tg[0] + 1
+                _tg[0] = _ctag
+                _ok, _ov, _otk, _otv = S[9], S[10], S[11], S[12]
+                _cnb, _cnt = _compact_pi(
+                    _brk if _ib >= 0 else _E64, _brv if _ib >= 0 else _E64f,
+                    _trk if _it >= 0 else _E64, _trv if _it >= 0 else _E64f,
+                    _pre, _sp, _ctag, _ok, _ov, _otk, _otv)
+                _brk, _brv = _ok[:_cnb], _ov[:_cnb]
+                _trk, _trv = _otk[:_cnt], _otv[:_cnt]
             _sb = ((1.0 - _wT) * _wB / _bt) if _ib >= 0 else 0.0
             _st = (_wT / _tt) if _it >= 0 else 0.0
             _tg[0] += 1
@@ -363,6 +381,12 @@ def _range_core(block, T0, lo, hi, coded, prev_tail,
             if _rk < 0 or _ps:
                 otidx[_pos] = _oi[:_n]
         orank[_pos] = _rk
+        if _EXCLPROBE and opath[_pos] == 1:
+            _hit_pre = bool(np.any(_pre == _tgt))
+            with _EXCL_LOCK:
+                _EXCL[1] += 1
+                if _rk >= 0 and not _hit_pre:
+                    _EXCL[0] += 1
 
 
 def _proc_init(specs, _V, _K):
@@ -380,6 +404,11 @@ def _proc_init(specs, _V, _K):
         np.empty(_K, dtype=np.int64), np.empty(_K, dtype=np.int64),
         np.empty(_K, dtype=np.float64), np.zeros(1, dtype=np.int64),
         [0],
+        # (v13-gather pi-truncation temps; PREFILTER captured at spawn.
+        # If the driver later changes PREFILTER per run, procs must
+        # respawn -- gather is refused under PROC anyway.)
+        np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
+        np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
     ]
 
 
@@ -402,6 +431,43 @@ def _proc_range(block, T0, coded, prev_tail,
 
 _DIRTY_BI = set()   # v13-incr: rows touched by the last tables-update
 _DIRTY_TRI = set()
+
+# v13-exclprobe: EXCLPROBE=1 counts blend targets found ONLY outside
+# prefilter pi (via brow/trow-exclusive keys). Decides pi-only gather.
+import threading as _th
+_EXCL_LOCK = _th.Lock()
+_EXCL = [0, 0]  # [exclusive_target_hits, blend_positions]
+
+try:
+    import numba as _nb
+
+    @_nb.njit
+    def _compact_pi(brk, brv, trk, trv, pi, stamp, tag, ok, ov, otk, otv):
+        """Truncate brow/trow rows to pi-members (V-stamp, no hash).
+        ok/ov/otk/otv sized >= PREFILTER (pi-subset always fits).
+        Returns (nb, nt). Stamp tag must be fresh vs stale stamps."""
+        for _j in range(pi.shape[0]):
+            stamp[pi[_j]] = tag
+        _nb2 = 0
+        _cap = ok.shape[0]
+        for _j in range(brk.shape[0]):
+            if stamp[brk[_j]] == tag:
+                ok[_nb2] = brk[_j]
+                ov[_nb2] = brv[_j]
+                _nb2 += 1
+                if _nb2 >= _cap:
+                    break
+        _nt2 = 0
+        for _j in range(trk.shape[0]):
+            if stamp[trk[_j]] == tag:
+                otk[_nt2] = trk[_j]
+                otv[_nt2] = trv[_j]
+                _nt2 += 1
+                if _nt2 >= _cap:
+                    break
+        return _nb2, _nt2
+except Exception:
+    _compact_pi = None  # numba missing: fall back to np.isin path
 
 
 def _freeze_update(counts, totals, id_of, keys, vals, tots, dirty):
@@ -689,6 +755,10 @@ def main():
             np.empty(TOP_K, dtype=np.int64), np.empty(TOP_K, dtype=np.int64),
             np.empty(TOP_K, dtype=np.float64), np.zeros(1, dtype=np.int64),
             [0],
+            # v13-gather: pi-truncation temps (>= PREFILTER: pi-subset
+            # always fits, so compaction is exact, never lossy)
+            np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
+            np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
         ])
     _pool = ThreadPoolExecutor(max_workers=N_LOOP_WORKERS,
                                initializer=_pin_worker)
@@ -1128,7 +1198,59 @@ def main():
                 _t_dr0 = time.time()
                 torch.cuda.synchronize()
                 t_attn_gpu += time.time() - _t_dr0
-            if USE_GPU_TOPK and not _skip:
+            if GATHER_PI and USE_GPU_TOPK and not _skip and not CHAIN and not USE_ORT and _have_lg is None:
+                # v13-gather: no full-V softmax, no full-V transfer.
+                # topk on logits (rank-identical to probs-topk), lse
+                # reduction, gather pi-logits, CPU exp. Values match the
+                # PI_ONLY number up to fp noise (ratio gate); verify guards.
+                _t_topk0 = time.time()
+                with torch.no_grad():
+                    _lse = torch.logsumexp(_lg_b.float(), dim=-1)  # [nfr] fp32
+                    _pv_l, _pi_l = torch.topk(_lg_b.float(), PREFILTER, dim=1)
+                    _tv_l, _tpos = torch.topk(_pv_l, TOP_K, dim=1)
+                    _ti_l = torch.gather(_pi_l, 1, _tpos)
+                    _g = torch.gather(_lg_b.float(), 1, _pi_l)  # [nfr, P]
+                t_topk += time.time() - _t_topk0
+                _t_d2h0 = time.time()
+                _lse_n = _lse.cpu().numpy()
+                _g_n = _g.cpu().numpy()
+                pi_f = _pi_l.cpu().numpy().astype(np.int64)
+                ti_f = _ti_l.cpu().numpy().astype(np.int64)
+                _tpos_n = _tpos.cpu().numpy()
+                del _lse, _g, _pi_l, _ti_l, _pv_l, _tv_l, _tpos
+                t_d2h += time.time() - _t_d2h0
+                _t_shmw0 = time.time()
+                _pv_f = np.exp(_g_n - _lse_n[:, None]).astype(np.float32)
+                del _g_n, _lse_n
+                _rr0 = np.arange(_nfr)
+                tv_f = _pv_f[_rr0[:, None], _tpos_n]  # [nfr, K] probs at ti
+                del _tpos_n
+                _par = si % 2
+                tv = _shm_tv[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, TOP_K), dtype=np.float32)
+                ti = _shm_ti[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, TOP_K), dtype=np.int64)
+                pi = _shm_pi[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, PREFILTER), dtype=np.int64)
+                blk_probs = _shm_blk[_par, :_B] if USE_PROC_LOOP else np.zeros((_B, V), dtype=np.float32)
+                lg_full = None
+                tv[_F0:_F0 + _nfr] = tv_f
+                ti[_F0:_F0 + _nfr] = ti_f
+                pi[_F0:_F0 + _nfr] = pi_f
+                # sparse blk: values only at pi keys (truncated rows never
+                # query outside pi after _PIONLY_EFF truncation).
+                _srows = _rr0 + _F0
+                blk_probs[_srows[:, None], pi_f] = _pv_f
+                if _F0 > 0:
+                    tv[T0] = _carry[0]
+                    ti[T0] = _carry[1]
+                    pi[T0] = _carry[2]
+                    blk_probs[T0] = _carry[3]
+                _cb = np.zeros(V, dtype=np.float32)
+                _cb[pi_f[-1]] = _pv_f[-1]
+                _carry = (tv_f[-1].copy(), ti_f[-1].copy(),
+                          pi_f[-1].copy(), _cb)
+                del _pv_f
+                del tv_f, ti_f, pi_f, _cb, _rr0
+                t_shmw += time.time() - _t_shmw0
+            elif USE_GPU_TOPK and not _skip:
                 _t_topk0 = time.time()
                 # v13-fp16sm: fp16 softmax halves GPU traffic (WDDM-proven:
                 # pure PCIe is 0.12s; the 6.1s d2h is GPU fp32-softmax exec).
@@ -1264,6 +1386,18 @@ def main():
                 else:
                     tri_id_of, tri_keys, tri_vals, tri_tot = {}, [], [], []
                 ph_frz += _cpu() - _ta
+                # v13-unionprobe: DUMP_TABLES=N pickles frozen tables for
+                # seg ord N (offline union-size analysis; zero hot-path
+                # cost otherwise).
+                if int(os.environ.get("DUMP_TABLES", "-1")) == si - 1:
+                    import pickle as _pk
+                    with open(f"logs/tables_seg{si - 1}.pkl", "wb") as _fh:
+                        _pk.dump({"block": block, "T0": T0, "NC": NC,
+                                  "prev_tail": prev_tail,
+                                  "bi_id_of": bi_id_of, "bi_keys": bi_keys,
+                                  "tri_id_of": tri_id_of, "tri_keys": tri_keys},
+                                 _fh, protocol=4)
+                    print(f"  [unionprobe] dumped seg {si - 1}", flush=True)
                 # v13-skip: cache-union prefilter fill (no LM topk ran).
                 # pre = dedup(bigram row + trigram row) capped at
                 # PREFILTER; the kernel's brow/trow-exclusive loops cover
@@ -1402,6 +1536,9 @@ def main():
     print(f"  PHASES: fwd={ph_fwd:.1f}s topk={ph_st:.1f}s xfer={ph_xfer:.1f}s "
           f"frz={ph_frz:.1f}s loop={ph_loop:.1f}s code={ph_code:.1f}s esc={ph_esc:.1f}s verify={ph_verify:.1f}s")
     print(f"  MIX: plain={_n_plain} blend={_n_blend} loopA_cpu={ph_loopA:.1f}s loopB_cpu={ph_loopB:.1f}s loop_wall={ph_loop:.1f}s")
+    if _EXCLPROBE:
+        _e1, _e0 = _EXCL[0], max(1, _EXCL[1])
+        print(f"  EXCL: exclusive-target hits={_e1}/{_e0} ({100.0 * _e1 / _e0:.2f}% of blend positions)")
     torch.cuda.synchronize()  # single drain: all recorded events complete here
     for _a, _b in _ev_pairs:
         ph_fwd_gpu += _a.elapsed_time(_b) / 1000.0

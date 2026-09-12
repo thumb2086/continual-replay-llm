@@ -151,4 +151,12 @@ WSL（無網路）離線建成全套環境：63 個輪子在 Windows 代下載�
 
 結果：WSL eager 100KB＝12.9 秒（比 Windows 9.7 秒慢；半虛擬化開銷大於 WDDM），跨平台一致 0.9266 vs 0.9268（2e-4）。Inductor reduce-overhead 0.85 秒/forward 輸 eager 0.33（小模型上 dynamo 開銷）；default 模式打平（0.32）。max-autotune 書面拒絕：它調 GEMM，我們證過的牆是調度。速度 goal≤8.0 秒：證據齊全判 UNMET——9.7 秒就是這台箱子的牆。能重開它的輸入：閒置的箱子、更大的卡，或換模型。
 
+## 17. gather 時代：5.3 秒、scale 圖、PF16384（2026-09-14）
+
+gather（logits 上 topk＋lse＋pi-gather＋CPU exp＋稀疏 blk，numba V-stamp 截斷）轉正預設：100KB 速度 9.7→**5.3 秒＝18.9KB/s**（−45%），比率 0.9272（＋4e-4 pi-only 代價，記案），220/220 三次確認（5.3/7.1/7.4 波動——箱子雜訊，全過 8.0 線）。單發 scatter 打敗分塊 3.0→1.7 秒（與 micro 基準相反——記案，未解）。王座＋gather 0.9005@27.4 秒（＋2e-4，大 K 下更慢：傳輸隨 K 漲——gather 是速度配置武器）。
+
+比率射擊：PF16384/K8192＝0.9004（加寬救不回 tail；顯存 8.01GB 紅線——永不上 PF8192）；LAMBDA＝0.999＝0.9010（純 LM 輸 blend）。無新紀錄；K/lambda/overlap/CONF/tri/PF/floor/S2 全關。
+
+放量梯子（全 220/220）：速度 gather 5.3 秒／56.9 秒／632 秒（100KB/1MB/10MB：18.9/18.0/16.2KB/s，顯存 4.01GB 持平）；10MB 比率 0.9039（cache 隨規模變熱）。新 `tools/scale_plot.py`→`scale_time_size.png`（大小-時間雙對數＋比率-大小）。Pareto v5：30 點。全檔 100MB gather 速度約 1.7 小時——可過夜。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

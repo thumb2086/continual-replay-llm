@@ -1511,6 +1511,88 @@
    "id": "wsl-inductor",
    "status": "dead",
    "note": "Inductor reduce-overhead 0.85s/fwd LOSES to eager 0.33 (dynamo overhead on tiny model); default mode 0.32 ties eager. maxdiff 0.37 numeric drift (mirror-safe, ratio unmeasured). max-autotune declined: targets GEMMs, our wall is scheduling (proven). WSL CLOSED."
+  },
+  {
+   "id": "excl-frac",
+   "status": "kept",
+   "note": "EXCLPROBE: 9/17191 blend targets (0.05%) found only outside pi. Tail exists but tiny."
+  },
+  {
+   "id": "pionly",
+   "status": "kept",
+   "bpb": 0.9272,
+   "elapsed_s": 10.7,
+   "note": "PI_ONLY truncation costs +4e-4 (0.9268->0.9272). Tail value quantified. np.isin path +3s (probe overhead)."
+  },
+  {
+   "id": "gather-v1",
+   "status": "kept",
+   "bpb": 0.9272,
+   "elapsed_s": 7.4,
+   "note": "GATHER (lse+logits-topk+gather+exp+sparse-blk): bpb EXACT vs pionly (value path clean), d2h 5.6->1.2. -24%."
+  },
+  {
+   "id": "gather-v2",
+   "status": "kept",
+   "bpb": 0.9272,
+   "elapsed_s": 7.1,
+   "note": "Numba V-stamp truncation (loop 3.5->1.5) + chunked scatter (backfired: shmw 1.6->3.0 in-situ, opposite of micro)."
+  },
+  {
+   "id": "gather-v3",
+   "status": "crown",
+   "bpb": 0.9272,
+   "elapsed_s": 5.3,
+   "note": "One-shot scatter wins (shmw 3.0->1.7): 9.7s->5.3s = 18.9KB/s, -45%. GOAL ACHIEVED (<=8.0). Speed config ratio 0.9272 (+4e-4 documented)."
+  },
+  {
+   "id": "gather-crown",
+   "status": "kept",
+   "bpb": 0.9005,
+   "elapsed_s": 27.4,
+   "note": "Gather on crown K8192: +2e-4 (tail bigger at big K), slower (27.4 vs 24.0: transfers scale with K). Gather is a speed-config weapon; crown keeps classic path numbers. Default ON (speed-first era)."
+  },
+  {
+   "id": "PF16384",
+   "status": "null",
+   "bpb": 0.9004,
+   "elapsed_s": 31.0,
+   "note": "PF16384/K8192: +1e-4 noise, tail NOT recovered by wider prefilter (loss is value-path rounding, not candidate shortage). PEAK 8.01GB red line: never exceed PF8192. Prefilter axis dead."
+  },
+  {
+   "id": "mb1-gather",
+   "status": "kept",
+   "bpb": 0.9355,
+   "elapsed_s": 56.9,
+   "note": "1MB gather-speed: 56.9s (18.0KB/s, 1.83x vs classic 104s). Ratio +8e-4 vs classic (tail matters more on hard regions?). PEAK 4.01GB vs 2.32GB on 100KB: possible seg-count growth, watch on 10MB."
+  },
+  {
+   "id": "alloc-conf",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 7.3,
+   "note": "PYTORCH_CUDA_ALLOC_CONF=expandable_segments: 7.3s in band (5.3-7.4). Null. Bottleneck item closed: gather banked, rest is scheduling/noise."
+  },
+  {
+   "id": "lam0999-k8",
+   "status": "null",
+   "bpb": 0.901,
+   "elapsed_s": 27.6,
+   "note": "LAMBDA 0.999 at K8192+gather: 0.9010 (+5e-4, pure-LM loses blend). Lambda axis closed at big K."
+  },
+  {
+   "id": "mb1-gather2",
+   "status": "kept",
+   "bpb": 0.9355,
+   "elapsed_s": 56.9,
+   "note": "1MB gather-speed (dup of mb1-gather config, default-ON era): same 56.9s/0.9355."
+  },
+  {
+   "id": "mb10-gather2",
+   "status": "kept",
+   "bpb": 0.9039,
+   "elapsed_s": 632.2,
+   "note": "10MB gather-speed: 632s (16.2KB/s, 1.73x vs classic). PEAK 4.01GB flat (no growth). Ladder point for scale chart."
   }
  ],
  "done": false,
