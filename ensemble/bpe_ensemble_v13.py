@@ -717,7 +717,7 @@ def main():
     _ev_pairs = []  # (ev0, ev1) per forward; elapsed summed lazily at end
     # v13-subclocks: split the contaminated fwd window (attn vs topk-launch
     # vs D2H-sync vs shm-writes). Wall clocks; topk is launch-only (async).
-    t_attn = t_topk = t_d2h = t_shmw = 0.0
+    t_attn = t_topk = t_d2h = t_shmw = t_attn_gpu = 0.0
     _cpu = time.process_time  # CPU-time clock: time stolen by other apps doesn't count
     _FLOOR_INT = max(1, int(round(FLOOR_FRAC * TOTAL32)))
     # ---- v6 segments: (input ids, T0, NC, n_new) ----
@@ -914,13 +914,32 @@ def main():
     with torch.no_grad():
         si = 0
         Pend = None  # v13-pipe: prev seg's submit bundle (finish deferred one step)
-        while si < len(segs):
+        _stash = None  # v13-batch: prefetched (seg meta + logits) from a paired forward
+        BATCH_SEGS = int(os.environ.get("BATCH_SEGS", "1"))
+        while si < len(segs) or _stash is not None:
             # v13: strictly one segment per step -- the KV cache chains
             # seg -> seg, so batching is impossible by design. (BATCH_FWD
             # is accepted but ignored.)
-            chunk = [segs[si]]
-            si += 1
-            (block, T0, NC, n_new) = chunk[0]
+            _have_lg = None
+            if _stash is not None:
+                # consume pair-mate prefetched by the previous step
+                # (logits already on GPU; tables/carry stayed sequential).
+                # NOTE: no chunk consumed here -- the mate's slot was
+                # already eaten when the pair formed (skipping this eats
+                # a segment: falsified once at 1.8240, never again).
+                (block, T0, NC, n_new, _have_lg) = _stash
+                _stash = None
+                chunk = [(block, T0, NC, n_new)]  # the submit loop below
+                # rebinds block/T0/NC from chunk -- stale chunk would
+                # poison the mate with the previous seg's ids (1.3576)
+                if int(os.environ.get("SEGBITS", "0")):
+                    print(f"  [consume] blk0={block[0]} lgrows={_have_lg.shape[0]}", flush=True)
+                if int(os.environ.get("DISCARD_STASH", "0")):
+                    _have_lg = None  # autopsy probe: re-forward singly
+            else:
+                chunk = [segs[si]]
+                si += 1
+                (block, T0, NC, n_new) = chunk[0]
             _fr = None
             if PIPELINE and Pend is not None:
                 # prev seg's finish runs on the helper while main forwards
@@ -955,22 +974,48 @@ def main():
             _ev0 = torch.cuda.Event(enable_timing=True)
             _ev1 = torch.cuda.Event(enable_timing=True)
             _ev0.record()
-            _xin = torch.tensor(_fresh, device=device).unsqueeze(0)
+            _xin = None if _have_lg is not None else torch.tensor(_fresh, device=device).unsqueeze(0)
             _nfr = len(_fresh)
             if int(os.environ.get("SHAPE_DEBUG", "0")) and si == 1:
                 print(f"  [shdbg] fresh={_nfr} B={_B} NC={NC} F0={_F0} xin={tuple(_xin.shape)}", flush=True)
             _t_attn0 = time.time()
-            if USE_ORT:
+            if _have_lg is not None:
+                _lg_b = _have_lg
+                _nfr = _lg_b.shape[0]
+            elif USE_ORT:
                 # EXPERIMENTAL/UNRUN path (see _ort_forward).
                 _lg_b = _ort_forward(_xin, _abs_pos, device)
                 _abs_pos += _nfr
                 del _xin
             elif _past is None:
-                _out = model(_xin, use_cache=bool(CHAIN))
-                _past = _out.past_key_values if CHAIN else None
-                _abs_pos += _nfr
-                _lg_b = _out.logits[0]  # [nfr, V] fp16 GPU
-                del _out, _xin
+                # v13-batch: recompute segs are independent (OVERLAP=0),
+                # so pair two equal-length blocks into ONE model call.
+                # Tables/carry/finish stay strictly sequential, so math is
+                # identical up to batched-GEMM last-bit noise (parity gate).
+                _bmate = None
+                if (BATCH_SEGS > 1 and not CHAIN and OVERLAP == 0
+                        and not USE_ORT and si < len(segs)):
+                    (_bb, _bT0, _bNC, _bn) = segs[si]
+                    if len(_bb) == _nfr:
+                        _bmate = (_bb, _bT0, _bNC, _bn)
+                if _bmate is not None:
+                    if int(os.environ.get("SEGBITS", "0")):
+                        print(f"  [pair] si={si} Ablk0={_fresh[0]} Bblk0={_bmate[0][0]} Alen={len(_fresh)} Blen={len(_bmate[0])}", flush=True)
+                    _xin2 = torch.tensor(_bmate[0], device=device).unsqueeze(0)
+                    _out = model(torch.cat([_xin, _xin2], dim=0),
+                                 use_cache=False)
+                    _abs_pos += _nfr
+                    _lg_b = _out.logits[0]
+                    _stash = (_bmate[0], _bmate[1], _bmate[2], _bmate[3],
+                              _out.logits[1])
+                    si += 1
+                    del _out, _xin, _xin2
+                else:
+                    _out = model(_xin, use_cache=bool(CHAIN))
+                    _past = _out.past_key_values if CHAIN else None
+                    _abs_pos += _nfr
+                    _lg_b = _out.logits[0]  # [nfr, V] fp16 GPU
+                    del _out, _xin
             else:
                 _cpos = torch.arange(_abs_pos, _abs_pos + _nfr,
                                        device=device)
@@ -991,6 +1036,14 @@ def main():
             if int(os.environ.get("SHAPE_DEBUG", "0")) and si == 1:
                 print(f"  [shdbg] lg={tuple(_lg_b.shape)}", flush=True)
             t_attn += time.time() - _t_attn0
+            # v13-drain: SYNC_ATTN=1 inserts a GPU drain right after the
+            # model call, so t_attn_gpu isolates attention-GPU-exec from
+            # the softmax/topk pile-up that lands in d2h's .cpu() sync.
+            # Diagnostic only (a drain the pipeline would pay anyway).
+            if int(os.environ.get("SYNC_ATTN", "0")):
+                _t_dr0 = time.time()
+                torch.cuda.synchronize()
+                t_attn_gpu += time.time() - _t_dr0
             if USE_GPU_TOPK:
                 _t_topk0 = time.time()
                 # v13-fp16sm: fp16 softmax halves GPU traffic (WDDM-proven:
@@ -1048,7 +1101,8 @@ def main():
                 probs_b = None
                 del lg, e, lg_f
             del _lg_b
-            torch.cuda.empty_cache()
+            if EMPTY_EVERY > 0:
+                torch.cuda.empty_cache()
             _ev1.record()
             # (no explicit sync: ordering via stream + .cpu() syncs; GPU
             # time is summed lazily at end from recorded events, so this
@@ -1078,8 +1132,10 @@ def main():
                 _n_blend += _nb
                 coded_count += Pend["NC"]
                 _done = Pend["ord"]
+                if int(os.environ.get("SEGBITS", "0")):
+                    print(f"  [segbits] ord={_done} NC={Pend['NC']} bits={_b_new} blk0={Pend['block'][0]} T0={Pend['T0']}", flush=True)
                 Pend = None
-                if si % EMPTY_EVERY == 0:
+                if EMPTY_EVERY > 0 and si % EMPTY_EVERY == 0:
                     torch.cuda.empty_cache()
                 if MEMDIAG:
                     _snap = _tm.take_snapshot()
@@ -1196,7 +1252,7 @@ def main():
             _n_blend += _nb
             coded_count += Pend["NC"]
             Pend = None
-            if si % EMPTY_EVERY == 0:
+            if EMPTY_EVERY > 0 and si % EMPTY_EVERY == 0:
                 torch.cuda.empty_cache()
             print(f"  ... seg {len(segs)}/{len(segs)}, escapes: {n_escapes}, "
                   f"bigram keys: {len(bi_counts)}, coded: {coded_count}, "
@@ -1218,7 +1274,7 @@ def main():
         ph_fwd_gpu += _a.elapsed_time(_b) / 1000.0
     print(f"  CLOCKS: gpu_fwd={ph_fwd_gpu:.1f}s fwd_wall={ph_fwd:.1f}s "
            f"stolen_fwd~={ph_fwd - ph_fwd_gpu:.1f}s stolen_loop~={ph_loop - (ph_loopA / 4 + ph_loopB):.1f}s")
-    print(f"  SUBCLOCKS: attn={t_attn:.1f}s topk_launch={t_topk:.1f}s d2h={t_d2h:.1f}s shmw={t_shmw:.1f}s")
+    print(f"  SUBCLOCKS: attn={t_attn:.1f}s topk_launch={t_topk:.1f}s d2h={t_d2h:.1f}s shmw={t_shmw:.1f}s attn_gpu={t_attn_gpu:.1f}s")
     _pool.shutdown()
     _rest_pool.shutdown()
     if _proc_pool is not None:

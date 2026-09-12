@@ -126,3 +126,11 @@ cProfile-guided: rotary trig recompute is 13% of forward + `.to()` queueing 10% 
 Speed (12.1 → 9.8 s/100KB on ov0): SUBCLOCKS split the contaminated forward window — attn 0.9 / topk-launch 1.6 / d2h 6.1 / shmw 1.6 s. Flash was working all along (attn 0.23 s/fwd); the "2.5 s/forward" was six costs sharing one timer. PCIe proven innocent (0.12 s/800MB pure). Banked: fp16 softmax (ratio exact), exact single-topk, unchunked topk (2.32GB), pipeline/proc off (helper contention > overlap gain), 1 loop worker (GIL: 10.5→9.8 s). GPU boosts fine under load (1905MHz/100%/219W; the low-clock poll was a dead-job artifact). **10KB/s crossed: 9.8 s = 10.2KB/s.**
 
 Ratio (0.9139 → **0.9003**): K/PF ladder on ov4096 — 2048→0.9050, 4096→0.9013, 8192→0.9003 (deltas −89/−37/−10 e-4, diminishing, stopped). Old "K=1024 optimal" was prefilter-bound, overturned. New crown PEAK_VRAM 5.01GB, still inside 8GB. SOTA margin: −4.1%.
+
+## 13. Batch falsified, 1MB scale check, drain diagnostic (2026-09-14)
+
+Batch-2 paired forwards: bit-exact (0.9268) but zero speedup — only the model call batched, per-seg topk/d2h/shmw dominate. Two bugs killed en route: stash-consume ate a chunk slot (seg skipped, 1.8240); stale `chunk` rebound block in the submit loop (mate coded with previous seg's ids, 1.3576). Batched==single proven 0.000000 including rope patch. Default stays single (BATCH_SEGS=1). `empty_cache` removal: null.
+
+1MB crown check (K8192/ov4096, 74 segs): **0.9078**, 254.7 s, PEAK 5.01GB flat (no leak), 220/220. K-ladder holds at 10× (+75e-4). 4.0KB/s → full 100MB ≈ 7 h: too slow to iterate, logit surgery first.
+
+Drain diagnostic (SYNC_ATTN): true attention-GPU is 0.7 s/4 forwards — flash confirmed working in-pipeline. d2h ≈ 5 s is softmax+topk exec pile-up (a 400M-elem softmax should be milliseconds: 300× off → box preemption/sag or WDDM pathology). Next: logit-space surgery (lse + gather, kill full-V softmax exec).

@@ -123,4 +123,12 @@ cProfile 指引：rotary 三角重算佔 forward 13%＋`.to()` 排隊 10%——c
 
 比率（0.9139→**0.9003**）：ov4096 上 K/PF 階梯——2048→0.9050、4096→0.9013、8192→0.9003（增量 −89/−37/−10 e-4，遞減，停）。舊的「K=1024 最優」是 prefilter-bound，推翻。新王座顯存峰值 5.01GB，8GB 卡內。SOTA 差距：−4.1%。
 
+## 13. batch 證偽、1MB 放量、drain 診斷（2026-09-14）
+
+batch-2 雙 forward：逐位正確（0.9268）但零加速——只拼了模型呼叫，逐段 topk/d2h/shmw 才是大頭。路上殺兩隻 bug：stash 交棒吃掉一個 chunk 槽（整段被跳過，1.8240）；submit 迴圈用 stale chunk 重綁 block（mate 拿前一段的 ids 編碼，1.3576）。batched==single 證到 0.000000（含 rope patch）。預設保持單發（BATCH_SEGS=1）。`empty_cache` 拔除：null。
+
+1MB 王座驗證（K8192/ov4096，74 段）：**0.9078**，254.7 秒，顯存峰值 5.01GB 持平（無洩漏），220/220。K 階梯在 10 倍量級成立（＋75e-4）。4.0KB/s→全檔 100MB 約 7 小時：迭代太慢，先做 logit 手術。
+
+drain 診斷（SYNC_ATTN）：真 attention-GPU 只要 0.7 秒/4 forward——flash 在 pipeline 內確認有動。d2h 約 5 秒是 softmax＋topk 執行堆積（400M 元素 softmax 本該毫秒級：差 300 倍→箱子搶佔／sag 或 WDDM 病理）。下一步：logit-space 手術（lse＋gather，殺掉全 V softmax 執行）。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。
