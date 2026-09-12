@@ -179,4 +179,12 @@ WSL（100KB，全程 0.9271±1e-4，全 220/220）：eager 12.9→graph 7.9（�
 
 cProfile-inline 揪出 nb_blend_row 1.24 秒/1.7 萬次（72µs 每次，Phase-A 的 69%）——成本 drivers 是 blend 顆數，不是驅動 Python（numba 驅動 EV 上限約 0.5 秒，有測量為據拒絕）。新門看 cache 行總量：(5,2) 一字不差 0.9272 且 blend −16%（低 count blend 全是廢活）；(20,7) 用＋4e-4 換 4.4 秒＝22.7KB/s（新最快有效 Pareto 點）；(50,15) 飽和（＋8e-4，同 4.4 秒）。預設開箱即快（overlap 0、floor 1e-6、S2 關、fp16 傳、單 worker、blend-gate 5/2、gather＋pinned 開）：純預設跑 0.9185 @ 5.1 秒。Pareto v6：25 點（off50 18 點）。1 秒仍是物理 bound（地板約 3 秒）；已入帳最佳 4.4 秒。
 
+## 22. gate 階梯＋王座 gate：王座 24→13.3 秒（2026-09-15）
+
+gate 階梯（ov0/K1024）：(5,2) 一字不差/4.6 秒→(10,3)＋1e-4/4.6 秒→(15,5)＋1e-4/4.6 秒→(20,7)＋4e-4/4.4 秒→(50,15)＋8e-4/4.4 秒（飽和）。甜蜜點約 (10–15, 3–5)，在雜訊帶內；預設留 (5,2) 可證一字不差。
+
+gate 上王座 K8192（blend kernel 大 8 倍處）：(5,2)→0.9005 @ 15.2 秒（27.4→15.2 秒，−45%，此處 gate 代價約 0）；(20,7)→0.9006 @ 13.3 秒＝7.7KB/s。王座階梯：24–31 秒 classic→27.4 gather→15.2→13.3 秒。兩個都是新 Pareto 點。
+
+EXP_FP16：null（＋1e-4，不快——exp 不是瓶頸；丟掉）。Pareto v7：27 點。1 秒判決不變（地板約 3 秒）；已入帳最佳 4.4 秒速度／13.3 秒王座。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

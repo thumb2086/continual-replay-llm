@@ -1280,9 +1280,17 @@ def main():
                     ti_f = _ti_l.cpu().numpy().astype(np.int64)
                     _tpos_n = _tpos.cpu().numpy()
                     del _lse, _g, _pi_l, _ti_l, _pv_l, _tv_l, _tpos
-                    t_d2h += time.time() - _t_d2h0
-                    _t_shmw0 = time.time()
-                _pv_f = np.exp(_g_n - _lse_n[:, None]).astype(np.float32)
+                t_d2h += time.time() - _t_d2h0
+                _t_shmw0 = time.time()
+                # v13-exp16: EXP_FP16=1 does exp in fp16 (2x less traffic;
+                # l-lse <= 0 always so no overflow; deep underflow -> 0).
+                # Ratio gate +/-5e-4; default off.
+                if int(os.environ.get("EXP_FP16", "0")):
+                    _pv_f = np.exp(
+                        (_g_n - _lse_n[:, None]).astype(np.float16)
+                    ).astype(np.float32)
+                else:
+                    _pv_f = np.exp(_g_n - _lse_n[:, None]).astype(np.float32)
                 del _g_n, _lse_n
                 _rr0 = np.arange(_nfr)
                 tv_f = _pv_f[_rr0[:, None], _tpos_n]  # [nfr, K] probs at ti

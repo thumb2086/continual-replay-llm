@@ -178,5 +178,12 @@ WSL (100KB, 0.9271±1e-4 throughout, all 220/220): eager 12.9 → graphs 7.9 (�
 1-second verdict: unreachable on this silicon. Floor math per 100KB (4 segs): attention-GPU 4×0.2 + post 4×0.3 + CPU loop/code ≈ 3 s of irreducible work; forwards can't drop below 4 (model ceiling 8192, 16K proven garbage). Best banked: 5.0 s quiet-Windows / 6.6 s WSL. Reopening needs: fewer forwards (bigger-context model), ~5× silicon, or full idle. Micro epilogue: K512+gather fastest-ever 4.9 s but +146e-4 ratio (rejected); alloc-conf null twice; main-thread HIGHEST null (5.1 vs 5.0); torch/OMP/MKL single-threading null (5.1 vs 5.0 — GIL dominates, pools weren't the contention). Pinned async D2H banked (parity EXACT, d2h 1.0→0.0 s, net −0.2 s, default on). Code-side fully closed.
 
 ## 21. Blend-gate + tuned defaults: 4.4 s (2026-09-15)
-
 cProfile-inline exposed nb_blend_row at 1.24 s/17k calls (72µs each, 69% of Phase-A) — the cost driver is blend COUNT, not driver Python (numba-driver EV capped ~0.5 s, declined with measurement). New gate on cache-row totals: (5,2) is EXACT at 0.9272 with blend −16% (low-count blends were pure waste); (20,7) trades +4e-4 for 4.4 s = 22.7KB/s (new fastest-valid Pareto point); (50,15) saturates (+8e-4, same 4.4 s). Defaults now fast out of the box (overlap 0, floor 1e-6, S2 off, fp16-xfer on, 1 worker, blend-gate 5/2, gather+pinned on): pure-defaults run gives 0.9185 @ 5.1 s. Pareto v6: 25 points (off50 18). 1 s stays physics-bound (floor ≈ 3 s); best banked 4.4 s.
+
+## 22. Gate ladder + crown-gate: crown 24 → 13.3 s (2026-09-15)
+
+Gate ladder mapped on ov0/K1024: (5,2) EXACT/4.6 s → (10,3) +1e-4/4.6 s → (15,5) +1e-4/4.6 s → (20,7) +4e-4/4.4 s → (50,15) +8e-4/4.4 s (saturated). Sweet spot ≈ (10–15, 3–5), inside the noise band; default stays (5,2) provably EXACT.
+
+Gate on crown K8192 (where blend kernels are 8x bigger): (5,2) → 0.9005 @ 15.2 s (27.4 → 15.2 s, −45%, gate costs ~0 here); (20,7) → 0.9006 @ 13.3 s = 7.7KB/s. Crown ladder: 24–31 s classic → 27.4 gather → 15.2 → 13.3 s. Both new Pareto points.
+
+EXP_FP16: null (+1e-4, no faster — exp is not the bottleneck; dropped). Pareto v7: 27 points. 1 s verdict stands (floor ≈ 3 s); best banked 4.4 s speed / 13.3 s crown.

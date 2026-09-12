@@ -1743,6 +1743,41 @@
    "bpb": 0.928,
    "elapsed_s": 4.4,
    "note": "Gate (50,15): +8e-4, blend 9718, speed saturated at 4.4s (other bottlenecks). Ladder closed: off-EXACT/4.6, 20/7-+4e-4/4.4, 50/15-+8e-4/4.4. Default: (5,2) EXACT."
+  },
+  {
+   "id": "blend-gate103",
+   "status": "kept",
+   "bpb": 0.9273,
+   "elapsed_s": 4.6,
+   "note": "Gate (10,3): +1e-4, blend 13430, 4.6s. Sweet-spot candidate (near-EXACT, faster band)."
+  },
+  {
+   "id": "blend-gate155",
+   "status": "kept",
+   "bpb": 0.9273,
+   "elapsed_s": 4.6,
+   "note": "Gate (15,5): +1e-4 (noise band), blend 12622, 4.6s. Ladder mapped: EXACT zone ends ~(5,2); +1e-4 zone (10-15,3-5); +4e-4 (20,7); +8e-4 saturated (50,15). Default stays (5,2)."
+  },
+  {
+   "id": "crowngate52",
+   "status": "kept",
+   "bpb": 0.9005,
+   "elapsed_s": 15.2,
+   "note": "Crown K8192+gather+gate(5,2): 0.9005 (gate costs ~0 here), 27.4s->15.2s (-45%! blend kernels are 8x bigger at K8192). New Pareto point (6.6KB/s)."
+  },
+  {
+   "id": "crowngate207",
+   "status": "kept",
+   "bpb": 0.9006,
+   "elapsed_s": 13.3,
+   "note": "Crown gather+gate(20,7): +3e-4, 13.3s=7.7KB/s. Crown ladder: 24-31s classic -> 27.4 gather -> 15.2 gate52 -> 13.3 gate207. New Pareto point."
+  },
+  {
+   "id": "exp-fp16",
+   "status": "null",
+   "bpb": 0.9273,
+   "elapsed_s": 5.2,
+   "note": "EXP_FP16: +1e-4, no faster (exp not the bottleneck). Dropped (default off)."
   }
  ],
  "done": false,

@@ -28,6 +28,8 @@ OFF50 = [
     ("ov1024@K8", 100 / 22.3, 0.9099),
     ("ov2048@K8", 100 / 23.6, 0.9058),
     ("K8k gather", 100 / 27.4, 0.9005),
+    ("crown gate52", 100 / 15.2, 0.9005),
+    ("crown gate207", 100 / 13.3, 0.9006),
     ("K8k\ncrown", 100 / 28.1, 0.9003),
     ("K6k", 100 / 28.5, 0.9004),
     ("K16k", 100 / 52.4, 0.9027),
@@ -102,11 +104,12 @@ fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)",
                 8.4, 9.0)
 _dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K16k", "knee gather",
                                     "ov4096\nK1k", "K3072 gather",
-                                    "gather\n18.9KB/s", "gate\n22.7KB/s"),
+                                    "gather\n18.9KB/s", "gate\n22.7KB/s",
+                                    "crown gate207"),
       offsets={"K8k\ncrown": (-64, 14), "K16k": (8, 12),
                "knee gather": (8, 18), "ov4096\nK1k": (-64, -12),
                "K3072 gather": (8, 12), "gather\n18.9KB/s": (8, 10),
-               "gate\n22.7KB/s": (10, -14)})
+               "gate\n22.7KB/s": (10, -14), "crown gate207": (-72, -14)})
 _diamonds(ax)
 ax.set_xlim(0, 24)
 fig.tight_layout()
