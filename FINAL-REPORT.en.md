@@ -98,3 +98,9 @@ unigram-ensemble, pure trigram, TOP_K 4096, prefilter 16384, CONF sweep, cache-i
 | ov0 | 0.9268 | 12.0 | 8.3 |
 
 All 8 points beat the SOTA line (0.9389). Knee at ov2048 (each further 0.001 bpb costs more). 10KB/s unreached (fastest 8.3). Plot: `pareto.png`, script: `pareto_plot.py`.
+
+## 10. Robustness and the 10KB/s verdict (2026-09-13)
+
+Best config, multi-slice (100KB): off0 **0.8307** (template-head bonus) / off25 0.9218 / off50 0.9139 / off75 **0.9662 (loses to SOTA by 3%, hard region, honestly kept)**; 4-slice mean 0.908, beats SOTA by 3.3%. 1MB flagship (off50): **0.9222**, 220/220, 256 s, beats SOTA by 1.8% (incremental freeze earns it: 75 segs, 0.7 s total frz).
+
+10KB/s verdict: full combo (ov0 + 8 procs + EMPTY every 8) peaks at 12.0 s (8.3KB/s); 8 procs lose to 4 (12.0→13.5 s), 4 is optimal here. Forward is launch-bound (450 tiny kernels queueing at WDDM), no code lever left — ruled unreachable, same falsification logic as §6.

@@ -21,6 +21,8 @@ Replay-first 的小串流語言模型持續學習——用在**實用神經文�
 
 Pareto（安靜箱，全 220/220 驗證）：crown ov4096 0.9139 @ 19.4 秒，knee ov2048 0.9194 @ 14.2 秒（7.0 KB/s），最快 ov0 0.9268 @ 12.0 秒（8.3 KB/s）。8 點全贏 SOTA 0.9389。腳本：`pareto_plot.py`。
 
+穩健性（最佳配置，100KB 切片）：off0 0.8307（模板頭）／off25 0.9218／off50 0.9139／off75 **0.9662（這裡輸 SOTA——硬區間，如實保留）**；1MB flagship @ off50：**0.9222**（贏 SOTA 1.8%），220/220。10KB/s：未達（最快 12.0 秒）；forward 是 launch-bound，code 端無牌可打。
+
 ## 論文與報告（論文在哪？）
 
 - [`FINAL-REPORT.md`](FINAL-REPORT.md)——**交卷論文**：軌跡 1.2541→0.9139、3 個可發表洞察（smoothing 稅、finish-bit 稅、邊界 bug 揭露）、Nacrith H2H、速度/記憶體 profile、完整證偽史、誠實但書、文件地圖。從這裡開始看。

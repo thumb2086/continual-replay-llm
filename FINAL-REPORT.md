@@ -98,3 +98,9 @@ unigram-ensemble、純 trigram、TOP_K 4096、prefilter 16384、CONF 掃參、ca
 | ov0 | 0.9268 | 12.0 | 8.3 |
 
 8 點全在 SOTA 線（0.9389）之下。knee 在 ov2048（再往下每 0.001 bpb 越來越貴）。10KB/s 未達（最快 8.3）。圖：`pareto.png`，腳本：`pareto_plot.py`。
+
+## 10. 穩健性與 10KB/s 結案（2026-09-13）
+
+最佳配置多切片（100KB）：off0 **0.8307**（模板頭紅利）／off25 0.9218／off50 0.9139／off75 **0.9662（輸 SOTA＋3%，硬區間，如實保留）**；四片均值 0.908，贏 SOTA 3.3%。1MB flagship（off50）：**0.9222**，220/220，256 秒，贏 SOTA 1.8%（增量凍結立功：75 段 frz 合計 0.7 秒）。
+
+10KB/s 結案：組合技全上（ov0＋8 進程＋EMPTY 每 8 段）最快 12.0 秒（8.3KB/s）；8 進程反比 4 進程慢（12.0→13.5s），4 為最佳點。forward 是 launch-bound（450 小 kernel 排 WDDM 隊），code 端無牌可打——判不可達，見 §6 證偽邏輯。
