@@ -134,3 +134,9 @@ Batch-2 paired forwards: bit-exact (0.9268) but zero speedup — only the model 
 1MB crown check (K8192/ov4096, 74 segs): **0.9078**, 254.7 s, PEAK 5.01GB flat (no leak), 220/220. K-ladder holds at 10× (+75e-4). 4.0KB/s → full 100MB ≈ 7 h: too slow to iterate, logit surgery first.
 
 Drain diagnostic (SYNC_ATTN): true attention-GPU is 0.7 s/4 forwards — flash confirmed working in-pipeline. d2h ≈ 5 s is softmax+topk exec pile-up (a 400M-elem softmax should be milliseconds: 300× off → box preemption/sag or WDDM pathology). Next: logit-space surgery (lse + gather, kill full-V softmax exec).
+
+## 14. Surgery cancelled, scale ladder (2026-09-14)
+
+Logit surgery CANCELLED with proof: standalone softmax + 2×topk + gather + ALL D2H transfers = 0.15 s/seg, GPU-only 0.02 s/seg. v13's 1.4 s/seg is 10× scheduling (queue-wait behind prior work, desktop preemption, boost sag between bursts) — not work. Fusing nothing saves nothing. Code-side speed work is CLOSED (every lever null or convicted-environmental); the remaining lever is a quiet box.
+
+1MB speed baseline (ov0/K1024, 38 segs): **0.9347**, 104.3 s = 9.8KB/s — linear vs 100KB confirmed, scale drift +79e-4 (same class as crown's +75e-4). 100KB re-confirm 0.9268 EXACT post-repair. Ladder: 1MB needs ~2 min (speed) / ~4 min (crown); 10MB ≈ 17 min; full 100MB ≈ 3 h quiet — overnight-able.

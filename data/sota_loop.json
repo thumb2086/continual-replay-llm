@@ -1349,6 +1349,32 @@
    "bpb": 0.9268,
    "elapsed_s": 9.9,
    "note": "SYNC_ATTN drain: true attn-GPU only 0.7s/4fwd (flash confirmed IN-pipeline). d2h~5s is softmax+topk exec pile-up. Softmax over 400M elems should be ~ms: 300x off => preemption/sag (busy box) or WDDM pathology. Code lever regardless: do LESS (logit surgery)."
+  },
+  {
+   "id": "mb1-speed",
+   "status": "kept",
+   "bpb": 0.9347,
+   "elapsed_s": 104.3,
+   "note": "1MB SPEED BASELINE ov0/K1024: 38 segs, 9.8KB/s (linear vs 100KB confirmed). PEAK 2.32GB. Scale drift +79e-4 (same as crown +75e-4)."
+  },
+  {
+   "id": "kb100-confirm",
+   "status": "kept",
+   "bpb": 0.9268,
+   "elapsed_s": 10.9,
+   "note": "Post-repair regression check EXACT. Box-noise band 9.7-10.9."
+  },
+  {
+   "id": "surgery-cancel",
+   "status": "dead",
+   "note": "LOGIT SURGERY CANCELLED with proof: standalone softmax+2topk+gather+ALL-D2H = 0.15s/seg, GPU-only 0.02s/seg. v13 d2h 1.4s/seg is 10x scheduling (queue-wait/preemption/sag), NOT work. Nothing to fuse. Speed work code-side CLOSED; remaining lever is quiet box + scale ladder."
+  },
+  {
+   "id": "mb10-speed",
+   "status": "kept",
+   "bpb": 0.9025,
+   "elapsed_s": 1095.9,
+   "note": "10MB LADDER ov0/K1024: 372 segs, 9.3KB/s, PEAK 2.32GB flat, verify 220. Ratio BETTER than 1MB (cache warms with scale: 0.9347->0.9025). frz 11.7s sublinear (incremental freeze works). Full-file ~3h quiet."
   }
  ],
  "done": false,

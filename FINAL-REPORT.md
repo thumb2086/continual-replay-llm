@@ -131,4 +131,10 @@ batch-2 雙 forward：逐位正確（0.9268）但零加速——只拼了模型�
 
 drain 診斷（SYNC_ATTN）：真 attention-GPU 只要 0.7 秒/4 forward——flash 在 pipeline 內確認有動。d2h 約 5 秒是 softmax＋topk 執行堆積（400M 元素 softmax 本該毫秒級：差 300 倍→箱子搶佔／sag 或 WDDM 病理）。下一步：logit-space 手術（lse＋gather，殺掉全 V softmax 執行）。
 
+## 14. 手術取消、放量梯子（2026-09-14）
+
+logit 手術取消，有證據：單機實測 softmax＋2×topk＋gather＋全部 D2H＝0.15 秒/段，純 GPU 0.02 秒/段。v13 的 1.4 秒/段是 10 倍調度開銷（排隊等前面的活、桌面搶佔、burst 間 boost 掉速）——不是活。沒東西可 fuse，code 端速度工作關閉（每根槓桿不是 null 就是環境定罪）；剩下的槓桿是安靜的箱子。
+
+1MB 速度基線（ov0/K1024，38 段）：**0.9347**，104.3 秒＝9.8KB/s——與 100KB 線性一致，放量漂移 ＋79e-4（與王座 ＋75e-4 同級）。100KB 修復後重驗 0.9268 一字不差。梯子：1MB 約 2 分鐘（速度版）／4 分鐘（王座版）；10MB 約 17 分鐘；全檔 100MB 安靜箱約 3 小時——可過夜跑。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。
