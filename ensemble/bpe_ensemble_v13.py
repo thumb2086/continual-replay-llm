@@ -558,6 +558,12 @@ def main():
     if GC_OFF:
         import gc as _gc
         _gc.disable()
+    if int(os.environ.get("TORCH1T", "0")):
+        # v13-micro: single CPU thread for torch (our work is GPU-bound;
+        # stops OpenMP/MKL pool spin stealing launch latency). Default off.
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+        print("  [threads] torch single-threaded")
     if CUDNN_BM:
         torch.backends.cudnn.benchmark = True
     try:

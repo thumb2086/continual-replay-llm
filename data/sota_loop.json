@@ -1696,6 +1696,13 @@
    "bpb": 0.9272,
    "elapsed_s": 5.1,
    "note": "Main thread THREAD_PRIORITY_HIGHEST: 5.1 vs 5.0 control, null. Micro trilogy complete (K512 dead on ratio, alloc null x2, hipri null). Code-side FULLY closed."
+  },
+  {
+   "id": "torch1t",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 5.1,
+   "note": "TORCH1T+OMP/MKL/OBLAS=1: 5.1 vs 5.0 control. Thread pools not the contention (GIL dominates). Throttle closed."
   }
  ],
  "done": false,
