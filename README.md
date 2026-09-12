@@ -21,6 +21,7 @@ Classical codecs are ~10⁶× faster at 2–3× worse ratio — different worlds
 
 ![Speed vs ratio, article region](pareto_off50.png)
 ![Speed vs ratio, hard region](pareto_off75.png)
+![Size vs time & ratio ladder](scale_time_size.png)
 
 Pareto (busy box, all verified 220/220): crown ov4096/K8192 0.9003 @ 24.0 s, knee ov2048 0.9194 @ 12.0 s (8.3 KB/s), fastest gather ov0/K1024 0.9272 @ 5.3 s (18.9 KB/s). K ladder: 1024→0.9139 @ 17.3 s / 2048→0.9050 @ 18.0 s / 4096→0.9013 @ 20.2 s. Scale ladder (all 220/220): gather-speed 5.3 s / 56.9 s / 632 s (100KB/1MB/10MB) — new `tools/scale_plot.py` → `scale_time_size.png`. Pareto v5: 30 points (incl. off75 curve + two 1MB diamonds incl. 1MB@off25 **0.9076**). Final iteration (cProfile-guided): rope-cache −24% fwd (bitwise-identical), gather −45% (lse+logits-topk+pi-gather, default on). Speed wall now: WDDM scheduling + box preemption (standalone proves 0.02 s/seg real work). Script: `tools/pareto_plot.py`.
 

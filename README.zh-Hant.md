@@ -19,6 +19,7 @@ Replay-first 的小串流語言模型持續學習——用在**實用神經文�
 
 ![速度-比率，文章區](pareto_off50.png)
 ![速度-比率，硬區](pareto_off75.png)
+![大小-時間與比率梯子](scale_time_size.png)
 
 Pareto（忙碌箱，全 220/220 驗證）：crown ov4096/K8192 0.9003 @ 24.0 秒，knee ov2048 0.9194 @ 12.0 秒（8.3 KB/s），最快 gather ov0/K1024 0.9272 @ 5.3 秒（18.9 KB/s）。放量梯子（全 220/220）：gather 速度 5.3 秒／56.9 秒／632 秒（100KB/1MB/10MB）——新 `tools/scale_plot.py`→`scale_time_size.png`。Pareto v5：30 點（含 K 階梯＋overlap 加密＋off75 硬區曲線＋兩顆 1MB 鑽石，含 1MB@off25 **0.9076**）。最終迭代：rope-cache 省 forward 24%（逐位一致）、gather 省 45%（預設開）。速度牆：WDDM 調度＋箱子搶佔（單機實測本體 0.02 秒/段）。腳本：`tools/pareto_plot.py`。
 
