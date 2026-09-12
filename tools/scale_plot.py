@@ -8,6 +8,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
 
 SIZES_KB = [100, 1024, 10240]
 SIZES_LBL = ["100KB", "1MB", "10MB"]
@@ -43,6 +44,7 @@ ax1.set_ylabel("throughput (KB/s, higher better ^)")
 ax1.set_title("Throughput ladder [top-right is best]")
 ax1.set_xticks(SIZES_KB)
 ax1.set_xticklabels(SIZES_LBL)
+ax1.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
 ax1.grid(True, which="both", alpha=0.3)
 ax1.legend(fontsize=8)
 
