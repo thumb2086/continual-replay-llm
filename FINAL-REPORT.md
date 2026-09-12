@@ -173,6 +173,6 @@ Windows 微調：K512＋gather 史上最快 4.9 秒但＋146e-4 比率（拒收�
 
 WSL（100KB，全程 0.9271±1e-4，全 220/220）：eager 12.9→graph 7.9（−39%：無 WDDM replay 終於生效——差分證明牆就是 WDDM）→線程 2 配 7.2（Linux 翻轉 Windows GIL 結論）→proc-fork-2 **6.6 秒**（無 spawn 罰則＋自家 GIL）→proc-4/線程-4 null（N=2 到處最優）。
 
-1 秒判決：這片矽到不了。地板數學（100KB 4 段）：attention-GPU 4×0.2＋後處理 4×0.3＋CPU loop/code≈3 秒不可約；forward 減不到 4 發（模型天花板 8192，16K 證過垃圾）。已入帳最佳：安靜 Win 5.0 秒／WSL 6.6 秒。重開條件：forward 更少的模型、5 倍矽、或全閒置。微調尾聲：K512＋gather 史上最快 4.9 秒但＋146e-4 比率（拒收）；alloc 兩次 null；主線程最高優先 null（5.1 vs 5.0）；torch/OMP/MKL 單線程 null（5.1 vs 5.0——GIL 主導，池子不是兇手）。code 端徹底關閉。
+1 秒判決：這片矽到不了。地板數學（100KB 4 段）：attention-GPU 4×0.2＋後處理 4×0.3＋CPU loop/code≈3 秒不可約；forward 減不到 4 發（模型天花板 8192，16K 證過垃圾）。已入帳最佳：安靜 Win 5.0 秒／WSL 6.6 秒。重開條件：forward 更少的模型、5 倍矽、或全閒置。微調尾聲：K512＋gather 史上最快 4.9 秒但＋146e-4 比率（拒收）；alloc 兩次 null；主線程最高優先 null（5.1 vs 5.0）；torch/OMP/MKL 單線程 null（5.1 vs 5.0——GIL 主導，池子不是兇手）。pinned 異步傳輸入帳（逐位一致，d2h 1.0→0.0 秒，淨 −0.2 秒，預設開）。code 端徹底關閉。
 
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

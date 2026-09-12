@@ -1703,6 +1703,13 @@
    "bpb": 0.9272,
    "elapsed_s": 5.1,
    "note": "TORCH1T+OMP/MKL/OBLAS=1: 5.1 vs 5.0 control. Thread pools not the contention (GIL dominates). Throttle closed."
+  },
+  {
+   "id": "pinned-xfer",
+   "status": "kept",
+   "bpb": 0.9272,
+   "elapsed_s": 4.9,
+   "note": "Pinned async D2H: PARITY EXACT (zero math change proven), d2h subclock 1.0->0.0s, net ~-0.2s. Default ON. shmw absorbs sync (2.6s = CPU contention, box busy)."
   }
  ],
  "done": false,

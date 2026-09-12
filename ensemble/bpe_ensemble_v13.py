@@ -778,6 +778,19 @@ def main():
     _proc_pool = None  # v13-proc: lazy (spawn cost only when enabled)
     _graphs = {}  # CUDA-graph cache: shape -> (graph, static_in, static_out)
     _graph_dead = [False]  # GRAPH_FULL falsified flag (falls back to eager)
+    # v13-pinned: PIN_XFER=1 preallocates page-locked host buffers once.
+    # D2H copies run async on the compute stream (no drain: the queue
+    # stays full, boost residency holds); the CPU waits only at first
+    # read via a reused event. Zero math change -> parity must be EXACT.
+    _PIN_ON = int(os.environ.get("PIN_XFER", "1"))
+    if _PIN_ON:
+        _pin_g = torch.empty((BLOCK_TOKENS, PREFILTER), dtype=torch.float32, pin_memory=True)
+        _pin_lse = torch.empty((BLOCK_TOKENS,), dtype=torch.float32, pin_memory=True)
+        _pin_pi = torch.empty((BLOCK_TOKENS, PREFILTER), dtype=torch.int64, pin_memory=True)
+        _pin_ti = torch.empty((BLOCK_TOKENS, TOP_K), dtype=torch.int64, pin_memory=True)
+        _pin_tpos = torch.empty((BLOCK_TOKENS, TOP_K), dtype=torch.int64, pin_memory=True)
+        _pin_ev = torch.cuda.Event()
+        print("  [xfer] pinned async D2H armed")
 
     def _full_forward_graphed(xin):
         """Full-model single-shape replay. Returns logits [1, L, V] clone.
@@ -1224,14 +1237,39 @@ def main():
                     _g = torch.gather(_lg_b.float(), 1, _pi_l)  # [nfr, P]
                 t_topk += time.time() - _t_topk0
                 _t_d2h0 = time.time()
-                _lse_n = _lse.cpu().numpy()
-                _g_n = _g.cpu().numpy()
-                pi_f = _pi_l.cpu().numpy().astype(np.int64)
-                ti_f = _ti_l.cpu().numpy().astype(np.int64)
-                _tpos_n = _tpos.cpu().numpy()
-                del _lse, _g, _pi_l, _ti_l, _pv_l, _tv_l, _tpos
-                t_d2h += time.time() - _t_d2h0
-                _t_shmw0 = time.time()
+                if _PIN_ON:
+                    _ng = _pin_g[:_nfr]
+                    _ng.copy_(_g, non_blocking=True)
+                    _nl = _pin_lse[:_nfr]
+                    _nl.copy_(_lse, non_blocking=True)
+                    _npi = _pin_pi[:_nfr]
+                    _npi.copy_(_pi_l, non_blocking=True)
+                    _nti = _pin_ti[:_nfr]
+                    _nti.copy_(_ti_l, non_blocking=True)
+                    _ntp = _pin_tpos[:_nfr]
+                    _ntp.copy_(_tpos, non_blocking=True)
+                    _pin_ev.record()
+                    del _lse, _g, _pi_l, _ti_l, _pv_l, _tv_l, _tpos
+                    t_d2h += time.time() - _t_d2h0
+                    _t_shmw0 = time.time()
+                    # views alias the pinned buffers (no astype copies:
+                    # topk indices are int64 already). Alive until the
+                    # next seg's copies (this seg's reads finish first).
+                    _pin_ev.synchronize()
+                    _lse_n = _nl.numpy()
+                    _g_n = _ng.numpy()
+                    pi_f = _npi.numpy()
+                    ti_f = _nti.numpy()
+                    _tpos_n = _ntp.numpy()
+                else:
+                    _lse_n = _lse.cpu().numpy()
+                    _g_n = _g.cpu().numpy()
+                    pi_f = _pi_l.cpu().numpy().astype(np.int64)
+                    ti_f = _ti_l.cpu().numpy().astype(np.int64)
+                    _tpos_n = _tpos.cpu().numpy()
+                    del _lse, _g, _pi_l, _ti_l, _pv_l, _tv_l, _tpos
+                    t_d2h += time.time() - _t_d2h0
+                    _t_shmw0 = time.time()
                 _pv_f = np.exp(_g_n - _lse_n[:, None]).astype(np.float32)
                 del _g_n, _lse_n
                 _rr0 = np.arange(_nfr)
