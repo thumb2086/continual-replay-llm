@@ -53,6 +53,7 @@ python -u ensemble/bpe_ensemble_v13.py
 | 配置（100KB） | WSL | Windows |
 |---|---|---|
 | 速度 ov0/K1024＋gather | 12.9 秒，0.9266 | 5.3 秒，0.9272 |
+| 速度 ＋graph＋proc-fork-2（最佳） | **6.6 秒，0.9271** | 無（WDDM 下 graph 零加速） |
 | 模型 forward eager | 0.33 秒 | 0.35 秒 |
 | inductor | 打平 eager（0.32 秒） | 無（無 Triton） |
 

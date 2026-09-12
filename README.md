@@ -56,6 +56,7 @@ A full offline WSL env was built (torch 2.14+cu126 + triton 3.8 + CUDA 12.9, 63 
 | config (100KB) | WSL | Windows |
 |---|---|---|
 | speed ov0/K1024+gather | 12.9 s, 0.9266 | 5.3 s, 0.9272 |
+| speed +graphs+proc-fork-2 (best) | **6.6 s, 0.9271** | n/a (WDDM: graphs null) |
 | model fwd eager | 0.33 s | 0.35 s |
 | inductor | ties eager (0.32 s) | n/a (no Triton) |
 
