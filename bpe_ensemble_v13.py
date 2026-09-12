@@ -84,6 +84,8 @@ USE_PROC_LOOP = int(os.environ.get("USE_PROC_LOOP", "0"))  # v13-proc: Phase-A i
 N_PROC = int(os.environ.get("N_PROC", "4"))
 PIPELINE = int(os.environ.get("PIPELINE", "0"))  # v13-pipe: helper-thread finish overlaps next fwd; default off
 EMPTY_EVERY = int(os.environ.get("EMPTY_EVERY", "1"))  # v13: empty_cache cadence (segs); default every seg
+RESTART_EVERY = int(os.environ.get("RESTART_EVERY", "16384"))  # v13-restart: fresh full-window chain restart bound (0 = pure chain = KNOWN GARBAGE beyond 8K positions)
+CHAIN = int(os.environ.get("CHAIN", "0"))  # v13: 1 = KV chaining (FALSIFIED: fp16-RoPE drift compounds to 2.64); 0 = full-window recompute (correct, v11 math)
 MEMDIAG = int(os.environ.get("MEMDIAG", "0"))  # v13: tracemalloc census (costs ~0.3s/seg); default off
 USE_ORT = int(os.environ.get("USE_ORT", "0"))  # v13-ort: ONNX Runtime CUDA backend (EXPERIMENTAL/UNRUN); default off
 ORT_MODEL_DIR = os.environ.get("ORT_MODEL_DIR", "./ort-smollm2")
@@ -140,7 +142,7 @@ _ORT_IO = None    # (in_names, out_names, past_in_names, present_out_names, logi
 _ORT_PAST = {}    # past-input name -> np array (numpy feeds; IO-binding is a follow-up)
 
 
-def _ort_init_session():
+def _ort_init_session(n_kv, hdim):
     """Create the CUDA ORT session once (USE_ORT=1 only). Loud errors:
     run ort_export.py first, install optimum[onnxruntime] + onnxruntime-gpu."""
     global _ORT_SESS, _ORT_IO
@@ -156,7 +158,7 @@ def _ort_init_session():
     _past_ins = [n for n in _ins if "past" in n or "key_value" in n]
     _pres_outs = [n for n in _outs if "present" in n]
     _logit_idx = next(i for i, n in enumerate(_outs) if "logit" in n)
-    _ORT_IO = (_ins, _outs, _past_ins, _pres_outs, _logit_idx)
+    _ORT_IO = (_ins, _outs, _past_ins, _pres_outs, _logit_idx, n_kv, hdim)
     print(f"  [ort] session ready ({len(_past_ins)} past inputs)")
 
 
@@ -169,7 +171,7 @@ def _ort_forward(xin, abs_pos, device):
     import numpy as _np
     _ids = xin[0].detach().cpu().numpy().astype(_np.int64)
     _n = _ids.shape[0]
-    _ins, _outs, _past_ins, _pres_outs, _logit_idx = _ORT_IO
+    _ins, _outs, _past_ins, _pres_outs, _logit_idx, _n_kv, _hdim = _ORT_IO
     _feeds = {}
     for _nm in _ins:
         if "input_ids" in _nm or _nm == _ins[0]:
@@ -178,8 +180,9 @@ def _ort_forward(xin, abs_pos, device):
             _feeds[_nm] = _np.arange(abs_pos, abs_pos + _n).reshape(1, -1)
         elif "attention_mask" in _nm:
             _feeds[_nm] = _np.ones((1, abs_pos + _n), dtype=_np.int64)
-        elif _nm in _past_ins and _nm in _ORT_PAST:
-            _feeds[_nm] = _ORT_PAST[_nm]
+        elif _nm in _past_ins:
+            _feeds[_nm] = _ORT_PAST.get(
+                _nm, _np.zeros((1, _n_kv, 0, _hdim), dtype=_np.float32))
     _vals = _ORT_SESS.run(None, _feeds)
     _by_name = dict(zip(_outs, _vals))
     for _pn, _pr in zip(_past_ins, _pres_outs):
@@ -476,7 +479,8 @@ def main():
     V = model.config.vocab_size
     print(f"  Vocab: {V}")
     if USE_ORT:
-        _ort_init_session()  # raises loud if export/packages missing
+        _ort_init_session(model.config.num_key_value_heads,
+                          model.config.hidden_size // model.config.num_attention_heads)  # raises loud if export/packages missing
     print(f"  Blend: bigram λ={BIGRAM_LAMBDA}, conf={BIGRAM_CONF}, prefilter={PREFILTER}")
     print(f"  Plumbing: gpu_topk={USE_GPU_TOPK}, batch_fwd={BATCH_FWD}")
     print(f"  AC32: floor_frac={FLOOR_FRAC:g}, cache_s2={USE_CACHE_S2}, s2_floor={S2_FLOOR:g}")
@@ -875,7 +879,22 @@ def main():
             # assembled into full-block tables for the untouched loop.
             _B = len(block)
             _F0 = OVERLAP if (OVERLAP > 0 and _carry is not None) else 0
+            # v13-restart: bound rope positions (pure chains diverge past
+            # 8K, falsified). A restart re-forwards the full window with
+            # positions from 0 -- costs one window per 16K, keeps 1.45x.
+            if RESTART_EVERY > 0 and _past is not None and (_abs_pos + NC > RESTART_EVERY):
+                _past = None
+                _carry = None
+                _abs_pos = 0
+                _F0 = 0
             _fresh = block if _past is None else block[_F0:_F0 + NC]
+            if not CHAIN:
+                # recompute mode: every seg is a fresh full window (v11
+                # math exactly); chaining machinery idles.
+                _past = None
+                _carry = None
+                _F0 = 0
+                _fresh = block
             _ta = time.time()
             _prev_stream = torch.cuda.current_stream()
             if _hi_stream is not None:
@@ -891,8 +910,8 @@ def main():
                 _abs_pos += _nfr
                 del _xin
             elif _past is None:
-                _out = model(_xin, use_cache=True)
-                _past = _out.past_key_values
+                _out = model(_xin, use_cache=bool(CHAIN))
+                _past = _out.past_key_values if CHAIN else None
                 _abs_pos += _nfr
                 _lg_b = _out.logits[0]  # [nfr, V] fp16 GPU
                 del _out, _xin

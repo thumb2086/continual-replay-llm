@@ -10,7 +10,7 @@
 | SOTA 线 | 0.9389 bpb | Nacrith 论文 100MB 全档数 |
 | 超线幅度 | **−2.7%** | 切片对全档，见 §6 但书 |
 | 同切片 H2H | 我们 0.9214 vs Nacrith 原厂 1.2248 | 同一切片、同脚本复现（`h2h_nacrith.py`），赢 25% |
-| 速度（忙碌箱） | ~2.3KB/s | 100KB/44s，看视频时测的 |
+| 速度（忙碌箱） | ~2.3KB/s（v11）→ **~3.7KB/s（v13＋proc＋pipeline 實測 26.9s/100KB）** | 看视频时测的 |
 | 速度（安静推算） | ~5KB/s | 真功耗 forward 12s＋loop 6s＋零头 |
 | 主机内存峰值 | 3.4GB | 实测 RSS |
 | 显存峰值 | 5.87GB | `torch.cuda.max_memory_allocated`，8GB 卡内 |
@@ -78,8 +78,8 @@ unigram-ensemble、纯 trigram、TOP_K 4096、prefilter 16384、CONF 扫参、ca
 ## 8. 文件地图
 
 - `bpe_ensemble_v11.py`：交卷系统（0.9139）
-- `bpe_ensemble_v10.py`：切片后向等价版；`bpe_ensemble_v12.py`：llama 后端（忙碌箱证伪保留）；`bpe_ensemble_v13.py`：KV 接力＋proc＋pipeline＋ORT（未验证，门全关）
+- `bpe_ensemble_v10.py`：切片后向等价版；`bpe_ensemble_v12.py`：llama 后端（忙碌箱证伪保留）；`bpe_ensemble_v13.py`：KV 接力主线已证伪封存，但其 plumbing（deferred driver、单源 `_range_core`、共享内存 proc、pipeline helper、双缓冲、增量冻结）已在 recompute 模式逐位验证 0.9139（`USE_PROC_LOOP=1`＋`PIPELINE=1` 实测 26.9s/100KB，loop 8.5→2.5s）；ORT 分支因 fp32 慢 3 倍＋逐 shape 重调优而死
 - `ac32.py`：32-bit coder＋numba kernels；`sota_loop.py`＋`data/sota_loop.json`：迭代账本
 - `h2h_nacrith.py`＋`data/h2h_nacrith.json`：第三方复现；`third_party/nacrith`：原厂码
-- `test_shm_proc.py`、`ort_export.py`：未跑的后续工具（标注 UNRUN）
+- `test_shm_proc.py`：线程 vs 进程逐位一致（生产数据 0.9139 验证；另抓到共享 scratch＋nogil kernel＝静默段错误，已修）；`ort_export.py`：ONNX 导出脚本（ORT 分支已死，留档）
 - `compression-paper.md`＋`paper_sections_13_14_draft.md`：前期草稿（char 管线与早期 ensemble 史）

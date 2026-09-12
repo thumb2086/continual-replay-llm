@@ -955,8 +955,55 @@
    "id": "full100mb-final",
    "status": "cancelled",
    "note": "user: B means slice hand-in, no full run (too long). killed at ~1min (data loading)."
+  },
+  {
+   "id": "HANDIN-B",
+   "status": "done",
+   "note": "FINAL-REPORT.md written; 89 files committed 3aed3b6, pushed to thumb2086/continual-replay-llm main. slice numbers final: 0.9139. full-file deferred by user decision."
+  },
+  {
+   "id": "v13-restart",
+   "status": "ok-but-dead",
+   "bpb": 1.5282,
+   "elapsed_s": 26.3,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "restart helped exactly as predicted (garbage fraction 100%->53%: 2.64->1.53). mechanism: fp16 RoPE precision collapse at absolute positions >8K + compounding via cache. chaining DEAD dead. speed path = recompute(v11) + ORT + pipeline + procs."
+  },
+  {
+   "id": "v13-ORT",
+   "status": "dead",
+   "note": "fp32 8K: 13.5s once then 300s+ hang (per-shape retune + WDDM). ORT slower AND unreliable vs torch-fp16 here. speed path = v11-recompute + procs + pipeline only."
+  },
+  {
+   "id": "v13-recompute",
+   "status": "ok",
+   "bpb": 0.9139,
+   "elapsed_s": 26.3,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "CHAIN=0: entire restructured plumbing bitwise-validated"
+  },
+  {
+   "id": "v13-proc",
+   "status": "ok",
+   "bpb": 0.9139,
+   "elapsed_s": 30.5,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "4 procs on SHM: loop 8.5->3.9s wall. toy deaths = toy-only artifact"
+  },
+  {
+   "id": "v13-proc-pipe",
+   "status": "ok",
+   "bpb": 0.9139,
+   "elapsed_s": 26.9,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "pipeline helper overlap: loop 3.9->2.5s. busy 3.7KB/s. speed program lands here."
   }
  ],
  "done": false,
- "best_slice_bpb": 0.9139
+ "best_slice_bpb": 0.9139,
+ "status": "handed-in-B"
 }
