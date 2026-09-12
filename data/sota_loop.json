@@ -1689,6 +1689,13 @@
    "bpb": 0.9271,
    "elapsed_s": 7.2,
    "note": "WSL PROC N=4 loses to N=2 (7.2 vs 6.6). N=2 optimal everywhere. WSL BATTERY COMPLETE: 12.9->7.9->7.2->6.6."
+  },
+  {
+   "id": "main-hipri",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 5.1,
+   "note": "Main thread THREAD_PRIORITY_HIGHEST: 5.1 vs 5.0 control, null. Micro trilogy complete (K512 dead on ratio, alloc null x2, hipri null). Code-side FULLY closed."
   }
  ],
  "done": false,

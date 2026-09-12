@@ -571,6 +571,12 @@ def main():
         _ct2.windll.kernel32.SetPriorityClass(
             _ct2.windll.kernel32.GetCurrentProcess(), 0x80)  # HIGH_PRIORITY_CLASS
         print("  [prio] HIGH_PRIORITY_CLASS set (our threads first, video still plays)")
+        if int(os.environ.get("MAIN_HIPRI", "0")):
+            # v13-micro: main (launch-feeding) thread to HIGHEST priority
+            # (no affinity change: keep cache locality, scheduler decides).
+            _ct2.windll.kernel32.SetThreadPriority(
+                _ct2.windll.kernel32.GetCurrentThread(), 2)  # THREAD_PRIORITY_HIGHEST
+            print("  [prio] main thread HIGHEST")
     except Exception as _e:
         print(f"  [prio] skip ({_e})")
 
