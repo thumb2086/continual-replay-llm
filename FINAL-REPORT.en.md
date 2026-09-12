@@ -219,3 +219,13 @@ Layer-drop (PRUNE_LAST_N, separate line): minus-4 layers gives linear time (-13%
 Prefilter ladder 2048→1024: +6e-4, 4.6 s, null on both axes (prefilter caps temps, not work); 512 crashes outright (topk asks 1024 of 512 — hard constraint PF≥TOP_K). SDPA mem-efficient vs flash: exact, 4.7 s, null. Attention backends closed: math 11× slower, mem≈flash.
 
 Fast corner re-pinned: blend-gate (20,7) reruns 4.5 s at +4e-4 — the 4.4 s record is band, not luck. 218 ledger entries.
+
+## 28. Memory line, attention verdict, crown saturation, 1 s physics (2026-09-15)
+
+Memory (explicit goal direction): speed-line peak is 4.01 GB, and the composition is now solved — activations (~2.7 GB for 8192×576×30) dominate, not topk workspace (chunked topk: identical 4.6 s/4.01 GB, null) and not the allocator (expandable_segments: identical 4.5 s/4.01 GB, null; max_split_size_mb:128: same peak but 5.2 s slower, dead; EMPTY_EVERY=1 declined by arithmetic — the metric counts live tensors, which empty_cache cannot move). No free lunch exists: only fewer-tokens-per-forward lowers peak. BLOCK 4096 maps the tradeoff exactly: peak 4.01→2.13 GB (-47%) for +0.3 s and +127e-4 (over budget); with K2048 it becomes a legit low-memory line — 2.13 GB, 0.9302, 5.8 s — halving VRAM for ≤4 GB cards at +30e-4/+1.3 s. Recorded as versatility, not speed.
+
+Attention (explicit goal direction): flash-SDPA stands banked; mem-efficient equals it; math is 11× slower — backends closed. Sliding-window streaming was declined by arithmetic with zero code: this regime fires 8k-token forwards where launches dominate, so streaming redistributes identical FLOPs over more launches — strictly worse (the CHAIN family already died twice proving it). There is no attention stone left unturned.
+
+Ratio-up: the crown was assaulted at overlap 6144 (13 segs, exact classic-path replica): 0.9004 (+1e-4, identical) for 2× time. The overlap ladder saturates at 4096; 0.9003 stands.
+
+1 s verdict: the floor is 4 forwards × ~0.8 s + ~0.7 s loop ≈ 4 s, and every faster-path measured this round lost or died (ORT 149 s, quant ×4, prune ×2, batch ×2, multicore, PF, SDPA-mem, skip-oracle, SWA). Sub-1 s needs fewer forwards, i.e. a longer-context smaller model — a new project (new tokenizer, full re-science), not an optimization. 226 ledger entries.

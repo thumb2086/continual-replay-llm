@@ -1923,6 +1923,58 @@
    "bpb": 0.9276,
    "elapsed_s": 4.5,
    "note": "Fast-corner re-pin (BLEND 20/7): 4.5s +4e-4, confirms 4.4s was band not luck. Speed record stands 4.4-4.5s."
+  },
+  {
+   "id": "split128",
+   "status": "dead",
+   "bpb": 0.9276,
+   "elapsed_s": 5.2,
+   "note": "max_split_size_mb:128: PEAK identical 4.01GB, Time 5.2s SLOWER (fwd 4.4 vs 3.8, smaller blocks fragment kernels). Hurts, no gain."
+  },
+  {
+   "id": "expandable",
+   "status": "null",
+   "bpb": 0.9276,
+   "elapsed_s": 4.5,
+   "note": "expandable_segments:True: identical 4.5s/4.01GB. Allocator already healthy at this size."
+  },
+  {
+   "id": "empty1",
+   "status": "dead",
+   "note": "EMPTY_EVERY=1 declined by arithmetic, zero runs: PEAK_VRAM=max_memory_allocated (live tensors); empty_cache only releases reserved-to-OS, cannot move the metric. No run."
+  },
+  {
+   "id": "chunked-topk",
+   "status": "null",
+   "bpb": 0.9276,
+   "elapsed_s": 4.6,
+   "note": "UNCHUNKED_TOPK=0: identical 4.6s/4.01GB. Topk workspace is NOT the peak driver; activations (~2.7GB for 8192x576x30) dominate. Peak composition solved."
+  },
+  {
+   "id": "bt4096",
+   "status": "null",
+   "bpb": 0.9399,
+   "elapsed_s": 4.8,
+   "note": "BLOCK 8192->4096 (8 segs): PEAK 4.01->2.13GB (-47%!), Time +0.3s only (smaller windows run faster each), but bpb +127e-4 (less context/seg, over 0.9389 budget). Time-memory tradeoff mapped; no free lunch (activation-dominated peak)."
+  },
+  {
+   "id": "bt4k2-memline",
+   "status": "null",
+   "bpb": 0.9302,
+   "elapsed_s": 5.8,
+   "note": "BT4096/K2048 low-memory line: PEAK 2.13GB (-47%), bpb 0.9302 back under budget (+30e-4), Time +1.3s. Legit versatility point for <=4GB cards (paper); not a speed bank."
+  },
+  {
+   "id": "ov6144",
+   "status": "null",
+   "bpb": 0.9004,
+   "elapsed_s": 44.1,
+   "note": "Crown assault ov4096->6144 (13 segs, classic path replica): 0.9004 (+1e-4, identical), 44.1s 2x time for nothing. Overlap ladder saturated at 4096; crown 0.9003 stands."
+  },
+  {
+   "id": "swa",
+   "status": "dead",
+   "note": "Sliding-window streaming attention declined by arithmetic, zero code: our regime is 8k-token forwards (launch-dominated), not 1-token decode; streaming redistributes the same FLOPs over MORE launches (7-8 vs 4) -> strictly worse. CHAIN-family already falsified x2. Attention verdict: flash banked, SWA arith-dead, backends closed."
   }
  ],
  "done": false,

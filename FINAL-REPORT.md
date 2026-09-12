@@ -221,4 +221,14 @@ Prefilter 2048→1024：+6e-4、4.6 秒，雙軸 null（prefilter 卡的是暫�
 
 快角重釘：blend-gate (20,7) 重跑 4.5 秒 +4e-4——4.4 秒是帶寬不是運氣。ledger 共 218 條。
 
+## 28. 記憶體線、注意力 verdict、王座飽和、1 秒物理（2026-09-15）
+
+記憶體（明確目標方向）：速度線峰值 4.01GB，成分已解開——activation（8192×576×30 約 2.7GB）才是大頭，不是 topk 暫存（chunked topk：一字不差 4.6s/4.01GB，null），也不是 allocator（expandable：一字不差；split128：同峰但更慢，死；EMPTY_EVERY=1 算術拒絕——指標數的是活張量，empty_cache 動不了）。免費午餐不存在：只有少 token per forward 能降峰。BLOCK 4096 精確描出 tradeoff：峰 4.01→2.13GB（-47%），代價 +0.3s、+127e-4（超預算）；配 K2048 變合法低記憶體線——2.13GB、0.9302、5.8s——4GB 卡救星，+30e-4/+1.3s。記為 versatility，不記速度。
+
+注意力（明確目標方向）：flash 續留；mem 打平；math 慢 11 倍——後端關門。sliding-window streaming 算術拒絕、零碼：本 regime 是 8k-token forward（發射主導），streaming 把同樣 FLOPs 分給更多發射——嚴格更糟（CHAIN 家族已死兩次作證）。注意力無石可翻。
+
+比率上攻：王座 ov6144 強攻（13 段、classic 原樣）：0.9004（+1e-4、一樣）、時間兩倍。overlap 梯子在 4096 飽和；0.9003 續留。
+
+1 秒 verdict：地板是 4 發×0.8s＋loop 0.7s≈4s，本輪所有更快路徑全輸全死（ORT 149s、量化×4、剪層×2、batch×2、multicore、PF、SDPA-mem、skip-oracle、SWA）。sub-1s 要更少發射＝更長 context 更小模型——那是新專案（新 tokenizer、全重做科學），不是優化。ledger 共 226 條。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。
