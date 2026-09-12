@@ -1,5 +1,7 @@
 # Continual Replay LLM + Practical Neural Compression
 
+> 正體中文版見 [README.zh-Hant.md](README.zh-Hant.md)。交卷論文：[FINAL-REPORT.md](FINAL-REPORT.md)（繁中）· [FINAL-REPORT.en.md](FINAL-REPORT.en.md)（English）。
+
 Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: SmolLM2-135M ensemble at **0.9139 bits/byte** on enwik8 (beats the 0.9389 SOTA line by 2.7% on the same slice class), with every number measured and every failure kept.
 
 ## Headline numbers (all measured, 2026-09-13)
