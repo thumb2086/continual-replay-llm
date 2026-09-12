@@ -164,7 +164,6 @@ Ratio shots: PF16384/K8192 = 0.9004 (tail NOT recovered by width; PEAK 8.01GB re
 Scale ladder (all 220/220): speed-gather 5.3 s / 56.9 s / 632 s (100KB/1MB/10MB: 18.9/18.0/16.2 KB/s, PEAK 4.01GB flat); 10MB ratio 0.9039 (cache warms with scale). New `tools/scale_plot.py` → `scale_time_size.png` (size-vs-time log-log + bpb-vs-size). Pareto v5: 30 points. Full 100MB ≈ 1.7 h gather-speed — overnight-able.
 
 ## 18. Intuitive charts: best goes top-right (2026-09-14)
-
 The old Pareto plots had best (fast + tight) sinking to the bottom-right (y = bpb, lower better) — backwards from reading intuition. Both plots now use y = compression ratio 8/bpb (higher better): x = throughput (faster right), red SOTA line at 8.52x (worse below), ideal corner top-right. Same 30 measured points, same script (`tools/pareto_plot.py`). The frontier honestly shows the trade: crown top-middle (8.89x @ 4.2KB/s), gather bottom-right (8.63x @ 18.9KB/s) — nothing sits top-right yet; that empty corner is the next frontier.
 
 ## 19. Fresh Pareto: old era deleted, 6 new probes (2026-09-14)
@@ -172,9 +171,12 @@ The old Pareto plots had best (fast + tight) sinking to the bottom-right (y = bp
 Ten pre-flash timings deleted (BC7/ov6144/TRI0/ov5120/ov3072/ov2560/ov1536/ov512/ov1024/ov0-classic — stale scheduler era). Six new runs, all 220/220: crown-classic re-confirmed EXACT 0.9003 (later code zero-impact with flags off); knee+gather 0.9194 EXACT @ 5.9 s (pi-only cost ~0 at knee, 12.0→5.9 s); ov1024+gather 0.9241@5.5 s; K3072+gather 0.9029@9.7 s (ladder fill); ov3072K8+gather 0.9026@15.0 s (overlap still matters at big K, 0.002 gap); ov0K2+gather 0.9183@5.7 s. OFF50 now 17 current-code points. Crown 0.9003 / speed 18.9KB/s stand.
 
 ## 20. WSL speed battery: 12.9 → 6.6 s, 1 s verdict (2026-09-14)
-
 Windows micros: K512+gather fastest-ever 4.9 s but +146e-4 ratio (REJECTED — speed without ratio is cheap); alloc-conf null twice; quiet box alone 5.3–7.4 → 5.0 s (box state ≈ 2 s swing — all speed numbers carry this band).
 
 WSL (100KB, 0.9271±1e-4 throughout, all 220/220): eager 12.9 → graphs 7.9 (−39%: replay finally works without WDDM — differential proof the wall was WDDM) → threads-2 7.2 (Linux inverts the Windows GIL verdict) → proc-fork-2 **6.6 s** (no spawn penalty + own GIL) → proc-4/threads-4 null (N=2 optimal everywhere).
 
 1-second verdict: unreachable on this silicon. Floor math per 100KB (4 segs): attention-GPU 4×0.2 + post 4×0.3 + CPU loop/code ≈ 3 s of irreducible work; forwards can't drop below 4 (model ceiling 8192, 16K proven garbage). Best banked: 5.0 s quiet-Windows / 6.6 s WSL. Reopening needs: fewer forwards (bigger-context model), ~5× silicon, or full idle. Micro epilogue: K512+gather fastest-ever 4.9 s but +146e-4 ratio (rejected); alloc-conf null twice; main-thread HIGHEST null (5.1 vs 5.0); torch/OMP/MKL single-threading null (5.1 vs 5.0 — GIL dominates, pools weren't the contention). Pinned async D2H banked (parity EXACT, d2h 1.0→0.0 s, net −0.2 s, default on). Code-side fully closed.
+
+## 21. Blend-gate + tuned defaults: 4.4 s (2026-09-15)
+
+cProfile-inline exposed nb_blend_row at 1.24 s/17k calls (72µs each, 69% of Phase-A) — the cost driver is blend COUNT, not driver Python (numba-driver EV capped ~0.5 s, declined with measurement). New gate on cache-row totals: (5,2) is EXACT at 0.9272 with blend −16% (low-count blends were pure waste); (20,7) trades +4e-4 for 4.4 s = 22.7KB/s (new fastest-valid Pareto point); (50,15) saturates (+8e-4, same 4.4 s). Defaults now fast out of the box (overlap 0, floor 1e-6, S2 off, fp16-xfer on, 1 worker, blend-gate 5/2, gather+pinned on): pure-defaults run gives 0.9185 @ 5.1 s. Pareto v6: 25 points (off50 18). 1 s stays physics-bound (floor ≈ 3 s); best banked 4.4 s.

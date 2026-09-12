@@ -175,4 +175,8 @@ WSL（100KB，全程 0.9271±1e-4，全 220/220）：eager 12.9→graph 7.9（�
 
 1 秒判決：這片矽到不了。地板數學（100KB 4 段）：attention-GPU 4×0.2＋後處理 4×0.3＋CPU loop/code≈3 秒不可約；forward 減不到 4 發（模型天花板 8192，16K 證過垃圾）。已入帳最佳：安靜 Win 5.0 秒／WSL 6.6 秒。重開條件：forward 更少的模型、5 倍矽、或全閒置。微調尾聲：K512＋gather 史上最快 4.9 秒但＋146e-4 比率（拒收）；alloc 兩次 null；主線程最高優先 null（5.1 vs 5.0）；torch/OMP/MKL 單線程 null（5.1 vs 5.0——GIL 主導，池子不是兇手）。pinned 異步傳輸入帳（逐位一致，d2h 1.0→0.0 秒，淨 −0.2 秒，預設開）。code 端徹底關閉。
 
+## 21. blend-gate＋預設轉正：4.4 秒（2026-09-15）
+
+cProfile-inline 揪出 nb_blend_row 1.24 秒/1.7 萬次（72µs 每次，Phase-A 的 69%）——成本 drivers 是 blend 顆數，不是驅動 Python（numba 驅動 EV 上限約 0.5 秒，有測量為據拒絕）。新門看 cache 行總量：(5,2) 一字不差 0.9272 且 blend −16%（低 count blend 全是廢活）；(20,7) 用＋4e-4 換 4.4 秒＝22.7KB/s（新最快有效 Pareto 點）；(50,15) 飽和（＋8e-4，同 4.4 秒）。預設開箱即快（overlap 0、floor 1e-6、S2 關、fp16 傳、單 worker、blend-gate 5/2、gather＋pinned 開）：純預設跑 0.9185 @ 5.1 秒。Pareto v6：25 點（off50 18 點）。1 秒仍是物理 bound（地板約 3 秒）；已入帳最佳 4.4 秒。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

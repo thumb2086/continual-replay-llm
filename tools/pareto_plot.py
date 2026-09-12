@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 # ov1536/ov512/ov1024/ov0-classic) REMOVED 2026-09-14 (stale scheduler era).
 # off50 = representative article region; off75 = hard region.
 OFF50 = [
+    ("gate\n22.7KB/s", 100 / 4.4, 0.9276),
     ("gather\n18.9KB/s", 100 / 5.3, 0.9272),
     ("ov0K2 gather", 100 / 5.7, 0.9183),
     ("knee gather", 100 / 5.9, 0.9194),
@@ -101,12 +102,13 @@ fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)",
                 8.4, 9.0)
 _dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K16k", "knee gather",
                                     "ov4096\nK1k", "K3072 gather",
-                                    "gather\n18.9KB/s"),
+                                    "gather\n18.9KB/s", "gate\n22.7KB/s"),
       offsets={"K8k\ncrown": (-64, 14), "K16k": (8, 12),
                "knee gather": (8, 18), "ov4096\nK1k": (-64, -12),
-               "K3072 gather": (8, 12), "gather\n18.9KB/s": (8, -12)})
+               "K3072 gather": (8, 12), "gather\n18.9KB/s": (8, 10),
+               "gate\n22.7KB/s": (10, -14)})
 _diamonds(ax)
-ax.set_xlim(0, 20)
+ax.set_xlim(0, 24)
 fig.tight_layout()
 fig.savefig("pareto_off50.png", dpi=120)
 print("saved pareto_off50.png")

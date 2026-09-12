@@ -1710,6 +1710,39 @@
    "bpb": 0.9272,
    "elapsed_s": 4.9,
    "note": "Pinned async D2H: PARITY EXACT (zero math change proven), d2h subclock 1.0->0.0s, net ~-0.2s. Default ON. shmw absorbs sync (2.6s = CPU contention, box busy)."
+  },
+  {
+   "id": "inline-0work",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 5.6,
+   "note": "N_LOOP_WORKERS=0 inline: parity EXACT, attn launches 2x tighter (1.1->0.6s, GIL tax proven real ~0.5s) BUT total slower (GPU idles during serial Phase-A). Threads buy true CPU||GPU overlap. 1-worker verdict stands. Implication: numba driver belongs IN THE WORKER (nogil compute + free main = both overlap AND tight launches), EV ~4.2s."
+  },
+  {
+   "id": "prof-inline",
+   "status": "kept",
+   "note": "cProfile INLINE (main-thread Phase-A visible): nb_blend_row 1.24s/17k calls = 72us each (69%% of Phase-A); driver Python only ~0.3-0.5s; main-self 2.0s; logsumexp 0.37s. VERDICT: numba-driver EV capped ~0.5s (declined again, measured this time). NEW LEVER: blend FRACTION is the cost driver -> CONF retune under gather (fresh axis, Pareto knob)."
+  },
+  {
+   "id": "blend-gate52",
+   "status": "kept",
+   "bpb": 0.9272,
+   "elapsed_s": 4.6,
+   "note": "BLEND_BT_MIN=5/TT=2: bpb EXACT, blend -16% (17k->14.5k), 4.6s BEST VALID. Low-count blends were pure waste."
+  },
+  {
+   "id": "blend-gate207",
+   "status": "kept",
+   "bpb": 0.9276,
+   "elapsed_s": 4.4,
+   "note": "Gate (20,7): +4e-4, blend -30% (12k), 4.4s fastest. Tradeoff point (not default; default stays (5,2) EXACT)."
+  },
+  {
+   "id": "blend-gate5015",
+   "status": "kept",
+   "bpb": 0.928,
+   "elapsed_s": 4.4,
+   "note": "Gate (50,15): +8e-4, blend 9718, speed saturated at 4.4s (other bottlenecks). Ladder closed: off-EXACT/4.6, 20/7-+4e-4/4.4, 50/15-+8e-4/4.4. Default: (5,2) EXACT."
   }
  ],
  "done": false,

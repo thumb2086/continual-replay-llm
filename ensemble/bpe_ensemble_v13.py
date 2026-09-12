@@ -66,29 +66,31 @@ BIGRAM_LAMBDA = float(os.environ.get("BIGRAM_LAMBDA", "0.99"))
 BIGRAM_CONF = float(os.environ.get("BIGRAM_CONF", "10.0"))
 TRIGRAM_CONF = float(os.environ.get("TRIGRAM_CONF", "7.0"))
 USE_TRIGRAM = int(os.environ.get("USE_TRIGRAM", "1"))
-OVERLAP = int(os.environ.get("OVERLAP", "2048"))
+OVERLAP = int(os.environ.get("OVERLAP", "0"))
 assert 0 <= OVERLAP < BLOCK_TOKENS  # (v11-sweep: lifted 4096 cap; stride=BT-OV, cost ~BT/stride x forward)
 BLOCK_NEW = BLOCK_TOKENS - OVERLAP
-FLOOR_FRAC = float(os.environ.get("FLOOR_FRAC", "6.1035e-5"))
+FLOOR_FRAC = float(os.environ.get("FLOOR_FRAC", "1e-6"))
 S2_FLOOR = float(os.environ.get("S2_FLOOR", "1.5e-5"))
-USE_CACHE_S2 = int(os.environ.get("USE_CACHE_S2", "1"))
+USE_CACHE_S2 = int(os.environ.get("USE_CACHE_S2", "0"))
 USE_NUMBA_LOOP = int(os.environ.get("USE_NUMBA_LOOP", "1"))
-USE_FP16_XFER = int(os.environ.get("USE_FP16_XFER", "0"))
+USE_FP16_XFER = int(os.environ.get("USE_FP16_XFER", "1"))
 USE_CUDA_GRAPH = int(os.environ.get("USE_CUDA_GRAPH", "0"))
 GRAPH_FULL = int(os.environ.get("GRAPH_FULL", "0"))  # v13-graph2: full-model static-shape replay (flash era retry; old zeros bug was math-era trunk-only). 0 = off.
 PREFILTER = int(os.environ.get("PREFILTER", "2048"))
 USE_GPU_TOPK = int(os.environ.get("USE_GPU_TOPK", "1"))
 BATCH_FWD = int(os.environ.get("BATCH_FWD", "1"))
-N_LOOP_WORKERS = int(os.environ.get("N_LOOP_WORKERS", "8"))
+N_LOOP_WORKERS = int(os.environ.get("N_LOOP_WORKERS", "1"))
 AFF_BASE = int(os.environ.get("AFF_BASE", "24"))  # first dedicated E-core
 USE_PROC_LOOP = int(os.environ.get("USE_PROC_LOOP", "0"))  # v13-proc: Phase-A in worker procs (own GIL); default off
 N_PROC = int(os.environ.get("N_PROC", "4"))
 PIPELINE = int(os.environ.get("PIPELINE", "0"))  # v13-pipe: helper-thread finish overlaps next fwd; default off
-EMPTY_EVERY = int(os.environ.get("EMPTY_EVERY", "1"))  # v13: empty_cache cadence (segs); default every seg
+EMPTY_EVERY = int(os.environ.get("EMPTY_EVERY", "0"))  # v13: empty_cache cadence (segs); measured null, default off (was every seg)
 SKIP_EVERY = int(os.environ.get("SKIP_EVERY", "0"))  # v13-skip: skip LM forward every Nth seg (1st kept); 0 = off. Cache-only topk (lam=0), decoder mirrors via same seg counter; verify guards.
 SKIP_MOD = int(os.environ.get("SKIP_MOD", "1"))  # which residue to skip: (si-1)%N==MOD. MOD=3 skips the 4th seg (warmest tables: best-case probe).
 _EXCLPROBE = int(os.environ.get("EXCLPROBE", "0"))  # v13-exclprobe: count exclusive-key target hits (pi-only gather safety)
 _PIONLY = int(os.environ.get("PI_ONLY", "0"))  # v13-pionly: truncate brow/trow to pi-members (ratio-cost probe)
+BLEND_BT_MIN = int(os.environ.get("BLEND_BT_MIN", "5"))  # v13 blend-gate: skip blend unless bigram row total >= this (5/2 proven EXACT: low-count blends are pure waste; 0 = classic existence gate)
+BLEND_TT_MIN = int(os.environ.get("BLEND_TT_MIN", "2"))  # same for trigram row total
 GATHER_PI = int(os.environ.get("GATHER_PI", "1"))  # v13-gather: kill full-V softmax+transfer (topk on logits + lse + gather pi-logits + CPU exp). Implies pi-only math; ratio gate vs PI_ONLY number.
 _PIONLY_EFF = 1 if (_PIONLY or GATHER_PI) else 0  # run-constant: no cross-seg race
 GC_OFF = int(os.environ.get("GC_OFF", "0"))  # v13-micro: gc.disable() during run (cyclic trash can't form here); default off
@@ -300,7 +302,16 @@ def _range_core(block, T0, lo, hi, coded, prev_tail,
             _it = -1
         _ps = ((OVERLAP > 0 and _t == T0)
                or ((coded + (_t - T0)) % 130 == 0))
-        if (_ib < 0 and _it < 0) and not nolm:
+        # v13 blend-gate: existence gate (classic) PLUS count gate: rows
+        # below the minima fall back to plain (LM-only). Low-count blends
+        # carry ~no cache weight, but cost a full 72us kernel call.
+        # Deterministic on causal tables -> decoder mirrors; verify guards.
+        _gate_bt = bi_tot[_ib] if _ib >= 0 else 0
+        _gate_tt = tri_tot[_it] if _it >= 0 else 0
+        if ((_ib < 0 and _it < 0)
+                or ((BLEND_BT_MIN > 0 or BLEND_TT_MIN > 0)
+                    and _gate_bt < BLEND_BT_MIN and _gate_tt < BLEND_TT_MIN)
+                ) and not nolm:
             opath[_pos] = 0
             if USE_GPU_TOPK:
                 _tidx = ti[_t]
@@ -755,12 +766,13 @@ def main():
             import ctypes as _c3
             _c3.windll.kernel32.SetThreadAffinityMask(
                 _c3.windll.kernel32.GetCurrentThread(),
-                1 << (AFF_BASE + (_i % N_LOOP_WORKERS)))
+                1 << (AFF_BASE + (_i % max(1, N_LOOP_WORKERS))))
         except Exception:
             pass
 
     _thr_scratch = []
-    for _w in range(N_LOOP_WORKERS):
+    # (inline mode N_LOOP_WORKERS<=0 still needs one scratch set)
+    for _w in range(max(1, N_LOOP_WORKERS)):
         _thr_scratch.append([
             np.zeros(V, dtype=np.int32), np.zeros(V, dtype=np.int32),
             np.zeros(V, dtype=np.float64), np.empty(TOP_K, dtype=np.float64),
@@ -772,7 +784,7 @@ def main():
             np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
             np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
         ])
-    _pool = ThreadPoolExecutor(max_workers=N_LOOP_WORKERS,
+    _pool = ThreadPoolExecutor(max_workers=max(1, N_LOOP_WORKERS),
                                initializer=_pin_worker)
     _rest_pool = ThreadPoolExecutor(max_workers=1)  # v13-pipe: finish helper (never deadlocks: its waits target _pool/_proc_pool)
     _proc_pool = None  # v13-proc: lazy (spawn cost only when enabled)
@@ -1504,7 +1516,17 @@ def main():
                 # v13-proc: single-source core, two executors. Threads share
                 # arrays in-process; procs resolve the same math through
                 # shared memory. Default: threads (validated path).
-                if USE_PROC_LOOP:
+                # N_LOOP_WORKERS<=0: inline in main (zero threads, zero GIL
+                # fight during launches; same math, verify guards).
+                if N_LOOP_WORKERS <= 0 and not USE_PROC_LOOP:
+                    _range_core(block, T0, T0, T0 + NC, _coded, prev_tail,
+                                bi_id_of, tri_id_of, bi_keys, bi_vals, bi_tot,
+                                tri_keys, tri_vals, tri_tot,
+                                blk_probs, tv, ti, pi,
+                                topk_batch, rank_arr, path_arr, tidx_batch,
+                                _thr_scratch[0], _nolm)
+                    _futs = []
+                elif USE_PROC_LOOP:
                     if _proc_pool is None:
                         _proc_pool = ProcessPoolExecutor(
                             max_workers=N_PROC, initializer=_proc_init,
