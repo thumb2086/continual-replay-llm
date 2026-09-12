@@ -1375,6 +1375,104 @@
    "bpb": 0.9025,
    "elapsed_s": 1095.9,
    "note": "10MB LADDER ov0/K1024: 372 segs, 9.3KB/s, PEAK 2.32GB flat, verify 220. Ratio BETTER than 1MB (cache warms with scale: 0.9347->0.9025). frz 11.7s sublinear (incremental freeze works). Full-file ~3h quiet."
+  },
+  {
+   "id": "loopw2",
+   "status": "null",
+   "bpb": 0.9268,
+   "elapsed_s": 14.3,
+   "note": "N_LOOP_WORKERS=2 loses to 1 (9.8s). GIL curve 1<2<8 complete. Single worker optimal, closed."
+  },
+  {
+   "id": "gcoff-new",
+   "status": "null",
+   "bpb": 0.9268,
+   "elapsed_s": 13.8,
+   "note": "GC_OFF=1 in new world: no win (13.8s). GC closed twice."
+  },
+  {
+   "id": "proc-rescan",
+   "status": "null",
+   "bpb": 0.9268,
+   "elapsed_s": 15.6,
+   "note": "USE_PROC_LOOP=1/N=2 in new world loses to threads (9.8s). Proc path closed; default 0 stands."
+  },
+  {
+   "id": "batch-crown",
+   "status": "null",
+   "bpb": 0.9139,
+   "elapsed_s": 23.1,
+   "note": "BATCH_SEGS=2 on ov4096 crown: parity EXACT but slower (23.1 vs 17.3s). Batch closed twice. SPEED CHECKPOINT COMPLETE: 4/4 null + surgery-cancel proof => code-side closure."
+  },
+  {
+   "id": "lam0995-k8",
+   "status": "null",
+   "bpb": 0.9003,
+   "elapsed_s": 32.5,
+   "note": "LAMBDA 0.99->0.995 at K8192: identical 0.9003. Lambda axis flat, closed."
+  },
+  {
+   "id": "ov6144-k8",
+   "status": "null",
+   "bpb": 0.9004,
+   "elapsed_s": 55.8,
+   "note": "ov6144 at K8192: 0.9004 (+1e-4 noise), 13 segs/55.8s. Context saturates at 4096 even at big K. Overlap axis closed."
+  },
+  {
+   "id": "ov2048-k8",
+   "status": "kept",
+   "bpb": 0.9058,
+   "elapsed_s": 23.6,
+   "note": "Knee at big K: ov2048/K8192 0.9058@23.6s. New mid-curve Pareto point."
+  },
+  {
+   "id": "K16384",
+   "status": "dead",
+   "bpb": 0.9027,
+   "elapsed_s": 52.4,
+   "note": "K LADDER PEAKED at 8192: K16384 regresses to 0.9027 (+24e-4), 52.4s, PEAK 8.26GB (paged!). Inverted-U complete (-89/-37/-10/+24). K axis CLOSED. Never exceed K8192 on 8GB."
+  },
+  {
+   "id": "conf20-k8",
+   "status": "null",
+   "bpb": 0.9003,
+   "elapsed_s": 31.3,
+   "note": "BIGRAM_CONF 10->20 at K8192: identical. CONF axis flat at big K, closed."
+  },
+  {
+   "id": "pf8-k4",
+   "status": "null",
+   "bpb": 0.9013,
+   "elapsed_s": 27.6,
+   "note": "PF8192/K4096 identical to PF4096/K4096. Prefilter width beyond K adds nothing. PF axis closed."
+  },
+  {
+   "id": "K6144",
+   "status": "kept",
+   "bpb": 0.9004,
+   "elapsed_s": 28.5,
+   "note": "Ladder midpoint K6144: 0.9004@28.5s. Granular diminishing (-9e-4/-1e-4). New Pareto point."
+  },
+  {
+   "id": "ov1024-k8",
+   "status": "kept",
+   "bpb": 0.9099,
+   "elapsed_s": 22.3,
+   "note": "ov1024 at K8192: 0.9099@22.3s. Curve fill. New Pareto point."
+  },
+  {
+   "id": "ov0-k8",
+   "status": "kept",
+   "bpb": 0.9127,
+   "elapsed_s": 21.8,
+   "note": "ov0 at K8192: 0.9127@21.8s. Big-K helps ov0 most (-141e-4) at 2.2x time. New Pareto point."
+  },
+  {
+   "id": "tric10-k8",
+   "status": "null",
+   "bpb": 0.9004,
+   "elapsed_s": 30.9,
+   "note": "TRIGRAM_CONF 3->10 at K8192: +1e-4 noise. Tri axis flat at big K, closed. RATIO CHECKPOINT COMPLETE: 9 probes, K-ladder peaked (inverted-U), lambda/overlap/CONF/tri/PF/floor/S2 all flat."
   }
  ],
  "done": false,

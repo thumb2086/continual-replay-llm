@@ -137,4 +137,12 @@ logit 手術取消，有證據：單機實測 softmax＋2×topk＋gather＋全�
 
 1MB 速度基線（ov0/K1024，38 段）：**0.9347**，104.3 秒＝9.8KB/s——與 100KB 線性一致，放量漂移 ＋79e-4（與王座 ＋75e-4 同級）。100KB 修復後重驗 0.9268 一字不差。梯子：1MB 約 2 分鐘（速度版）／4 分鐘（王座版）；10MB 約 17 分鐘；全檔 100MB 安靜箱約 3 小時——可過夜跑。
 
+## 15. Goal 回合：速度關閉、K 到頂、Pareto＋6 點（2026-09-14）
+
+速度（4 探針全 null）：2 worker 輸 1（14.3 秒，GIL 曲線 1＜2＜8 補完）；GC_OFF null；proc/N=2 null（15.6 秒，thread 勝）；batch 上王座逐位一致但更慢（23.1 秒）。code 端速度關閉（連同 §14 證據）。殘留路徑（未走）：segment-skip、graph 重試、WSL compile——專案級，列案。
+
+比率（9 探針）：K 階梯到頂——K16384 退回 0.9027（＋24e-4，52.4 秒，顯存 8.26GB 分頁！）：倒 U（−89/−37/−10/＋24），8GB 卡永不上 K8192。持平／關閉：lambda 0.995、ov6144@K8（＋1e-4）、CONF 20、TRI-CONF 10、PF 超 K、S2、floor 1e-7。新曲線點：K6144 0.9004@28.5 秒、ov2048@K8 0.9058@23.6 秒、ov1024@K8 0.9099@22.3 秒、ov0@K8 0.9127@21.8 秒（大 K 對 ov0 最補，−141e-4，2.2 倍時間）。
+
+Pareto v4：28 點（OFF50 21 點）。全 220/220。王座 0.9003／速度 10.2KB/s 不動。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

@@ -140,3 +140,11 @@ Drain diagnostic (SYNC_ATTN): true attention-GPU is 0.7 s/4 forwards — flash c
 Logit surgery CANCELLED with proof: standalone softmax + 2×topk + gather + ALL D2H transfers = 0.15 s/seg, GPU-only 0.02 s/seg. v13's 1.4 s/seg is 10× scheduling (queue-wait behind prior work, desktop preemption, boost sag between bursts) — not work. Fusing nothing saves nothing. Code-side speed work is CLOSED (every lever null or convicted-environmental); the remaining lever is a quiet box.
 
 1MB speed baseline (ov0/K1024, 38 segs): **0.9347**, 104.3 s = 9.8KB/s — linear vs 100KB confirmed, scale drift +79e-4 (same class as crown's +75e-4). 100KB re-confirm 0.9268 EXACT post-repair. Ladder: 1MB needs ~2 min (speed) / ~4 min (crown); 10MB ≈ 17 min; full 100MB ≈ 3 h quiet — overnight-able.
+
+## 15. Goal round: speed closed, K peaked, +6 Pareto points (2026-09-14)
+
+Speed (4 probes, all null): 2 loop workers lose to 1 (14.3 s, GIL curve 1<2<8 complete); GC_OFF null; proc/N=2 null (15.6 s, threads win); batch-on-crown parity-exact but slower (23.1 s). Code-side speed CLOSED (with §14 proof). Residual paths (not taken): segment-skip, CUDA-graph retry, WSL compile — project-scale, listed for the record.
+
+Ratio (9 probes): K ladder PEAKED — K16384 regresses to 0.9027 (+24e-4, 52.4 s, PEAK 8.26GB paged!): inverted-U (−89/−37/−10/+24), never exceed K8192 on 8GB. Flat/closed: lambda 0.995, ov6144@K8 (+1e-4), CONF 20, TRI-CONF 10, PF-beyond-K, S2, floor 1e-7. New curve points: K6144 0.9004@28.5 s, ov2048@K8 0.9058@23.6 s, ov1024@K8 0.9099@22.3 s, ov0@K8 0.9127@21.8 s (big-K helps ov0 most, −141e-4, at 2.2× time).
+
+Pareto v4: 28 points (OFF50 21). All 220/220. Crown 0.9003 / speed 10.2KB/s stand.
