@@ -143,3 +143,59 @@ enwik8（100MB，壓縮界標準測試集）下载并用 M-bigdata 模型 frozen
 - 蒸餾失敗：S-distilled 7.636 差於 S-scratch 7.466。診斷：老師訓練 loss 2.35 vs 學生 3.59，老師過擬合，學生連過擬合一起繼承；加 weight decay 重蒸亦無改善（7.638）。結論：蒸餾的前提是老師泛化更好，本設定下不成立。
 - 剪枝成功但幅度小：M FFN-50% 只掉 0.02 bpc，證實小模型冗餘度高。
 - 綜合教訓：本設定下瓶頸在**資料**，不在模型大小、蒸餾或剪枝。
+
+## 11. 速度、壓縮率、硬體消耗完整分析
+
+### 速度優化史（同一 400-chunk 測試）
+
+```
+4270 → 7407 → 12190 → 32392 → 62385 → 96689 chars/s（prefix40 設定）
+```
+
+| 優化 | 效果 | 性質 |
+|---|---|---|
+| numba 算術編碼迴圈 | Python 迴圈 → 編譯碼 | 一次性 |
+| 區塊化更新（block 8） | 400 次反向 → 50 次 | 改變更新頻率 |
+| fp16 + batched forward | GPU 吃飽 | 無精度損失（已驗證 bpc 不變） |
+| GPU 端量化 | 取代 CPU numpy（11x） | 1014/1016 行完全一致 |
+| prefix 適應 | 只更新前 10% | -0.25 bpc 換 3.5x 速度 |
+| 巨型 frozen batch | 50 次 forward → 2 次 | 凍結段專用 |
+| AMP + fused Adam | 反向傳播加速 | bpc 不變（已驗證） |
+
+### 瓶頸排序（實測）
+
+1. 反向傳播（adaptation）——最大頭，已用 prefix + bias-only + AMP 處理
+2. Python 迴圈開銷——已用 numba + 巨型 batch 處理
+3. DtoH 傳輸——已用 uint16 減半
+4. Forward 本身——巨型 batch 下僅 40ms/400 chunks，**不是瓶頸**
+
+### 硬體佔用（RTX 3060 Ti 8GB）
+
+| 項目 | 佔用 | 說明 |
+|---|---|---|
+| 模型權重 S | ~4-5 MB | fp32；fp16 再減半 |
+| 模型權重 M | ~18-21 MB | fp32 |
+| Peak（adapt 路徑） | 228–495 MB | 小 batch，8GB 卡綽綽有餘 |
+| Peak（frozen 巨型 batch） | 1.3–2.2 GB | fwd_batch=200 的 logits，不是模型大 |
+| Huffman | ~0 MB | 查表法 |
+
+結論：硬體佔用**不高**。Peak 記憶體來自刻意放大的 batch（速度換空間），把 fwd_batch 調小即可降 5 倍，只慢一點。權重本身微不足道。
+
+### 速度誠實評估
+
+- 最快 neural（prefix40/frozen）：100–230K chars/s（有 run-to-run 變異）
+- Huffman：30M chars/s（快 130–570x）
+- 神經方法追不上 classical 速度是結構性的（每次都要跑模型），但在神經壓縮領域內（cmix ~1KB/s 等級）已算快。
+
+## 12. enwik8 完整無損驗證
+
+enwik8（100KB 樣本，798 chunks）逐 chunk 編碼+解碼驗證：
+
+| 模型 | bpc | 驗證 |
+|---|---|---|
+| M-bigdata frozen | 5.407 | **798/798 無損** |
+| S-mix-15/85 frozen | 4.377 | **798/798 無損** |
+
+註：早期 count-based 估計值（5.365）與真實位元數（5.407）相差 finish-bit overhead，已以完整驗證值為準。
+
+跨領域結論維持：podcast 訓練的模型在 Wikipedia 上零樣本達到 5.407 bpc；加入 Cosmopedia 後進步到 4.413 bpc。小模型+對的資料 > 大模型+錯的資料。
