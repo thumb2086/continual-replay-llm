@@ -1090,13 +1090,25 @@ def main():
         Pend = None  # v13-pipe: prev seg's submit bundle (finish deferred one step)
         _stash = None  # v13-batch: prefetched (seg meta + logits) from a paired forward
         BATCH_SEGS = int(os.environ.get("BATCH_SEGS", "1"))
-        while si < len(segs) or _stash is not None:
+        _fpre = None  # v13-prefetch: staged NEXT-seg logits (forward-only;
+        # post stays in its own iteration). Lets N+1's GPU work run during
+        # N's worker Phase-A + finish instead of idling.
+        PREFETCH = int(os.environ.get("PREFETCH", "0"))
+        while si < len(segs) or _stash is not None or _fpre is not None:
             # v13: strictly one segment per step -- the KV cache chains
             # seg -> seg, so batching is impossible by design. (BATCH_FWD
             # is accepted but ignored.)
             _have_lg = None
             _skip = False
-            if _stash is not None:
+            if _fpre is not None:
+                # consume staged prefetched forward (slot eaten at stage
+                # time; tables/carry stayed sequential, so this is exact).
+                (_fseg, _flg) = _fpre
+                _fpre = None
+                (block, T0, NC, n_new) = _fseg
+                _have_lg = _flg
+                chunk = [(block, T0, NC, n_new)]  # (submit-loop rebind guard)
+            elif _stash is not None:
                 # consume pair-mate prefetched by the previous step
                 # (logits already on GPU; tables/carry stayed sequential).
                 # NOTE: no chunk consumed here -- the mate's slot was
@@ -1400,6 +1412,33 @@ def main():
                 torch.cuda.set_stream(_prev_stream)
             ph_fwd += time.time() - _ta
             _ev_pairs.append((_ev0, _ev1))
+            # v13-prefetch: launch NEXT seg's forward NOW (tokens known
+            # upfront) so its GPU work runs during this seg's worker
+            # Phase-A + finish instead of idling. Forward-only: post stays
+            # in its own iteration (needs its syncs). Same stream as main
+            # forwards (ordered, no cross-stream hazard). Tables/finish/
+            # carry stay strictly sequential; values bit-identical
+            # (same call, earlier launch); verify guards the mirror.
+            # Strict recompute-single path only, else silent fallback.
+            if (PREFETCH and not CHAIN and OVERLAP == 0 and not USE_ORT
+                    and BATCH_SEGS <= 1 and SKIP_EVERY == 0 and not GRAPH_FULL
+                    and _stash is None and _fpre is None and si < len(segs)):
+                (_pb2, _pT0, _pNC, _pn2) = segs[si]
+                _px = torch.tensor(_pb2, device=device).unsqueeze(0)
+                if _hi_stream is not None:
+                    torch.cuda.set_stream(_hi_stream)
+                _fev0 = torch.cuda.Event(enable_timing=True)
+                _fev1 = torch.cuda.Event(enable_timing=True)
+                _fev0.record()
+                _pout = model(_px, use_cache=False)
+                _fev1.record()
+                _ev_pairs.append((_fev0, _fev1))
+                if _hi_stream is not None:
+                    torch.cuda.set_stream(_prev_stream)
+                _abs_pos += len(_pb2)
+                _fpre = ((_pb2, _pT0, _pNC, _pn2), _pout.logits[0])
+                si += 1
+                del _pout, _px
             _t0w = time.time()
             if Pend is not None:
                 if _fr is not None:

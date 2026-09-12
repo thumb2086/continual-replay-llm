@@ -1785,6 +1785,20 @@
    "bpb": 0.9275,
    "elapsed_s": 5.6,
    "note": "CONF20/TRI6 on ov0/K1024 (orphan artifact recovered): +3e-4, no faster. CONF flat on speed config too."
+  },
+  {
+   "id": "maxconn",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 4.7,
+   "note": "CUDA_DEVICE_MAX_CONNECTIONS=1: 4.7s in band. Null."
+  },
+  {
+   "id": "prefetch",
+   "status": "dead",
+   "bpb": 0.9273,
+   "elapsed_s": 7.8,
+   "note": "Prefetch-1 HURTS on WDDM (4.6->7.8s): deeper queues schedule worse under contention; staged 800MB perturbs flash heuristics (+1e-4). Overlap theory needs a clean scheduler (unlike this box). Default stays off. Next: numba-driver scoped (EV 0.4, needs 2-3h) + script-model (EV 0.5, needs 1-2h); stacked best-case still ~3.5, short of 3.0."
   }
  ],
  "done": false,

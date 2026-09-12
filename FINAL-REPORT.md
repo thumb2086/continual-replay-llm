@@ -187,4 +187,10 @@ gate 上王座 K8192（blend kernel 大 8 倍處）：(5,2)→0.9005 @ 15.2 秒�
 
 EXP_FP16：null（＋1e-4，不快——exp 不是瓶頸；丟掉）。Pareto v7：27 點。1 秒判決不變（地板約 3 秒）；已入帳最佳 4.4 秒速度／13.3 秒王座。
 
+## 23. prefetch 證偽、微調關門（2026-09-15）
+
+CUDA_DEVICE_MAX_CONNECTIONS=1：null（4.7 秒帶內）。prefetch-1（N 的 Phase-A 期間先發 N+1 的 forward）在 WDDM 上反傷：4.6→7.8 秒——深佇列在搶佔下調度更爛，暫存 800MB 還擾動 flash 啟發式（＋1e-4 雜訊）。重疊要乾淨的調度器，這台不是。預設關。
+
+評估後不開工：numba 驅動（EV 約 0.4 秒，2–3 小時＋鏡像風險）、script 模型發射（EV 約 0.5 秒，1–2 小時）。全疊最佳約 3.5 秒，到不了 3.0——不是誠實能承諾的計畫。code 端關在 4.4 秒（22.7KB/s）；剩牌只有閒置箱。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

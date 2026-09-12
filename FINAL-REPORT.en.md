@@ -187,3 +187,9 @@ Gate ladder mapped on ov0/K1024: (5,2) EXACT/4.6 s → (10,3) +1e-4/4.6 s → (1
 Gate on crown K8192 (where blend kernels are 8x bigger): (5,2) → 0.9005 @ 15.2 s (27.4 → 15.2 s, −45%, gate costs ~0 here); (20,7) → 0.9006 @ 13.3 s = 7.7KB/s. Crown ladder: 24–31 s classic → 27.4 gather → 15.2 → 13.3 s. Both new Pareto points.
 
 EXP_FP16: null (+1e-4, no faster — exp is not the bottleneck; dropped). Pareto v7: 27 points. 1 s verdict stands (floor ≈ 3 s); best banked 4.4 s speed / 13.3 s crown.
+
+## 23. Prefetch falsified, micro closed (2026-09-15)
+
+CUDA_DEVICE_MAX_CONNECTIONS=1: null (4.7 s in band). Prefetch-1 (launch N+1's forward during N's Phase-A) HURTS on WDDM: 4.6 → 7.8 s — deeper queues schedule worse under contention, and the staged 800MB perturbs flash heuristics (+1e-4 bpb noise). Overlap needs a clean scheduler; this box isn't one. Default off.
+
+Scoped but declined: numba-driver (EV ~0.4 s, 2–3 h + mirror risk), script-model dispatch (EV ~0.5 s, 1–2 h). Stacked best case ≈ 3.5 s, still short of 3.0 — not an honest plan to promise. Code-side fully closed at 4.4 s (22.7KB/s); remaining lever is an idle box.
