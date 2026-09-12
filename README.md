@@ -4,7 +4,7 @@
 
 Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: SmolLM2-135M ensemble at **0.9003 bits/byte** on enwik8 (beats the 0.9389 SOTA line by 4.1% on the same slice class), with every number measured and every failure kept.
 
-## Headline numbers (all measured, 2026-09-13)
+## Headline numbers (all measured, 2026-09-14)
 
 | System | bpb ↓ | Speed | Lossless check |
 |---|---|---|---|
@@ -47,7 +47,19 @@ python -u ensemble/bpe_ensemble_v13.py
 # gate: bits/byte: 0.9003, Verified: 220 lossless, fails: 0
 ```
 
-Needs: `pip install torch numpy transformers` + SmolLM2-135M weights (`MODEL_DIR` in `bpe_compress.py`) + enwik8 at `data/cloud/enwik8` (not included). Always run from this directory (scripts assume it for `data/` and imports).
+Needs: `pip install torch numpy transformers` + SmolLM2-135M weights (`MODEL_DIR` in `bpe_compress.py`) + enwik8 at `data/cloud/enwik8` (not included). Always run from this directory (scripts assume i
+
+## WSL port (same code, re-measured numbers)
+
+A full offline WSL env was built (torch 2.14+cu126 + triton 3.8 + CUDA 12.9, 63 side-loaded wheels — recipe in `FINAL-REPORT.en.md` §16). WSL numbers differ, so they are tracked separately:
+
+| config (100KB) | WSL | Windows |
+|---|---|---|
+| speed ov0/K1024+gather | 12.9 s, 0.9266 | 5.3 s, 0.9272 |
+| model fwd eager | 0.33 s | 0.35 s |
+| inductor | ties eager (0.32 s) | n/a (no Triton) |
+
+Cross-platform ratio parity 2e-4 (same transformers 4.57.6). WSL is currently slower (paravirt overhead); speedup work continues there.t for `data/` and imports).
 
 ## Structure
 

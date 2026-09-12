@@ -2,7 +2,7 @@
 
 Replay-first 的小串流語言模型持續學習——用在**實用神經文本壓縮**：SmolLM2-135M ensemble 在 enwik8 上 **0.9003 bits/byte**（同級切片贏 0.9389 SOTA 線 4.1%），每個數字都是實測，每次失敗都留著。英文版見 [`README.md`](README.md)。
 
-## 頭條數字（全實測，2026-09-13）
+## 頭條數字（全實測，2026-09-14）
 
 | 系統 | bpb ↓ | 速度 | 無損檢查 |
 |---|---|---|---|
@@ -45,6 +45,18 @@ python -u ensemble/bpe_ensemble_v13.py
 ```
 
 需求：`pip install torch numpy transformers`＋SmolLM2-135M 權重（`bpe_compress.py` 的 `MODEL_DIR`）＋`data/cloud/enwik8` 的 enwik8（不含在 repo）。
+
+## WSL 移植（同程式，分開記數）
+
+離線建成 WSL 全套環境（torch 2.14＋cu126＋triton 3.8＋CUDA 12.9，63 個輪子，配方見 `FINAL-REPORT.md` §16）。WSL 數字不同，分開追蹤：
+
+| 配置（100KB） | WSL | Windows |
+|---|---|---|
+| 速度 ov0/K1024＋gather | 12.9 秒，0.9266 | 5.3 秒，0.9272 |
+| 模型 forward eager | 0.33 秒 | 0.35 秒 |
+| inductor | 打平 eager（0.32 秒） | 無（無 Triton） |
+
+跨平台比率一致 2e-4（同 transformers 4.57.6）。WSL 目前較慢（半虛擬化開銷）；加速工作在那邊繼續。
 
 ## 目錄結構
 
