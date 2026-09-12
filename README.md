@@ -2,7 +2,7 @@
 
 > 正體中文版見 [README.zh-Hant.md](README.zh-Hant.md)。交卷論文：[FINAL-REPORT.md](FINAL-REPORT.md)（繁中）· [FINAL-REPORT.en.md](FINAL-REPORT.en.md)（English）。
 
-Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: SmolLM2-135M ensemble at **0.9139 bits/byte** on enwik8 (beats the 0.9389 SOTA line by 2.7% on the same slice class), with every number measured and every failure kept.
+Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: SmolLM2-135M ensemble at **0.9003 bits/byte** on enwik8 (beats the 0.9389 SOTA line by 4.1% on the same slice class), with every number measured and every failure kept.
 
 ## Headline numbers (all measured, 2026-09-13)
 
@@ -36,14 +36,15 @@ Honest scope: 0.9139 is a 100KB representative middle slice (enwik8 offset 50MB)
 - [`paper_sections_13_14_draft.md`](paper_sections_13_14_draft.md) — SmolLM2 transition notes (frozen/adapt, v1–v3 ensemble history).
 - [`paper.md`](paper.md), [`continual-learning-report.md`](continual-learning-report.md) — continual-learning track (replay-first).
 
-## Reproduce the headline (PowerShell, ~45 s, RTX 3060 Ti 8 GB)
+## Reproduce the headline (PowerShell, ~60 s, RTX 3060 Ti 8 GB)
 
 ```powershell
 $env:BIGRAM_LAMBDA='0.99'; $env:ENWIK8_OFFSET_MB='50'; $env:BIGRAM_CONF='10'
-$env:TRIGRAM_CONF='3'; $env:TOP_K='1024'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
-$env:USE_CACHE_S2='0'; $env:USE_FP16_XFER='1'; $env:PREFILTER='2048'
-python -u ensemble/bpe_ensemble_v11.py
-# gate: bits/byte: 0.9139, Verified: 220 lossless, fails: 0
+$env:TRIGRAM_CONF='3'; $env:TOP_K='8192'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
+$env:USE_CACHE_S2='0'; $env:USE_FP16_XFER='1'; $env:PREFILTER='8192'
+$env:N_LOOP_WORKERS='1'; $env:GATHER_PI='0'
+python -u ensemble/bpe_ensemble_v13.py
+# gate: bits/byte: 0.9003, Verified: 220 lossless, fails: 0
 ```
 
 Needs: `pip install torch numpy transformers` + SmolLM2-135M weights (`MODEL_DIR` in `bpe_compress.py`) + enwik8 at `data/cloud/enwik8` (not included). Always run from this directory (scripts assume it for `data/` and imports).
@@ -52,9 +53,9 @@ Needs: `pip install torch numpy transformers` + SmolLM2-135M weights (`MODEL_DIR
 
 ```
 ensemble/              SmolLM2 compression track (run as python ensemble/<script>.py)
-  bpe_ensemble_v11.py  Hand-in system (0.9139). v10 = equivalent predecessor
+  bpe_ensemble_v11.py  Previous hand-in (0.9139). v10 = equivalent predecessor
   bpe_ensemble_v12.py  llama.cpp CUDA backend (falsified on busy box, kept)
-  bpe_ensemble_v13.py  v11 math + validated plumbing (proc pool, pipeline,
+  bpe_ensemble_v13.py  CURRENT hand-in (0.9003 ratio crown / 18.9KB/s speed): v11 math + validated plumbing (proc pool, pipeline,
                        double-buffering, incremental freeze); KV-chaining and
                        ORT branches falsified, kept for the record
                        (USE_PROC_LOOP=1 + PIPELINE=1 → 0.9139, 26.9 s/100 KB)

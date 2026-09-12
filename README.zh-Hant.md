@@ -33,14 +33,15 @@ Pareto（忙碌箱，全 220/220 驗證）：crown ov4096/K8192 0.9003 @ 24.0 �
 - [`paper_sections_13_14_draft.md`](paper_sections_13_14_draft.md)——SmolLM2 過渡筆記（frozen/adapt、v1–v3 ensemble 史）。
 - [`paper.md`](paper.md)、[`continual-learning-report.md`](continual-learning-report.md)——持續學習線（replay-first）。
 
-## 重現頭條（PowerShell，約 45 秒，RTX 3060 Ti 8GB）
+## 重現頭條（PowerShell，約 60 秒，RTX 3060 Ti 8GB）
 
 ```powershell
 $env:BIGRAM_LAMBDA='0.99'; $env:ENWIK8_OFFSET_MB='50'; $env:BIGRAM_CONF='10'
-$env:TRIGRAM_CONF='3'; $env:TOP_K='1024'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
-$env:USE_CACHE_S2='0'; $env:USE_FP16_XFER='1'; $env:PREFILTER='2048'
-python -u ensemble/bpe_ensemble_v11.py
-# 判收：bits/byte: 0.9139，Verified: 220 lossless, fails: 0
+$env:TRIGRAM_CONF='3'; $env:TOP_K='8192'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
+$env:USE_CACHE_S2='0'; $env:USE_FP16_XFER='1'; $env:PREFILTER='8192'
+$env:N_LOOP_WORKERS='1'; $env:GATHER_PI='0'
+python -u ensemble/bpe_ensemble_v13.py
+# 判收：bits/byte: 0.9003，Verified: 220 lossless, fails: 0
 ```
 
 需求：`pip install torch numpy transformers`＋SmolLM2-135M 權重（`bpe_compress.py` 的 `MODEL_DIR`）＋`data/cloud/enwik8` 的 enwik8（不含在 repo）。
