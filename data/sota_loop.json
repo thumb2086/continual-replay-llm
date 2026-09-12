@@ -1837,6 +1837,92 @@
    "bpb": 0.9272,
    "elapsed_s": 5.8,
    "note": "Numba-nogil x4 workers + pipeline helper: EXACT mirror under concurrency but 5.8s LOSES (helper+4workers+main = contention soup; flatten Python fights launches). Thread-count optimum re-confirmed: main+1worker. Multicore closed."
+  },
+  {
+   "id": "ort-line",
+   "status": "dead",
+   "bpb": 0.9273,
+   "elapsed_s": 149.3,
+   "note": "ORT line closed: fp32 export OOM (4.8GB single mask buffer); fp16 same OOM (unfused additive mask, not precision); no-past fp16 RUNS bpb 0.9273(+1e-4) 220ok but 149.3s (37s/fwd, CUDA EP unfused); TRT EP missing nvinfer; qwen3-forced fusion 11.45s/fwd = 14x torch-flash 0.8s. Dead exports deleted (~1GB). Torch+flash stays."
+  },
+  {
+   "id": "qint8-fallback",
+   "status": "null",
+   "bpb": 0.9288,
+   "elapsed_s": 5.7,
+   "note": "quanto 0.2.0 qint8 weight-only: 220ok, +16e-4 drift, but 5.7s LOSES (fwd 4.8s): quanto_cpp DLL failed to load, fell back to dequant+fp16 GEMM (slower, not faster). Needs compiled kernels (MSVC/nvcc check pending)."
+  },
+  {
+   "id": "awq",
+   "status": "dead",
+   "note": "autoawq: no Windows wheel for py311/cu124, source build needs nvcc+MSVC (both absent). Same kernel-build wall as quanto_cpp. Not installable on this box."
+  },
+  {
+   "id": "bnb8",
+   "status": "null",
+   "bpb": 0.9325,
+   "elapsed_s": 5.8,
+   "note": "bitsandbytes 0.50.2 LLM.int8(): 220ok, +53e-4 (valid line under aggressive budget) but 5.8s LOSES (fwd 5.0s): int8 kernel overhead exceeds traffic saved at 135M GEMM sizes."
+  },
+  {
+   "id": "ao8",
+   "status": "dead",
+   "note": "torchao 0.9.0 int8wo: CUDA path needs Triton (absent); fallback produced garbage logits -> stage-1 encoder ArithmeticError crash. Corrupts output, not just slow. QUANT LINE CLOSED: qint8-fallback 5.7s, bnb8 5.8s (both slower), awq uninstallable, ao8 corrupts. Small-model GEMMs cannot amortize quant overhead on this box."
+  },
+  {
+   "id": "prune4",
+   "status": "dead",
+   "bpb": 3.6725,
+   "elapsed_s": 4.3,
+   "note": "PRUNE_LAST_N=4 (26 layers): fwd 3.3s (-13%, linear) but bpb 3.6725 CATASTROPHIC + verify 180/220. lm_head trained on layer-29 outputs; naive truncation destroys distribution. No retrain budget -> dead."
+  },
+  {
+   "id": "prune2",
+   "status": "dead",
+   "bpb": 2.8826,
+   "elapsed_s": 4.4,
+   "note": "PRUNE_LAST_N=2: bpb 2.8826 (still destroyed, +19554e-4), fwd -0.3s only, verify 191/220. Even 2 layers breaks head compatibility. PRUNE LINE CLOSED (no-retrain truncation fundamentally incompatible)."
+  },
+  {
+   "id": "seg-oracle-sim",
+   "status": "dead",
+   "note": "Oracle skip bounded by arithmetic, zero code: 4 segs x ~25k bits each (25349/27312/22562 + seg0), variance +-10%. Any 1-seg skip saves ~0.9s (-20%) but that seg falls to table-only (~2x bits) -> overall bpb >= ~1.1, over aggressive budget 0.9389. No cheap seg exists. Blind skip already died the same way. Gate must be causal anyway."
+  },
+  {
+   "id": "bf16",
+   "status": "dead",
+   "note": "bf16 forward declined by arithmetic, zero runs: same 2 bytes/param as fp16 -> identical memory traffic on a memory-bound forward -> zero expected speedup. No code, no run."
+  },
+  {
+   "id": "gpu-phaseA",
+   "status": "parked",
+   "note": "Scoped, not attempted: per-position ragged dict lookups + float64 nb_blend + sort-tie exactness risk; EV only ~-0.4s (loop 0.7->0.3) at HIGH complexity. Parked behind cheaper stones (PF ladder, SDPA-mem)."
+  },
+  {
+   "id": "pf1024",
+   "status": "null",
+   "bpb": 0.9278,
+   "elapsed_s": 4.6,
+   "note": "PREFILTER 2048->1024: +6e-4, 4.6s identical (fwd 3.7/loop 0.9 unchanged). Prefilter caps temps, not work. Null both axes."
+  },
+  {
+   "id": "sdpa-mem",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 4.7,
+   "note": "SDPA mem-efficient vs flash: EXACT, 4.7s (fwd 3.9) null/slightly worse. Attention backend closed: math 11x slower, mem~=flash."
+  },
+  {
+   "id": "pf512",
+   "status": "dead",
+   "note": "PREFILTER=512 CRASHES: torch.topk over 512-wide vector asking TOP_K=1024 (k out of range). Hard constraint PF>=TOP_K; below-1024 not a tuning axis. Ladder closed: 2048->1024 null."
+  },
+  {
+   "id": "gate207-repin",
+   "status": "banked",
+   "bpb": 0.9276,
+   "elapsed_s": 4.5,
+   "note": "Fast-corner re-pin (BLEND 20/7): 4.5s +4e-4, confirms 4.4s was band not luck. Speed record stands 4.4-4.5s."
   }
  ],
  "done": false,

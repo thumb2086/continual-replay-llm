@@ -209,3 +209,13 @@ Big-context survey (no downloads, math first): Qwen2.5-0.5B (0.49B, 24 layers, G
 Batching loses because of the 8GB VRAM wall, not because batching is wrong: staged logits bloat the allocator (d2h doubles), and WDDM punishes deep queues. Batch-2 retest in the gather world: exact but 6.4 s; batch-4 declined (same logic + 4×800MB OOM risk).
 
 Last unturned stone — nogil-num­ba × 4 workers + pipeline helper (true multicore Phase-A, free main): bit-EXACT mirror under concurrency, but 5.8 s loses (helper + workers + main = contention soup; flatten Python fights launches). Thread-count optimum re-confirmed: main + 1 worker, 4.4 s. 204 ledger entries. Nothing left unmeasured on this box.
+
+## 27. Quantization quartet, prune implosion, PF/SDPA nulls (2026-09-15)
+
+With an aggressive ratio budget (speed line only needs to beat SOTA 0.9389) and model surgery allowed, four quantization shots were fired — all missed, all instructive. quanto qint8 weight-only: 220 ok, +16e-4, but 5.7 s (fwd 4.8 s) because quanto_cpp has no Windows DLL and the dequant+fp16 fallback is slower, not faster; no MSVC/nvcc on the box to build it. AWQ: dead before running — autoawq has no Windows wheel for py311/cu124 and needs the same missing compilers. bitsandbytes LLM.int8(): runs, 220 ok, +53e-4 (a valid line under the aggressive budget), but 5.8 s — int8 kernel overhead exceeds traffic saved at 135M GEMM sizes. torchao int8wo: dead and dangerous — its CUDA path needs Triton (absent) and the fallback emitted garbage logits that crashed the stage-1 encoder. Lesson: at 135M scale on this box, every available quantized kernel path is slower-or-broken; quantization needs fused kernels this box cannot build.
+
+Layer-drop (PRUNE_LAST_N, separate line): minus-4 layers gives linear time (-13%, fwd 3.8→3.3 s) but bpb 3.6725, catastrophic, verify 180/220; minus-2 still 2.8826 with 191/220. The LM head was trained on layer-29 outputs — naive truncation destroys the distribution with no retrain budget. Closed after two points; the curve needs no further mapping.
+
+Prefilter ladder 2048→1024: +6e-4, 4.6 s, null on both axes (prefilter caps temps, not work); 512 crashes outright (topk asks 1024 of 512 — hard constraint PF≥TOP_K). SDPA mem-efficient vs flash: exact, 4.7 s, null. Attention backends closed: math 11× slower, mem≈flash.
+
+Fast corner re-pinned: blend-gate (20,7) reruns 4.5 s at +4e-4 — the 4.4 s record is band, not luck. 218 ledger entries.

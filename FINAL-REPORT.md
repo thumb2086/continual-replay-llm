@@ -211,4 +211,14 @@ batch 輸在 8GB 顯存牆，不是 batch 不對：暫存 logits 撐爆 allocato
 
 最後一顆沒翻的石頭——nogil-numba×4 worker＋pipeline helper（真 multicore Phase-A、主線程自由）：並發下逐位一致，但 5.8 秒輸（helper＋worker＋主線程＝搶奪濃湯；展平 Python 跟發射打架）。線程數最優再確認：主＋1 worker，4.4 秒。ledger 共 204 條。這台箱子量無可量。
 
+## 27. 量化四連死、剪層自爆、PF/SDPA 全 null（2026-09-15）
+
+aggressive 預算（速度線只須贏 SOTA 0.9389）＋允許動模型後，連開四槍量化——全 miss，全有教訓。quanto qint8：220 過、+16e-4，但 5.7 秒（fwd 4.8s），因 quanto_cpp 沒有 Windows DLL，退回 dequant+fp16 反而更慢；箱上無 MSVC/nvcc 可編。AWQ：跑都沒得跑——autoawq 無 py311/cu124 Windows 輪子，要同樣的編譯器。bitsandbytes LLM.int8()：跑得動、220 過、+53e-4（aggressive 下是合法線），但 5.8 秒——135M 的 GEMM 尺寸下 int8 kernel 開銷超過省下的流量。torchao int8wo：死且危險——CUDA 路要 Triton（沒有），退路吐垃圾 logits 把 stage-1 encoder 炸了。教訓：這尺寸這台箱子，所有能量化核不是更慢就是壞的；量化要 fused kernel，箱子生不出來。
+
+剪層（PRUNE_LAST_N，另記線）：剪 4 層時間線性 -13%（fwd 3.8→3.3s），但 bpb 3.6725 自爆，verify 180/220；剪 2 層仍 2.8826、191/220。LM head 吃的是第 29 層輸出——無重訓預算下硬截就是毀分布。兩點結案，曲線不必再描。
+
+Prefilter 2048→1024：+6e-4、4.6 秒，雙軸 null（prefilter 卡的是暫存不是功）；512 直接炸（topk 跟 512 要 1024——硬約束 PF≥TOP_K）。SDPA mem 對 flash：一字不差、4.7 秒、null。attention 後端關門：math 慢 11 倍，mem≈flash。
+
+快角重釘：blend-gate (20,7) 重跑 4.5 秒 +4e-4——4.4 秒是帶寬不是運氣。ledger 共 218 條。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

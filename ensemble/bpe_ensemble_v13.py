@@ -202,7 +202,7 @@ def _ort_forward(xin, abs_pos, device):
             _feeds[_nm] = _np.ones((1, abs_pos + _n), dtype=_np.int64)
         elif _nm in _past_ins:
             _feeds[_nm] = _ORT_PAST.get(
-                _nm, _np.zeros((1, _n_kv, 0, _hdim), dtype=_np.float32))
+                _nm, _np.zeros((1, _n_kv, 0, _hdim), dtype=_np.float16))
     _vals = _ORT_SESS.run(None, _feeds)
     _by_name = dict(zip(_outs, _vals))
     for _pn, _pr in zip(_past_ins, _pres_outs):
@@ -802,9 +802,44 @@ def main():
 
     print("\n[1/4] Loading model + tokenizer...")
     tok = AutoTokenizer.from_pretrained(MODEL_DIR, local_files_only=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_DIR, local_files_only=True, torch_dtype=torch.float16
-    ).to(device).eval()
+    _quant = os.environ.get("QUANT", "0")
+    if _quant == "bnb8":
+        # v13-quant: bitsandbytes LLM.int8() (separate ledger line).
+        model = AutoModelForCausalLM.from_pretrained(
+            MODEL_DIR, local_files_only=True, torch_dtype=torch.float16,
+            load_in_8bit=True, device_map={"": 0}).eval()
+        print("  QUANT: bnb LLM.int8(), device_map cuda:0")
+    else:
+        # v13-prune: PRUNE_LAST_N drops trailing layers (separate ledger
+        # line; decoder must use the same N). Head/norm shapes unchanged.
+        _cfg = None
+        _prune = int(os.environ.get("PRUNE_LAST_N", "0"))
+        if _prune > 0:
+            from transformers import AutoConfig as _AC
+            _cfg = _AC.from_pretrained(MODEL_DIR, local_files_only=True)
+            _cfg.num_hidden_layers = max(1, _cfg.num_hidden_layers - _prune)
+            print(f"  PRUNE: keeping {_cfg.num_hidden_layers} layers")
+        if _cfg is None:
+            model = AutoModelForCausalLM.from_pretrained(
+                MODEL_DIR, local_files_only=True, torch_dtype=torch.float16
+            ).to(device).eval()
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                MODEL_DIR, local_files_only=True, torch_dtype=torch.float16,
+                config=_cfg).to(device).eval()
+    # v13-quant: QUANT=qint8 weight-only int8 (separate ledger line; crown
+    # stays fp16). Quantize after load, freeze for CUDA kernels.
+    if os.environ.get("QUANT", "0") == "qint8":
+        from quanto import quantize as _q_quant, freeze as _q_freeze, qint8 as _q_i8
+        _q_quant(model, weights=_q_i8)
+        _q_freeze(model)
+        print("  QUANT: qint8 weight-only, frozen")
+    if os.environ.get("QUANT", "0") == "ao8":
+        # v13-quant: torchao int8 weight-only (torch-native kernels).
+        from torchao.quantization.quant_api import (
+            quantize_ as _ao_q, Int8WeightOnlyConfig as _ao_c)
+        _ao_q(model, _ao_c())
+        print("  QUANT: torchao int8 weight-only")
     V = model.config.vocab_size
     print(f"  Vocab: {V}")
     # v13-sdpa: auto SDPA picks the MATH fallback on this model (2.3s/fwd);
