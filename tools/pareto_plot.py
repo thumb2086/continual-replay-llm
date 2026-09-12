@@ -1,8 +1,9 @@
-"""Pareto frontier: speed vs ratio (measured, 100KB slices).
+"""Pareto frontier: speed vs compression ratio (measured, 100KB slices).
 
 Run from repo root: python tools/pareto_plot.py  (CPU only)
-Output: pareto.png (repo root, referenced by README)
-X axis is KB/s so 1MB runs are directly comparable.
+Output: pareto_off50.png / pareto_off75.png (repo root, referenced by README)
+X = KB/s (faster right), Y = compression ratio 8/bpb (higher better),
+so the ideal corner is TOP-RIGHT. X axis is KB/s so 1MB runs comparable.
 """
 import matplotlib
 
@@ -49,19 +50,21 @@ MB1 = [
     ("1MB@off25", 1024 / 262.7, 0.9076),
 ]
 SOTA_BPB = 0.9389          # Nacrith paper, full file
+SOTA_RATIO = 8.0 / SOTA_BPB  # 8.52x: higher-is-better twin of the SOTA line
 NNCP_KBS = 3.25            # NNCP v2 reference speed
 
 
-def _base(title):
+def _base(title, ymin, ymax):
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.axhline(SOTA_BPB, color="red", linestyle="--", linewidth=1,
-               label="SOTA ratio 0.9389 (worse above)")
+    ax.axhline(SOTA_RATIO, color="red", linestyle="--", linewidth=1,
+               label="SOTA 8.52x (worse below)")
     ax.axvline(NNCP_KBS, color="orange", linestyle="--", linewidth=1,
                label="NNCP v2 speed 3.25KB/s (slower left)")
-    ax.set_xlabel("KB/s (faster right)")
-    ax.set_ylabel("bits/byte (lower better)")
-    ax.set_title(title)
-    ax.legend(loc="upper left", bbox_to_anchor=(0.01, 0.99), fontsize=9)
+    ax.set_xlabel("KB/s (faster right ->)")
+    ax.set_ylabel("compression ratio x (higher better ^)")
+    ax.set_title(title + "  [top-right is best]")
+    ax.set_ylim(ymin, ymax)
+    ax.legend(loc="lower left", bbox_to_anchor=(0.01, 0.01), fontsize=9)
     ax.grid(True, alpha=0.3)
     return fig, ax
 
@@ -75,11 +78,12 @@ def _anno(ax, lab, x, y, dx, dy):
 
 def _dots(ax, pts, color, show, offsets):
     xs = [p[1] for p in pts]
-    ys = [p[2] for p in pts]
+    ys = [8.0 / p[2] for p in pts]
     order = sorted(range(len(pts)), key=lambda i: pts[i][1])
     ax.plot([xs[i] for i in order], [ys[i] for i in order],
             color=color, linewidth=1.4, alpha=0.7)
-    for lab, x, y in pts:
+    for lab, x, _bpb in pts:
+        y = 8.0 / _bpb
         star = lab.endswith("crown") or lab.endswith("knee")
         ax.scatter([x], [y], s=150 if star else 80,
                    marker="*" if star else "o", color=color,
@@ -89,31 +93,34 @@ def _dots(ax, pts, color, show, offsets):
 
 
 def _diamonds(ax):
-    for lab, x, y in MB1:
+    for lab, x, _bpb in MB1:
+        y = 8.0 / _bpb
         ax.scatter([x], [y], s=180, marker="D", color="purple",
                    edgecolors="black", zorder=4)
-        _anno(ax, lab, x, y, 10, 10 if "off50" in lab else -20)
+        _anno(ax, lab, x, y, 10, -10 if "off50" in lab else 20)
 
 
 # ---- plot 1: off50 frontier ----
-fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)")
+fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)",
+                8.4, 9.0)
 _dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K16k", "ov0@K8", "ov2048@K8",
                                     "ov4096\nK1k", "ov2048\nknee", "ov0\n10KB/s",
                                     "gather\n18.9KB/s"),
-      offsets={"K8k\ncrown": (-60, -20), "K16k": (8, -18), "ov0@K8": (8, 8),
-               "ov2048@K8": (-64, 8), "ov4096\nK1k": (-64, 10),
-               "ov2048\nknee": (10, -22), "ov0\n10KB/s": (8, -18),
-               "gather\n18.9KB/s": (8, 10)})
+      offsets={"K8k\ncrown": (-60, 20), "K16k": (8, 18), "ov0@K8": (8, -8),
+               "ov2048@K8": (-64, -8), "ov4096\nK1k": (-64, -10),
+               "ov2048\nknee": (10, 22), "ov0\n10KB/s": (8, 18),
+               "gather\n18.9KB/s": (8, -10)})
 _diamonds(ax)
-ax.set_xlim(0, 11)
+ax.set_xlim(0, 20)
 fig.tight_layout()
 fig.savefig("pareto_off50.png", dpi=120)
 print("saved pareto_off50.png")
 
 # ---- plot 2: off75 hard region ----
-fig, ax = _base("Speed vs ratio, hard region (SmolLM2-135M, measured)")
+fig, ax = _base("Speed vs ratio, hard region (SmolLM2-135M, measured)",
+                8.05, 8.6)
 _dots(ax, OFF75, "seagreen", show=("ov4096", "ov3072", "ov0"),
-      offsets={"ov4096": (-52, 10), "ov3072": (10, -16), "ov0": (10, 8)})
+      offsets={"ov4096": (-52, -10), "ov3072": (10, 16), "ov0": (10, -8)})
 _diamonds(ax)
 ax.set_xlim(0, 10.5)
 fig.tight_layout()

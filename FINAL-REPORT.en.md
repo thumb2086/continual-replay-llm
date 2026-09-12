@@ -162,3 +162,7 @@ Gather (topk on logits + lse + pi-gather + CPU exp + sparse blk, numba V-stamp t
 Ratio shots: PF16384/K8192 = 0.9004 (tail NOT recovered by width; PEAK 8.01GB red line — never exceed PF8192); LAMBDA=0.999 = 0.9010 (pure-LM loses blend). No new record; K/lambda/overlap/CONF/tri/PF/floor/S2 all closed.
 
 Scale ladder (all 220/220): speed-gather 5.3 s / 56.9 s / 632 s (100KB/1MB/10MB: 18.9/18.0/16.2 KB/s, PEAK 4.01GB flat); 10MB ratio 0.9039 (cache warms with scale). New `tools/scale_plot.py` → `scale_time_size.png` (size-vs-time log-log + bpb-vs-size). Pareto v5: 30 points. Full 100MB ≈ 1.7 h gather-speed — overnight-able.
+
+## 18. Intuitive charts: best goes top-right (2026-09-14)
+
+The old Pareto plots had best (fast + tight) sinking to the bottom-right (y = bpb, lower better) — backwards from reading intuition. Both plots now use y = compression ratio 8/bpb (higher better): x = throughput (faster right), red SOTA line at 8.52x (worse below), ideal corner top-right. Same 30 measured points, same script (`tools/pareto_plot.py`). The frontier honestly shows the trade: crown top-middle (8.89x @ 4.2KB/s), gather bottom-right (8.63x @ 18.9KB/s) — nothing sits top-right yet; that empty corner is the next frontier.
