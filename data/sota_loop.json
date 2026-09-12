@@ -1778,6 +1778,13 @@
    "bpb": 0.9273,
    "elapsed_s": 5.2,
    "note": "EXP_FP16: +1e-4, no faster (exp not the bottleneck). Dropped (default off)."
+  },
+  {
+   "id": "conf20-ov0",
+   "status": "null",
+   "bpb": 0.9275,
+   "elapsed_s": 5.6,
+   "note": "CONF20/TRI6 on ov0/K1024 (orphan artifact recovered): +3e-4, no faster. CONF flat on speed config too."
   }
  ],
  "done": false,
