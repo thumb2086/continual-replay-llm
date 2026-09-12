@@ -40,61 +40,69 @@ MB1 = [
 SOTA_BPB = 0.9389          # Nacrith paper, full file
 NNCP_KBS = 3.25            # NNCP v2 reference speed
 
-fig, ax = plt.subplots(figsize=(11, 6.5))
-ax.axhline(SOTA_BPB, color="red", linestyle="--", linewidth=1,
-           label="SOTA ratio 0.9389 (worse above)")
-ax.axvline(NNCP_KBS, color="orange", linestyle="--", linewidth=1,
-           label="NNCP v2 speed 3.25KB/s (slower left)")
+
+def _base(title):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.axhline(SOTA_BPB, color="red", linestyle="--", linewidth=1,
+               label="SOTA ratio 0.9389 (worse above)")
+    ax.axvline(NNCP_KBS, color="orange", linestyle="--", linewidth=1,
+               label="NNCP v2 speed 3.25KB/s (slower left)")
+    ax.set_xlabel("KB/s (faster right)")
+    ax.set_ylabel("bits/byte (lower better)")
+    ax.set_title(title)
+    ax.legend(loc="upper left", bbox_to_anchor=(0.01, 0.99), fontsize=9)
+    ax.grid(True, alpha=0.3)
+    return fig, ax
 
 
-def curve(pts, color, label, show=(), offsets=None):
-    """show: labels worth annotating; offsets: label -> (dx, dy).
-    Unlisted points render as bare dots (no overlap)."""
-    offsets = offsets or {}
+def _anno(ax, lab, x, y, dx, dy):
+    ax.annotate(lab, (x, y), textcoords="offset points", xytext=(dx, dy),
+                fontsize=9,
+                arrowprops=dict(arrowstyle="-", color="gray", lw=0.7,
+                                shrinkB=2))
+
+
+def _dots(ax, pts, color, show, offsets):
     xs = [p[1] for p in pts]
     ys = [p[2] for p in pts]
     order = sorted(range(len(pts)), key=lambda i: pts[i][1])
     ax.plot([xs[i] for i in order], [ys[i] for i in order],
-            color=color, linewidth=1.2, alpha=0.7, label=label)
+            color=color, linewidth=1.4, alpha=0.7)
     for lab, x, y in pts:
         star = lab.endswith("crown") or lab.endswith("knee")
-        ax.scatter([x], [y], s=140 if star else 60,
+        ax.scatter([x], [y], s=150 if star else 80,
                    marker="*" if star else "o", color=color,
                    edgecolors="black", zorder=3)
         if lab in show:
-            dx, dy = offsets.get(lab, (6, 6))
-            ax.annotate(lab, (x, y), textcoords="offset points",
-                        xytext=(dx, dy), fontsize=8,
-                        arrowprops=dict(arrowstyle="-", color="gray",
-                                        lw=0.7, shrinkB=2))
+            _anno(ax, lab, x, y, *offsets.get(lab, (8, 8)))
 
 
-curve(OFF50, "steelblue", "off50 (article region, 12 pts)",
-      show=("ov4096\ncrown", "ov2048\nknee", "ov0", "ov6144", "ov3072",
-            "ov1024"),
-      offsets={"ov4096\ncrown": (-52, -16), "ov2048\nknee": (8, -18),
-               "ov0": (6, 8), "ov6144": (-46, 6), "ov3072": (-40, 10),
-               "ov1024": (8, 8)})
-curve(OFF75, "seagreen", "off75 (hard region, 5 pts)",
-      show=("ov4096", "ov0"),
-      offsets={"ov4096": (-46, 8), "ov0": (8, -14)})
-for lab, x, y in MB1:
-    ax.scatter([x], [y], s=160, marker="D", color="purple",
-               edgecolors="black", zorder=4)
-    dy = 8 if "off50" in lab else -18
-    ax.annotate(lab, (x, y), textcoords="offset points", xytext=(8, dy),
-                fontsize=8,
-                arrowprops=dict(arrowstyle="-", color="gray", lw=0.7,
-                                shrinkB=2))
+def _diamonds(ax):
+    for lab, x, y in MB1:
+        ax.scatter([x], [y], s=180, marker="D", color="purple",
+                   edgecolors="black", zorder=4)
+        _anno(ax, lab, x, y, 10, 10 if "off50" in lab else -20)
 
-ax.set_xlabel("KB/s (faster right)")
-ax.set_ylabel("bits/byte (lower better)")
-ax.set_title("Speed vs ratio (SmolLM2-135M ensemble, measured)")
-ax.legend(loc="upper left", bbox_to_anchor=(0.01, 0.99), fontsize=9)
-ax.grid(True, alpha=0.3)
+
+# ---- plot 1: off50 frontier ----
+fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)")
+_dots(ax, OFF50, "steelblue", show=("ov4096\ncrown", "ov2048\nknee", "ov0",
+                                    "ov6144", "ov3072"),
+      offsets={"ov4096\ncrown": (-60, -20), "ov2048\nknee": (10, -22),
+               "ov0": (8, 10), "ov6144": (-52, 8), "ov3072": (-48, 12)})
+_diamonds(ax)
 ax.set_xlim(0, 10.5)
-
 fig.tight_layout()
-fig.savefig("pareto_v3.png", dpi=120)
-print("saved pareto_v3.png")
+fig.savefig("pareto_off50.png", dpi=120)
+print("saved pareto_off50.png")
+
+# ---- plot 2: off75 hard region ----
+fig, ax = _base("Speed vs ratio, hard region (SmolLM2-135M, measured)")
+_dots(ax, OFF75, "seagreen", show=("ov4096", "ov3072", "ov0"),
+      offsets={"ov4096": (-52, 10), "ov3072": (10, -16), "ov0": (10, 8)})
+_diamonds(ax)
+ax.set_xlim(0, 10.5)
+fig.tight_layout()
+fig.savefig("pareto_off75.png", dpi=120)
+print("saved pareto_off75.png")
 print(f"points: {len(OFF50) + len(OFF75) + len(MB1)}")
