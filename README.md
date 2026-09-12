@@ -4,7 +4,7 @@
 
 Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: SmolLM2-135M ensemble at **0.9003 bits/byte** on enwik8 (beats the 0.9389 SOTA line by 4.1% on the same slice class), chunked-exact speed line **2.9 s** (34.5 KB/s, 1.50 GB peak), Qwen2.5-0.5B line at **0.8391 bits/byte** (*paged box; practical pick 0.8442 fits 8 GB) — with every number measured and every failure kept.
 
-## Headline numbers (all measured, 2026-09-15)
+## Headline numbers (all measured, 2026-09-13)
 
 | System | bpb ↓ | Speed | Lossless check |
 |---|---|---|---|

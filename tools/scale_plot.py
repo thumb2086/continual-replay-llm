@@ -8,7 +8,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, NullFormatter
 
 SIZES_KB = [100, 1024, 10240]
 SIZES_LBL = ["100KB", "1MB", "10MB"]
@@ -18,6 +18,7 @@ TIME = {
     "speed classic\nov0/K1024": [9.7, 104.3, 1095.9],
     "speed gather\nov0/K1024": [5.3, 56.9, 632.2],
     "speed gate207\nov0/K1024": [4.5, 49.4, None],
+    "speed chunked\nov0/K1024": [2.9, 29.8, None],
     "crown classic\nov4096/K8192": [24.0, 254.7, None],
     "crown gather\nov4096/K8192": [27.4, 201.6, None],
 }
@@ -25,6 +26,7 @@ BPB = {
     "speed classic\nov0/K1024": [0.9268, 0.9347, 0.9025],
     "speed gather\nov0/K1024": [0.9272, 0.9355, 0.9039],
     "speed gate207\nov0/K1024": [0.9276, 0.9359, None],
+    "speed chunked\nov0/K1024": [0.9276, 0.9360, None],
     "crown classic\nov4096/K8192": [0.9003, 0.9078, None],
     "crown gather\nov4096/K8192": [0.9005, 0.9079, None],
 }
@@ -47,6 +49,8 @@ ax1.set_title("Throughput ladder [top-right is best]")
 ax1.set_xticks(SIZES_KB)
 ax1.set_xticklabels(SIZES_LBL)
 ax1.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
+ax1.yaxis.set_minor_formatter(NullFormatter())  # no sci-notation minors
+ax1.xaxis.set_minor_formatter(NullFormatter())
 ax1.grid(True, which="both", alpha=0.3)
 ax1.legend(fontsize=8)
 

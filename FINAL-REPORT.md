@@ -43,8 +43,8 @@ python -u ensemble/bpe_ensemble_v11.py
 | ov4096＋floor 5e-6 | 0.9146 | 正交疊加 |
 | floor 2e-6 → 1e-6 | 0.9140 → **0.9139** | F=1 到底，floor 軸窮盡 |
 | ov6144 | 0.9146（不動） | context 在 4096 飽和 |
-| TOP_K 512 | 0.9278（更差） | K=1024 兩邊都試過，最優（2026-09-14 推翻：是 prefilter-bound，見 K 階梯） |
-| K 階梯（2026-09-14，v13） | 1024→0.9139／2048→**0.9050**／4096→**0.9013**／8192→**0.9003** | K=PF 同步放大：−89／−37／−10 e-4，遞減，停在 8192 |
+| TOP_K 512 | 0.9278（更差） | K=1024 兩邊都試過，最優（2026-09-12 推翻：是 prefilter-bound，見 K 階梯） |
+| K 階梯（2026-09-12，v13） | 1024→0.9139／2048→**0.9050**／4096→**0.9013**／8192→**0.9003** | K=PF 同步放大：−89／−37／−10 e-4，遞減，停在 8192 |
 | S2 on K2048 | 0.9051（null） | cache-informed stage-2 無疊加 |
 | floor 1e-7 | 0.9050（null） | floor 已飽和 |
 
@@ -81,7 +81,7 @@ unigram-ensemble、純 trigram、TOP_K 4096、prefilter 16384、CONF 掃參、ca
 ## 8. 文件地圖（＋2026-09-13 Pareto 附錄 §9）
 
 - `ensemble/bpe_ensemble_v11.py`：前交卷系統（0.9139）
-- `ensemble/bpe_ensemble_v10.py`：切片後向等價版；`ensemble/bpe_ensemble_v12.py`：llama 後端（忙碌箱證偽保留）；`ensemble/bpe_ensemble_v13.py`：KV 接力主線已證偽封存，但其 plumbing（deferred driver、單源 `_range_core`、共享內存 proc、pipeline helper、雙緩衝、增量凍結）已在 recompute 模式逐位驗證 0.9139（`USE_PROC_LOOP=1`＋`PIPELINE=1` 實測 26.9s/100KB，loop 8.5→2.5s）；ORT 分支因 fp32 慢 3 倍＋逐 shape 重調優而死；2026-09-14 起 v13 為現行交卷（比率王 0.9003／速度 10.2KB/s）。現行預設：`SDPA_BACKEND=flash`、`USE_FP16_SOFTMAX=1`、`UNCHUNKED_TOPK=1`、`USE_PROC_LOOP=0`、`PIPELINE=0`、`N_LOOP_WORKERS=1`，`BLOCK_TOKENS` 可調（8192 最優，兩邊都掃過）
+- `ensemble/bpe_ensemble_v10.py`：切片後向等價版；`ensemble/bpe_ensemble_v12.py`：llama 後端（忙碌箱證偽保留）；`ensemble/bpe_ensemble_v13.py`：KV 接力主線已證偽封存，但其 plumbing（deferred driver、單源 `_range_core`、共享內存 proc、pipeline helper、雙緩衝、增量凍結）已在 recompute 模式逐位驗證 0.9139（`USE_PROC_LOOP=1`＋`PIPELINE=1` 實測 26.9s/100KB，loop 8.5→2.5s）；ORT 分支因 fp32 慢 3 倍＋逐 shape 重調優而死；2026-09-12 起 v13 為現行交卷（比率王 0.9003／速度 10.2KB/s）。現行預設：`SDPA_BACKEND=flash`、`USE_FP16_SOFTMAX=1`、`UNCHUNKED_TOPK=1`、`USE_PROC_LOOP=0`、`PIPELINE=0`、`N_LOOP_WORKERS=1`，`BLOCK_TOKENS` 可調（8192 最優，兩邊都掃過）
 - `ac32.py`：32-bit coder＋numba kernels；`ensemble/sota_loop.py`＋`data/sota_loop.json`：迭代帳本
 - `h2h_nacrith.py`＋`data/h2h_nacrith.json`：第三方重現；`third_party/nacrith`：原廠碼
 - `tools/test_shm_proc.py`：線程 vs 進程逐位一致（生產數據 0.9139 驗證；另抓到共享 scratch＋nogil kernel＝靜默段錯誤，已修）；`tools/ort_export.py`：ONNX 導出腳本（ORT 分支已死，留檔）
@@ -111,19 +111,19 @@ v2（19 點）：overlap 加密（ov512 0.9232、ov1536 0.9237、ov2560 0.9169�
 
 最佳配置多切片（100KB）：off0 **0.8307**（模板頭紅利）／off25 0.9218／off50 0.9139／off75 **0.9662（輸 SOTA＋3%，硬區間，如實保留）**；四片均值 0.908，贏 SOTA 3.3%。1MB flagship（off50）：**0.9222**，220/220，256 秒，贏 SOTA 1.8%（增量凍結立功：75 段 frz 合計 0.7 秒）。
 
-10KB/s 結案（2026-09-14 推翻舊結論：已過線）：組合技（ov0＋flash＋fp16-softmax＋單 topk＋單發 topk＋pipeline/proc 關＋單 loop worker）9.8 秒（10.2KB/s）。2026-09-13 的「不可達」寫於 SDPA 發現之前（auto 選到 math fallback）與 fwd 拆表之前——舊結論作廢，新瓶頸見 §12。。
+10KB/s 結案（2026-09-12 推翻舊結論：已過線）：組合技（ov0＋flash＋fp16-softmax＋單 topk＋單發 topk＋pipeline/proc 關＋單 loop worker）9.8 秒（10.2KB/s）。2026-09-13 的「不可達」寫於 SDPA 發現之前（auto 選到 math fallback）與 fwd 拆表之前——舊結論作廢，新瓶頸見 §12。。
 
 ## 11. 最終迭代與硬體極限宣告（2026-09-13）
 
-cProfile 指引：rotary 三角重算佔 forward 13%＋`.to()` 排隊 10%——cos/sin 快取（逐位一致，tripwire 防鏈毒）省 forward 24%（24.3→18.4s）。N 進程同態掃描：2（11.6s）＜1（11.9）＜4（12.0）＜6（12.4）＜8（13.1），N=2 最優。微優化 gc.disable、CUDNN benchmark、EMPTY/1000 全 null（±0.1s 雜訊）。按開工規則（三連 null 即停）：**硬體極限＝ov0/N2，11.6 秒＝8.6KB/s**（比率 0.9268，220/220）；比率王 ov4096 0.9139 @ 19.4 秒不動。再往下要安靜十倍的箱子或新卡，不是 code。（2026-09-14：本節數字被 §12 取代，保留為歷史。）
+cProfile 指引：rotary 三角重算佔 forward 13%＋`.to()` 排隊 10%——cos/sin 快取（逐位一致，tripwire 防鏈毒）省 forward 24%（24.3→18.4s）。N 進程同態掃描：2（11.6s）＜1（11.9）＜4（12.0）＜6（12.4）＜8（13.1），N=2 最優。微優化 gc.disable、CUDNN benchmark、EMPTY/1000 全 null（±0.1s 雜訊）。按開工規則（三連 null 即停）：**硬體極限＝ov0/N2，11.6 秒＝8.6KB/s**（比率 0.9268，220/220）；比率王 ov4096 0.9139 @ 19.4 秒不動。再往下要安靜十倍的箱子或新卡，不是 code。（2026-09-12：本節數字被 §12 取代，保留為歷史。）
 
-## 12. 速度重開＋比率突破（2026-09-14，取代 §10–11 數字）
+## 12. 速度重開＋比率突破（2026-09-12，取代 §10–11 數字）
 
 速度（ov0 上 12.1→9.8 秒）：SUBCLOCKS 把被污染的 forward 窗口拆開——attn 0.9／topk-launch 1.6／d2h 6.1／shmw 1.6 秒。flash 一直有在動（attn 0.23 秒/forward）；之前的「2.5 秒/forward」是六種成本共用一個計時器。PCIe 洗清嫌疑（純傳輸 0.12 秒/800MB）。入帳：fp16 softmax（比率四位小數不動）、精確單 topk（少一次全 V 遍歷）、單發 topk（2.32GB）、pipeline/proc 預設關（helper 爭用大於重疊收益）、單 loop worker（GIL：10.5→9.8 秒）。顯卡負載下 boost 正常（1905MHz/100%/219W；之前低時鐘讀數是死 job 的假影）。**10KB/s 過線：9.8 秒＝10.2KB/s。**
 
 比率（0.9139→**0.9003**）：ov4096 上 K/PF 階梯——2048→0.9050、4096→0.9013、8192→0.9003（增量 −89/−37/−10 e-4，遞減，停）。舊的「K=1024 最優」是 prefilter-bound，推翻。新王座顯存峰值 5.01GB，8GB 卡內。SOTA 差距：−4.1%。
 
-## 13. batch 證偽、1MB 放量、drain 診斷（2026-09-14）
+## 13. batch 證偽、1MB 放量、drain 診斷（2026-09-12）
 
 batch-2 雙 forward：逐位正確（0.9268）但零加速——只拼了模型呼叫，逐段 topk/d2h/shmw 才是大頭。路上殺兩隻 bug：stash 交棒吃掉一個 chunk 槽（整段被跳過，1.8240）；submit 迴圈用 stale chunk 重綁 block（mate 拿前一段的 ids 編碼，1.3576）。batched==single 證到 0.000000（含 rope patch）。預設保持單發（BATCH_SEGS=1）。`empty_cache` 拔除：null。
 
@@ -131,13 +131,13 @@ batch-2 雙 forward：逐位正確（0.9268）但零加速——只拼了模型�
 
 drain 診斷（SYNC_ATTN）：真 attention-GPU 只要 0.7 秒/4 forward——flash 在 pipeline 內確認有動。d2h 約 5 秒是 softmax＋topk 執行堆積（400M 元素 softmax 本該毫秒級：差 300 倍→箱子搶佔／sag 或 WDDM 病理）。下一步：logit-space 手術（lse＋gather，殺掉全 V softmax 執行）。
 
-## 14. 手術取消、放量梯子（2026-09-14）
+## 14. 手術取消、放量梯子（2026-09-12）
 
 logit 手術取消，有證據：單機實測 softmax＋2×topk＋gather＋全部 D2H＝0.15 秒/段，純 GPU 0.02 秒/段。v13 的 1.4 秒/段是 10 倍調度開銷（排隊等前面的活、桌面搶佔、burst 間 boost 掉速）——不是活。沒東西可 fuse，code 端速度工作關閉（每根槓桿不是 null 就是環境定罪）；剩下的槓桿是安靜的箱子。
 
 1MB 速度基線（ov0/K1024，38 段）：**0.9347**，104.3 秒＝9.8KB/s——與 100KB 線性一致，放量漂移 ＋79e-4（與王座 ＋75e-4 同級）。100KB 修復後重驗 0.9268 一字不差。梯子：1MB 約 2 分鐘（速度版）／4 分鐘（王座版）；10MB 約 17 分鐘；全檔 100MB 安靜箱約 3 小時——可過夜跑。
 
-## 15. Goal 回合：速度關閉、K 到頂、Pareto＋6 點（2026-09-14）
+## 15. Goal 回合：速度關閉、K 到頂、Pareto＋6 點（2026-09-12）
 
 速度（4 探針全 null）：2 worker 輸 1（14.3 秒，GIL 曲線 1＜2＜8 補完）；GC_OFF null；proc/N=2 null（15.6 秒，thread 勝）；batch 上王座逐位一致但更慢（23.1 秒）。code 端速度關閉（連同 §14 證據）。殘留路徑（未走）：segment-skip、graph 重試、WSL compile——專案級，列案。
 
@@ -145,13 +145,13 @@ logit 手術取消，有證據：單機實測 softmax＋2×topk＋gather＋全�
 
 Pareto v4：28 點（OFF50 21 點）。全 220/220。王座 0.9003／速度 10.2KB/s 不動。
 
-## 16. WSL 全移植：建成、更慢、關閉（2026-09-14）
+## 16. WSL 全移植：建成、更慢、關閉（2026-09-12）
 
 WSL（無網路）離線建成全套環境：63 個輪子在 Windows 代下載（雙 `manylinux_2_17＋2_28` 平台標籤——pip 26 拔掉裸別名；`sys_platform` 標記在 Windows 主機靜默丟掉 nvidia 依賴，改顯式抓；nvjitlink 12.4→12.9 修 cusparse 未定義符號；tokenizers pin 放寬給 transformers 4.57.6）。torch 2.14＋cu126＋triton 3.8＋CUDA 12.9＋gcc 全活。配方：Windows 下 `pip download --platform manylinux_2_17_x86_64 --platform manylinux_2_28_x86_64 --python-version 3.12 --implementation cp --abi cp312`，拷到 `~/wheels`，`pip install --no-index --no-deps`。
 
 結果：WSL eager 100KB＝12.9 秒（比 Windows 9.7 秒慢；半虛擬化開銷大於 WDDM），跨平台一致 0.9266 vs 0.9268（2e-4）。Inductor reduce-overhead 0.85 秒/forward 輸 eager 0.33（小模型上 dynamo 開銷）；default 模式打平（0.32）。max-autotune 書面拒絕：它調 GEMM，我們證過的牆是調度。速度 goal≤8.0 秒：證據齊全判 UNMET——9.7 秒就是這台箱子的牆。能重開它的輸入：閒置的箱子、更大的卡，或換模型。
 
-## 17. gather 時代：5.3 秒、scale 圖、PF16384（2026-09-14）
+## 17. gather 時代：5.3 秒、scale 圖、PF16384（2026-09-12）
 
 gather（logits 上 topk＋lse＋pi-gather＋CPU exp＋稀疏 blk，numba V-stamp 截斷）轉正預設：100KB 速度 9.7→**5.3 秒＝18.9KB/s**（−45%），比率 0.9272（＋4e-4 pi-only 代價，記案），220/220 三次確認（5.3/7.1/7.4 波動——箱子雜訊，全過 8.0 線）。單發 scatter 打敗分塊 3.0→1.7 秒（與 micro 基準相反——記案，未解）。王座＋gather 0.9005@27.4 秒（＋2e-4，大 K 下更慢：傳輸隨 K 漲——gather 是速度配置武器）。
 
@@ -159,15 +159,15 @@ gather（logits 上 topk＋lse＋pi-gather＋CPU exp＋稀疏 blk，numba V-stam
 
 放量梯子（全 220/220）：速度 gather 5.3 秒／56.9 秒／632 秒（100KB/1MB/10MB：18.9/18.0/16.2KB/s，顯存 4.01GB 持平）；10MB 比率 0.9039（cache 隨規模變熱）。新 `tools/scale_plot.py`→`scale_time_size.png`（大小-時間雙對數＋比率-大小）。Pareto v5：30 點。全檔 100MB gather 速度約 1.7 小時——可過夜。
 
-## 18. 直覺化圖表：最好去右上（2026-09-14）
+## 18. 直覺化圖表：最好去右上（2026-09-12）
 
 舊 Pareto 圖最好（又快又緊）沉在右下角（y＝bpb 越低越好）——跟閱讀直覺反著。兩張圖 y 軸改壓縮比 8/bpb（越高越好）：x＝吞吐（越右越快），紅色 SOTA 線在 8.52x（之下皆輸），理想角落右上。同樣 30 個實測點，同腳本（`tools/pareto_plot.py`）。前沿線誠實顯示取捨：王座上中（8.89x @ 4.2KB/s）、gather 右下（8.63x @ 18.9KB/s）——右上還空著；那個空角就是下一條前沿。
 
-## 19. Pareto 洗牌：舊時代刪除＋6 新探針（2026-09-14）
+## 19. Pareto 洗牌：舊時代刪除＋6 新探針（2026-09-12）
 
 刪 10 個前 flash 計時（BC7/ov6144/TRI0/ov5120/ov3072/ov2560/ov1536/ov512/ov1024/ov0-classic——舊調度時代）。6 新跑全 220/220：王座 classic 重驗一字不差 0.9003（後面所有改動在旗關時零影響）；knee＋gather 0.9194 不動 @ 5.9 秒（knee 處 pi-only 代價約 0，12.0→5.9 秒）；ov1024＋gather 0.9241@5.5 秒；K3072＋gather 0.9029@9.7 秒（階梯填補）；ov3072K8＋gather 0.9026@15.0 秒（大 K 下 overlap 還有 0.002 差距）；ov0K2＋gather 0.9183@5.7 秒。OFF50 現 17 個現行 code 點。王座 0.9003／速度 18.9KB/s 不動。
 
-## 20. WSL 速度電池：12.9→6.6 秒、1 秒判決（2026-09-14）
+## 20. WSL 速度電池：12.9→6.6 秒、1 秒判決（2026-09-12）
 
 Windows 微調：K512＋gather 史上最快 4.9 秒但＋146e-4 比率（拒收——不要比率的速度不值錢）；alloc 兩次 null；安靜箱 alone 5.3–7.4→5.0 秒（箱子狀態約 2 秒擺幅——所有速度數都帶這個 band）。
 
@@ -175,11 +175,11 @@ WSL（100KB，全程 0.9271±1e-4，全 220/220）：eager 12.9→graph 7.9（�
 
 1 秒判決：這片矽到不了。地板數學（100KB 4 段）：attention-GPU 4×0.2＋後處理 4×0.3＋CPU loop/code≈3 秒不可約；forward 減不到 4 發（模型天花板 8192，16K 證過垃圾）。已入帳最佳：安靜 Win 5.0 秒／WSL 6.6 秒。重開條件：forward 更少的模型、5 倍矽、或全閒置。微調尾聲：K512＋gather 史上最快 4.9 秒但＋146e-4 比率（拒收）；alloc 兩次 null；主線程最高優先 null（5.1 vs 5.0）；torch/OMP/MKL 單線程 null（5.1 vs 5.0——GIL 主導，池子不是兇手）。pinned 異步傳輸入帳（逐位一致，d2h 1.0→0.0 秒，淨 −0.2 秒，預設開）。code 端徹底關閉。
 
-## 21. blend-gate＋預設轉正：4.4 秒（2026-09-15）
+## 21. blend-gate＋預設轉正：4.4 秒（2026-09-13）
 
 cProfile-inline 揪出 nb_blend_row 1.24 秒/1.7 萬次（72µs 每次，Phase-A 的 69%）——成本 drivers 是 blend 顆數，不是驅動 Python（numba 驅動 EV 上限約 0.5 秒，有測量為據拒絕）。新門看 cache 行總量：(5,2) 一字不差 0.9272 且 blend −16%（低 count blend 全是廢活）；(20,7) 用＋4e-4 換 4.4 秒＝22.7KB/s（新最快有效 Pareto 點）；(50,15) 飽和（＋8e-4，同 4.4 秒）。預設開箱即快（overlap 0、floor 1e-6、S2 關、fp16 傳、單 worker、blend-gate 5/2、gather＋pinned 開）：純預設跑 0.9185 @ 5.1 秒。Pareto v6：25 點（off50 18 點）。1 秒仍是物理 bound（地板約 3 秒）；已入帳最佳 4.4 秒。
 
-## 22. gate 階梯＋王座 gate：王座 24→13.3 秒（2026-09-15）
+## 22. gate 階梯＋王座 gate：王座 24→13.3 秒（2026-09-13）
 
 gate 階梯（ov0/K1024）：(5,2) 一字不差/4.6 秒→(10,3)＋1e-4/4.6 秒→(15,5)＋1e-4/4.6 秒→(20,7)＋4e-4/4.4 秒→(50,15)＋8e-4/4.4 秒（飽和）。甜蜜點約 (10–15, 3–5)，在雜訊帶內；預設留 (5,2) 可證一字不差。
 
@@ -187,31 +187,31 @@ gate 上王座 K8192（blend kernel 大 8 倍處）：(5,2)→0.9005 @ 15.2 秒�
 
 EXP_FP16：null（＋1e-4，不快——exp 不是瓶頸；丟掉）。Pareto v7：27 點。1 秒判決不變（地板約 3 秒）；已入帳最佳 4.4 秒速度／13.3 秒王座。
 
-## 23. prefetch 證偽、微調關門（2026-09-15）
+## 23. prefetch 證偽、微調關門（2026-09-13）
 
 CUDA_DEVICE_MAX_CONNECTIONS=1：null（4.7 秒帶內）。prefetch-1（N 的 Phase-A 期間先發 N+1 的 forward）在 WDDM 上反傷：4.6→7.8 秒——深佇列在搶佔下調度更爛，暫存 800MB 還擾動 flash 啟發式（＋1e-4 雜訊）。重疊要乾淨的調度器，這台不是。預設關。
 
 評估後不開工：numba 驅動（EV 約 0.4 秒，2–3 小時＋鏡像風險）、script 模型發射（EV 約 0.5 秒，1–2 小時）。全疊最佳約 3.5 秒，到不了 3.0——不是誠實能承諾的計畫。code 端關在 4.4 秒（22.7KB/s）；剩牌只有閒置箱。
 
-## 24. numba 驅動＋script 模型：都死了，都有用（2026-09-15）
+## 24. numba 驅動＋script 模型：都死了，都有用（2026-09-13）
 
 njit Phase-A 鏡像（typed 行 List、排序 tri 複合鍵＋二分、numpy tag 盒、shortfall errbox）：逐位一致 0.9272＋220 通過——但 5.3 秒輸 Python worker 的 4.4 秒。展平開銷（逐段 typed 重建）大過省的計算；發射確實變緊（1.1→0.6 秒，nogil 證畢）。基建留旗關著——全檔規模可能翻盤（dict.get 退化，idarr 恆 O(1)）。
 
 torch.jit.script 死在 transformers CONFIG 類（不支援 keyword-only 預設）——修要 vendor 整份 HF modeling；timebox 內處決。Windows 上 torch 融合全面陣亡（trace×3＋script）。ledger 共 200 條。已入帳最佳 4.4 秒。
 
-## 25. batch-2 重測＋大 context survey：都被算術判死（2026-09-15）
+## 25. batch-2 重測＋大 context survey：都被算術判死（2026-09-13）
 
 gather 世界重測 batch-2：逐位一致 0.9272 但更慢（6.4 vs 4.4 秒——合批的 sort/傳輸更大，後處理主導）。batch 關閉兩次；batch-4 拒絕（同邏輯＋4×800MB OOM 風險）。
 
 大 context survey（不下載，先算帳）：Qwen2.5-0.5B（0.49B、24 層、GQA、32K context、Apache-2.0）看似 4→1 正解，FLOPs 一算翻車：一次 30K forward＝3.4 倍活（線性 30T vs 8.8T；attention 900M vs 268M）換 1/4 發射——淨结果一樣或更慢（約 4–5 秒），外加新 152K tokenizer＝全部重做科學＋約 1GB 頻寬。Llama-3.2-1B（7 倍計算）更慘。Mamba/SSM（線性擴展！）對 1 秒是真有意思，但要 mamba-ssm＋Triton（Windows 死）加全新科學——那是新專案，不是優化。全用算術判死記案。
 
-## 26. 並行稽核：batch 死兩次、multicore 死一次（2026-09-15）
+## 26. 並行稽核：batch 死兩次、multicore 死一次（2026-09-13）
 
 batch 輸在 8GB 顯存牆，不是 batch 不對：暫存 logits 撐爆 allocator（d2h 翻倍），WDDM 懲罰深佇列。gather 世界重測 batch-2：一致但 6.4 秒；batch-4 拒絕（同邏輯＋4×800MB OOM 風險）。
 
 最後一顆沒翻的石頭——nogil-numba×4 worker＋pipeline helper（真 multicore Phase-A、主線程自由）：並發下逐位一致，但 5.8 秒輸（helper＋worker＋主線程＝搶奪濃湯；展平 Python 跟發射打架）。線程數最優再確認：主＋1 worker，4.4 秒。ledger 共 204 條。這台箱子量無可量。
 
-## 27. 量化四連死、剪層自爆、PF/SDPA 全 null（2026-09-15）
+## 27. 量化四連死、剪層自爆、PF/SDPA 全 null（2026-09-13）
 
 aggressive 預算（速度線只須贏 SOTA 0.9389）＋允許動模型後，連開四槍量化——全 miss，全有教訓。quanto qint8：220 過、+16e-4，但 5.7 秒（fwd 4.8s），因 quanto_cpp 沒有 Windows DLL，退回 dequant+fp16 反而更慢；箱上無 MSVC/nvcc 可編。AWQ：跑都沒得跑——autoawq 無 py311/cu124 Windows 輪子，要同樣的編譯器。bitsandbytes LLM.int8()：跑得動、220 過、+53e-4（aggressive 下是合法線），但 5.8 秒——135M 的 GEMM 尺寸下 int8 kernel 開銷超過省下的流量。torchao int8wo：死且危險——CUDA 路要 Triton（沒有），退路吐垃圾 logits 把 stage-1 encoder 炸了。教訓：這尺寸這台箱子，所有能量化核不是更慢就是壞的；量化要 fused kernel，箱子生不出來。
 
@@ -221,7 +221,7 @@ Prefilter 2048→1024：+6e-4、4.6 秒，雙軸 null（prefilter 卡的是暫�
 
 快角重釘：blend-gate (20,7) 重跑 4.5 秒 +4e-4——4.4 秒是帶寬不是運氣。ledger 共 218 條。
 
-## 28. 記憶體線、注意力 verdict、王座飽和、1 秒物理（2026-09-15）
+## 28. 記憶體線、注意力 verdict、王座飽和、1 秒物理（2026-09-13）
 
 記憶體（明確目標方向）：速度線峰值 4.01GB，成分已解開——activation（8192×576×30 約 2.7GB）才是大頭，不是 topk 暫存（chunked topk：一字不差 4.6s/4.01GB，null），也不是 allocator（expandable：一字不差；split128：同峰但更慢，死；EMPTY_EVERY=1 算術拒絕——指標數的是活張量，empty_cache 動不了）。免費午餐不存在：只有少 token per forward 能降峰。BLOCK 4096 精確描出 tradeoff：峰 4.01→2.13GB（-47%），代價 +0.3s、+127e-4（超預算）；配 K2048 變合法低記憶體線——2.13GB、0.9302、5.8s——4GB 卡救星，+30e-4/+1.3s。記為 versatility，不記速度。
 
@@ -231,7 +231,7 @@ Prefilter 2048→1024：+6e-4、4.6 秒，雙軸 null（prefilter 卡的是暫�
 
 1 秒 verdict：地板是 4 發×0.8s＋loop 0.7s≈4s，本輪所有更快路徑全輸全死（ORT 149s、量化×4、剪層×2、batch×2、multicore、PF、SDPA-mem、skip-oracle、SWA）。sub-1s 要更少發射＝更長 context 更小模型——那是新專案（新 tokenizer、全重做科學），不是優化。ledger 共 226 條。
 
-## 29. 三殺達成：chunk-exact 2.9 秒、Qwen 王座 0.8442、峰值 -63%（2026-09-15）
+## 29. 三殺達成：chunk-exact 2.9 秒、Qwen 王座 0.8442、峰值 -63%（2026-09-13）
 
 三條停止條件一輪全達成。ledger 共 235 條。
 

@@ -1,6 +1,6 @@
 # Hand-in Report: Practical Neural Compression with SmolLM2-135M (enwik8 slice)
 
-> Date: 2026-09-14. Base model: SmolLM2-135M (Apache-2.0). Hardware: single RTX 3060 Ti 8GB. Main eval: enwik8 offset 50MB, 100KB middle slice (representative article text, not the template head). Ledger: `data/sota_loop.json` (bpb/speed/verified for every round). Every number in this report is measured; nothing is extrapolated. Traditional Chinese version: [`FINAL-REPORT.md`](FINAL-REPORT.md).
+> Date: 2026-09-12. Base model: SmolLM2-135M (Apache-2.0). Hardware: single RTX 3060 Ti 8GB. Main eval: enwik8 offset 50MB, 100KB middle slice (representative article text, not the template head). Ledger: `data/sota_loop.json` (bpb/speed/verified for every round). Every number in this report is measured; nothing is extrapolated. Traditional Chinese version: [`FINAL-REPORT.md`](FINAL-REPORT.md).
 
 ## 1. Hand-in numbers
 
@@ -48,7 +48,7 @@ Reproduce speed (~40 s): same with `$env:TOP_K='1024'; $env:OVERLAP='0'; $env:PR
 | floor 2e-6 → 1e-6 | 0.9140 → **0.9139** | F=1 bottomed out, floor axis exhausted |
 | ov6144 | 0.9146 (flat) | context saturates at 4096 |
 | TOP_K 512 | 0.9278 (worse) | K=1024 tried on both sides, optimal |
-| K ladder (2026-09-14, v13) | 1024→0.9139 / 2048→**0.9050** / 4096→**0.9013** / 8192→**0.9003** | old "K=1024 optimal" verdict overturned: it was prefilter-bound (PF=2048 capped candidates). K=PF scaling: −89/−37/−10 e-4, diminishing, stopped at 8192 |
+| K ladder (2026-09-12, v13) | 1024→0.9139 / 2048→**0.9050** / 4096→**0.9013** / 8192→**0.9003** | old "K=1024 optimal" verdict overturned: it was prefilter-bound (PF=2048 capped candidates). K=PF scaling: −89/−37/−10 e-4, diminishing, stopped at 8192 |
 | S2 on K2048 | 0.9051 (null) | cache-informed stage-2 adds nothing on top |
 | floor 1e-7 | 0.9050 (null) | floor saturated |
 
@@ -67,7 +67,7 @@ Reproduce speed (~40 s): same with `$env:TOP_K='1024'; $env:OVERLAP='0'; $env:PR
 ## 5. Measured speed and memory
 
 - Bottleneck order, SUBCLOCKS-proven (ov0, 4 forwards): d2h 5.6 s (= GPU softmax+topk+attn exec piled into the first `.cpu()` sync; pure PCIe is 0.12 s/800MB) > attn launch 1.3 s > shmw 1.1 s (GBs of full-V NumPy writes) > loop 0.7 s > rest. The old "launch-bound" story was half wrong: the forward window mixes six costs, flash fixed attention (0.9 s), the softmax/topk GPU exec pile-up is the wall.
-- Banked real speedups (2026-09-14): SDPA flash default, fp16 softmax, exact single-topk (one full-V pass killed), unchunked topk, pipeline/proc off by default, single loop worker (GIL convicted: 1 beats 8, 10.5→9.8 s). Session: 12.1 → 9.8 s/100KB (10.2KB/s, 10KB/s target crossed).
+- Banked real speedups (2026-09-12): SDPA flash default, fp16 softmax, exact single-topk (one full-V pass killed), unchunked topk, pipeline/proc off by default, single loop worker (GIL convicted: 1 beats 8, 10.5→9.8 s). Session: 12.1 → 9.8 s/100KB (10.2KB/s, 10KB/s target crossed).
 - Memory: host RSS peak 3.4GB; VRAM peak 5.01GB (K8192 crown) / 2.32GB (speed config); the 12GB incident was a batch-2 rollover (11.3GB VRAM → WDDM paging), config falsified, never recurred. Full-V shm (`_shm_blk` 3.2GB) kept: Phase-A blend reads arbitrary brow/trow keys, transfer is only 0.12 s — the cost is GPU exec, not bytes.
 
 ## 6. Falsification log (results too)
@@ -91,7 +91,7 @@ unigram-ensemble, pure trigram, TOP_K 4096, prefilter 16384, CONF sweep, cache-i
 - `tools/test_shm_proc.py`: thread-vs-proc bitwise match (0.9139 on production data; also caught shared-scratch + nogil-kernel = silent segfault, fixed); `tools/ort_export.py`: ONNX export script (ORT branch dead, kept for the record)
 - `compression-paper.md` + `paper_sections_13_14_draft.md`: earlier drafts (char pipeline and early ensemble history)
 
-## 9. Pareto frontier (2026-09-14, busy box, all 220/220)
+## 9. Pareto frontier (2026-09-12, busy box, all 220/220)
 
 | Config | bpb | s/100KB | KB/s |
 |---|---|---|---|
@@ -115,19 +115,19 @@ v2 (19 points): fine overlap grid (ov512 0.9232, ov1536 0.9237, ov2560 0.9169, o
 
 Best config, multi-slice (100KB): off0 **0.8307** (template-head bonus) / off25 0.9218 / off50 0.9139 / off75 **0.9662 (loses to SOTA by 3%, hard region, honestly kept)**; 4-slice mean 0.908, beats SOTA by 3.3%. 1MB flagship (off50): **0.9222**, 220/220, 256 s, beats SOTA by 1.8% (incremental freeze earns it: 75 segs, 0.7 s total frz).
 
-10KB/s verdict (2026-09-14): CROSSED. Full combo (ov0 + flash + fp16-softmax + single-topk + unchunked + pipeline/proc off + 1 loop worker) runs 9.8 s (10.2KB/s). The 2026-09-13 "unreachable" verdict is overturned — it was written before the SDPA discovery (auto picks math fallback) and before the fwd-window split. Remaining wall: softmax/topk GPU exec pile-up in d2h (5.6 s, burst-sag clocks on WDDM) — needs logit-space surgery or a quieter box, not more micro-opts.
+10KB/s verdict (2026-09-12): CROSSED. Full combo (ov0 + flash + fp16-softmax + single-topk + unchunked + pipeline/proc off + 1 loop worker) runs 9.8 s (10.2KB/s). The 2026-09-13 "unreachable" verdict is overturned — it was written before the SDPA discovery (auto picks math fallback) and before the fwd-window split. Remaining wall: softmax/topk GPU exec pile-up in d2h (5.6 s, burst-sag clocks on WDDM) — needs logit-space surgery or a quieter box, not more micro-opts.
 
 ## 11. Final iteration and hardware-limit declaration (2026-09-13)
 
 cProfile-guided: rotary trig recompute is 13% of forward + `.to()` queueing 10% — cos/sin cache (bitwise-identical, tripwire against chain poisoning) saves 24% forward (24.3→18.4 s). Controlled N-proc sweep: 2 (11.6 s) < 1 (11.9) < 4 (12.0) < 6 (12.4) < 8 (13.1), N=2 optimal. Micro-opts gc.disable, CUDNN benchmark, EMPTY/1000 all null (±0.1 s noise). Per the opening rule (three nulls stops it): **hardware limit = ov0/N2, 11.6 s = 8.6KB/s** (ratio 0.9268, 220/220); ratio crown ov4096 0.9139 @ 19.4 s stands. Beyond this needs a 10× quieter box or a new GPU, not code.
 
-## 12. Speed reprise + ratio breakthrough (2026-09-14, supersedes §10–11 numbers)
+## 12. Speed reprise + ratio breakthrough (2026-09-12, supersedes §10–11 numbers)
 
 Speed (12.1 → 9.8 s/100KB on ov0): SUBCLOCKS split the contaminated forward window — attn 0.9 / topk-launch 1.6 / d2h 6.1 / shmw 1.6 s. Flash was working all along (attn 0.23 s/fwd); the "2.5 s/forward" was six costs sharing one timer. PCIe proven innocent (0.12 s/800MB pure). Banked: fp16 softmax (ratio exact), exact single-topk, unchunked topk (2.32GB), pipeline/proc off (helper contention > overlap gain), 1 loop worker (GIL: 10.5→9.8 s). GPU boosts fine under load (1905MHz/100%/219W; the low-clock poll was a dead-job artifact). **10KB/s crossed: 9.8 s = 10.2KB/s.**
 
 Ratio (0.9139 → **0.9003**): K/PF ladder on ov4096 — 2048→0.9050, 4096→0.9013, 8192→0.9003 (deltas −89/−37/−10 e-4, diminishing, stopped). Old "K=1024 optimal" was prefilter-bound, overturned. New crown PEAK_VRAM 5.01GB, still inside 8GB. SOTA margin: −4.1%.
 
-## 13. Batch falsified, 1MB scale check, drain diagnostic (2026-09-14)
+## 13. Batch falsified, 1MB scale check, drain diagnostic (2026-09-12)
 
 Batch-2 paired forwards: bit-exact (0.9268) but zero speedup — only the model call batched, per-seg topk/d2h/shmw dominate. Two bugs killed en route: stash-consume ate a chunk slot (seg skipped, 1.8240); stale `chunk` rebound block in the submit loop (mate coded with previous seg's ids, 1.3576). Batched==single proven 0.000000 including rope patch. Default stays single (BATCH_SEGS=1). `empty_cache` removal: null.
 
@@ -135,13 +135,13 @@ Batch-2 paired forwards: bit-exact (0.9268) but zero speedup — only the model 
 
 Drain diagnostic (SYNC_ATTN): true attention-GPU is 0.7 s/4 forwards — flash confirmed working in-pipeline. d2h ≈ 5 s is softmax+topk exec pile-up (a 400M-elem softmax should be milliseconds: 300× off → box preemption/sag or WDDM pathology). Next: logit-space surgery (lse + gather, kill full-V softmax exec).
 
-## 14. Surgery cancelled, scale ladder (2026-09-14)
+## 14. Surgery cancelled, scale ladder (2026-09-12)
 
 Logit surgery CANCELLED with proof: standalone softmax + 2×topk + gather + ALL D2H transfers = 0.15 s/seg, GPU-only 0.02 s/seg. v13's 1.4 s/seg is 10× scheduling (queue-wait behind prior work, desktop preemption, boost sag between bursts) — not work. Fusing nothing saves nothing. Code-side speed work is CLOSED (every lever null or convicted-environmental); the remaining lever is a quiet box.
 
 1MB speed baseline (ov0/K1024, 38 segs): **0.9347**, 104.3 s = 9.8KB/s — linear vs 100KB confirmed, scale drift +79e-4 (same class as crown's +75e-4). 100KB re-confirm 0.9268 EXACT post-repair. Ladder: 1MB needs ~2 min (speed) / ~4 min (crown); 10MB ≈ 17 min; full 100MB ≈ 3 h quiet — overnight-able.
 
-## 15. Goal round: speed closed, K peaked, +6 Pareto points (2026-09-14)
+## 15. Goal round: speed closed, K peaked, +6 Pareto points (2026-09-12)
 
 Speed (4 probes, all null): 2 loop workers lose to 1 (14.3 s, GIL curve 1<2<8 complete); GC_OFF null; proc/N=2 null (15.6 s, threads win); batch-on-crown parity-exact but slower (23.1 s). Code-side speed CLOSED (with §14 proof). Residual paths (not taken): segment-skip, CUDA-graph retry, WSL compile — project-scale, listed for the record.
 
@@ -149,13 +149,13 @@ Ratio (9 probes): K ladder PEAKED — K16384 regresses to 0.9027 (+24e-4, 52.4 s
 
 Pareto v4: 28 points (OFF50 21). All 220/220. Crown 0.9003 / speed 10.2KB/s stand.
 
-## 16. WSL full port: built, slower, closed (2026-09-14)
+## 16. WSL full port: built, slower, closed (2026-09-12)
 
 WSL (no network) got a full offline env: 63 wheels side-downloaded on Windows (dual `manylinux_2_17+2_28` platform tags — pip 26 dropped the bare alias; `sys_platform` markers silently drop nvidia deps on a Windows host so they were fetched explicitly; nvjitlink 12.4→12.9 fixed a cusparse undefined-symbol; tokenizers pin relaxed for transformers 4.57.6). torch 2.14+cu126 + triton 3.8 + CUDA 12.9 + gcc all live. Recipe: `pip download --platform manylinux_2_17_x86_64 --platform manylinux_2_28_x86_64 --python-version 3.12 --implementation cp --abi cp312` on Windows, copy to `~/wheels`, `pip install --no-index --no-deps`.
 
 Results: WSL eager 100KB = 12.9 s (SLOWER than Windows 9.7 s; paravirt overhead > WDDM) with cross-platform parity 0.9266 vs 0.9268 (2e-4). Inductor reduce-overhead 0.85 s/fwd loses to eager 0.33 (dynamo overhead on a tiny model); default mode ties (0.32). Max-autotune declined on the record: it tunes GEMMs, our proven wall is scheduling. Speed goal ≤8.0 s: UNMET with full evidence — 9.7 s stands as this box's wall. Remaining inputs that could reopen it: an idle box, a bigger GPU, or a different model.
 
-## 17. Gather era: 5.3 s, scale chart, PF16384 (2026-09-14)
+## 17. Gather era: 5.3 s, scale chart, PF16384 (2026-09-12)
 
 Gather (topk on logits + lse + pi-gather + CPU exp + sparse blk, numba V-stamp truncation) now DEFAULT: 100KB speed 9.7 → **5.3 s = 18.9KB/s** (−45%), ratio 0.9272 (+4e-4 pi-only cost, documented), 220/220 twice-confirmed (5.3/7.1/7.4 band — box noise, all ≤8.0). One-shot scatter beats chunked 3.0→1.7 s (opposite of micro-benchmark — recorded, unexplained). Crown+gather 0.9005@27.4 s (+2e-4, slower at big K: transfers scale with K — gather is a speed-config weapon).
 
@@ -163,24 +163,24 @@ Ratio shots: PF16384/K8192 = 0.9004 (tail NOT recovered by width; PEAK 8.01GB re
 
 Scale ladder (all 220/220): speed-gather 5.3 s / 56.9 s / 632 s (100KB/1MB/10MB: 18.9/18.0/16.2 KB/s, PEAK 4.01GB flat); 10MB ratio 0.9039 (cache warms with scale). New `tools/scale_plot.py` → `scale_time_size.png` (size-vs-time log-log + bpb-vs-size). Pareto v5: 30 points. Full 100MB ≈ 1.7 h gather-speed — overnight-able.
 
-## 18. Intuitive charts: best goes top-right (2026-09-14)
+## 18. Intuitive charts: best goes top-right (2026-09-12)
 The old Pareto plots had best (fast + tight) sinking to the bottom-right (y = bpb, lower better) — backwards from reading intuition. Both plots now use y = compression ratio 8/bpb (higher better): x = throughput (faster right), red SOTA line at 8.52x (worse below), ideal corner top-right. Same 30 measured points, same script (`tools/pareto_plot.py`). The frontier honestly shows the trade: crown top-middle (8.89x @ 4.2KB/s), gather bottom-right (8.63x @ 18.9KB/s) — nothing sits top-right yet; that empty corner is the next frontier.
 
-## 19. Fresh Pareto: old era deleted, 6 new probes (2026-09-14)
+## 19. Fresh Pareto: old era deleted, 6 new probes (2026-09-12)
 
 Ten pre-flash timings deleted (BC7/ov6144/TRI0/ov5120/ov3072/ov2560/ov1536/ov512/ov1024/ov0-classic — stale scheduler era). Six new runs, all 220/220: crown-classic re-confirmed EXACT 0.9003 (later code zero-impact with flags off); knee+gather 0.9194 EXACT @ 5.9 s (pi-only cost ~0 at knee, 12.0→5.9 s); ov1024+gather 0.9241@5.5 s; K3072+gather 0.9029@9.7 s (ladder fill); ov3072K8+gather 0.9026@15.0 s (overlap still matters at big K, 0.002 gap); ov0K2+gather 0.9183@5.7 s. OFF50 now 17 current-code points. Crown 0.9003 / speed 18.9KB/s stand.
 
-## 20. WSL speed battery: 12.9 → 6.6 s, 1 s verdict (2026-09-14)
+## 20. WSL speed battery: 12.9 → 6.6 s, 1 s verdict (2026-09-12)
 Windows micros: K512+gather fastest-ever 4.9 s but +146e-4 ratio (REJECTED — speed without ratio is cheap); alloc-conf null twice; quiet box alone 5.3–7.4 → 5.0 s (box state ≈ 2 s swing — all speed numbers carry this band).
 
 WSL (100KB, 0.9271±1e-4 throughout, all 220/220): eager 12.9 → graphs 7.9 (−39%: replay finally works without WDDM — differential proof the wall was WDDM) → threads-2 7.2 (Linux inverts the Windows GIL verdict) → proc-fork-2 **6.6 s** (no spawn penalty + own GIL) → proc-4/threads-4 null (N=2 optimal everywhere).
 
 1-second verdict: unreachable on this silicon. Floor math per 100KB (4 segs): attention-GPU 4×0.2 + post 4×0.3 + CPU loop/code ≈ 3 s of irreducible work; forwards can't drop below 4 (model ceiling 8192, 16K proven garbage). Best banked: 5.0 s quiet-Windows / 6.6 s WSL. Reopening needs: fewer forwards (bigger-context model), ~5× silicon, or full idle. Micro epilogue: K512+gather fastest-ever 4.9 s but +146e-4 ratio (rejected); alloc-conf null twice; main-thread HIGHEST null (5.1 vs 5.0); torch/OMP/MKL single-threading null (5.1 vs 5.0 — GIL dominates, pools weren't the contention). Pinned async D2H banked (parity EXACT, d2h 1.0→0.0 s, net −0.2 s, default on). Code-side fully closed.
 
-## 21. Blend-gate + tuned defaults: 4.4 s (2026-09-15)
+## 21. Blend-gate + tuned defaults: 4.4 s (2026-09-13)
 cProfile-inline exposed nb_blend_row at 1.24 s/17k calls (72µs each, 69% of Phase-A) — the cost driver is blend COUNT, not driver Python (numba-driver EV capped ~0.5 s, declined with measurement). New gate on cache-row totals: (5,2) is EXACT at 0.9272 with blend −16% (low-count blends were pure waste); (20,7) trades +4e-4 for 4.4 s = 22.7KB/s (new fastest-valid Pareto point); (50,15) saturates (+8e-4, same 4.4 s). Defaults now fast out of the box (overlap 0, floor 1e-6, S2 off, fp16-xfer on, 1 worker, blend-gate 5/2, gather+pinned on): pure-defaults run gives 0.9185 @ 5.1 s. Pareto v6: 25 points (off50 18). 1 s stays physics-bound (floor ≈ 3 s); best banked 4.4 s.
 
-## 22. Gate ladder + crown-gate: crown 24 → 13.3 s (2026-09-15)
+## 22. Gate ladder + crown-gate: crown 24 → 13.3 s (2026-09-13)
 
 Gate ladder mapped on ov0/K1024: (5,2) EXACT/4.6 s → (10,3) +1e-4/4.6 s → (15,5) +1e-4/4.6 s → (20,7) +4e-4/4.4 s → (50,15) +8e-4/4.4 s (saturated). Sweet spot ≈ (10–15, 3–5), inside the noise band; default stays (5,2) provably EXACT.
 
@@ -188,29 +188,29 @@ Gate on crown K8192 (where blend kernels are 8x bigger): (5,2) → 0.9005 @ 15.2
 
 EXP_FP16: null (+1e-4, no faster — exp is not the bottleneck; dropped). Pareto v7: 27 points. 1 s verdict stands (floor ≈ 3 s); best banked 4.4 s speed / 13.3 s crown.
 
-## 23. Prefetch falsified, micro closed (2026-09-15)
+## 23. Prefetch falsified, micro closed (2026-09-13)
 CUDA_DEVICE_MAX_CONNECTIONS=1: null (4.7 s in band). Prefetch-1 (launch N+1's forward during N's Phase-A) HURTS on WDDM: 4.6 → 7.8 s — deeper queues schedule worse under contention, and the staged 800MB perturbs flash heuristics (+1e-4 bpb noise). Overlap needs a clean scheduler; this box isn't one. Default off.
 
 Scoped but declined: numba-driver (EV ~0.4 s, 2–3 h + mirror risk), script-model dispatch (EV ~0.5 s, 1–2 h). Stacked best case ≈ 3.5 s, still short of 3.0 — not an honest plan to promise. Code-side fully closed at 4.4 s (22.7KB/s); remaining lever is an idle box.
 
-## 24. Numba driver + script-model: both dead, both useful (2026-09-15)
+## 24. Numba driver + script-model: both dead, both useful (2026-09-13)
 
 njit Phase-A mirror (typed row Lists, sorted-tri composite keys + bisect, numpy tagbox, shortfall errbox): BIT-EXACT 0.9272 + 220 pass — but 5.3 s loses to the Python worker's 4.4 s. Flatten overhead (per-seg typed rebuilds) exceeds compute saved; launches did tighten (1.1→0.6 s, nogil proven). Infra kept flagged off — may win at full-file scale (dict.get degrades, idarr stays O(1)).
 
 torch.jit.script dies at the transformers CONFIG class (keyword-only defaults unsupported) — fix means vendoring HF modeling; killed in timebox. Torch fusion on Windows comprehensively dead (trace ×3 + script). 200 ledger entries. Best banked 4.4 s.
 
-## 25. Batch-2 retest + big-context survey: both dead by arithmetic (2026-09-15)
+## 25. Batch-2 retest + big-context survey: both dead by arithmetic (2026-09-13)
 Batch-2 in the gather world: bit-exact 0.9272 but slower (6.4 vs 4.4 s — batched sorts/transfers are bigger, post dominates). Batch closed twice; batch-4 declined (same logic + 4×800MB OOM risk).
 
 Big-context survey (no downloads, math first): Qwen2.5-0.5B (0.49B, 24 layers, GQA, 32K ctx, Apache-2.0) looks like the 4→1 answer until the FLOPs: one 30K forward = 3.4× work (linear 30T vs 8.8T; attention 900M vs 268M) for 1/4 launches — net same-or-slower (~4–5 s), plus a new 152K tokenizer means full re-science and ~1GB bandwidth. Llama-3.2-1B (7× compute) is worse. Mamba/SSM (linear scaling!) is genuinely interesting for 1 s but needs mamba-ssm+Triton (dead on Windows) plus new science — a new project, not an optimization. All rejected with arithmetic on the record.
 
-## 26. Parallelism audit: batch dead twice, multicore dead once (2026-09-15)
+## 26. Parallelism audit: batch dead twice, multicore dead once (2026-09-13)
 
 Batching loses because of the 8GB VRAM wall, not because batching is wrong: staged logits bloat the allocator (d2h doubles), and WDDM punishes deep queues. Batch-2 retest in the gather world: exact but 6.4 s; batch-4 declined (same logic + 4×800MB OOM risk).
 
 Last unturned stone — nogil-num­ba × 4 workers + pipeline helper (true multicore Phase-A, free main): bit-EXACT mirror under concurrency, but 5.8 s loses (helper + workers + main = contention soup; flatten Python fights launches). Thread-count optimum re-confirmed: main + 1 worker, 4.4 s. 204 ledger entries. Nothing left unmeasured on this box.
 
-## 27. Quantization quartet, prune implosion, PF/SDPA nulls (2026-09-15)
+## 27. Quantization quartet, prune implosion, PF/SDPA nulls (2026-09-13)
 
 With an aggressive ratio budget (speed line only needs to beat SOTA 0.9389) and model surgery allowed, four quantization shots were fired — all missed, all instructive. quanto qint8 weight-only: 220 ok, +16e-4, but 5.7 s (fwd 4.8 s) because quanto_cpp has no Windows DLL and the dequant+fp16 fallback is slower, not faster; no MSVC/nvcc on the box to build it. AWQ: dead before running — autoawq has no Windows wheel for py311/cu124 and needs the same missing compilers. bitsandbytes LLM.int8(): runs, 220 ok, +53e-4 (a valid line under the aggressive budget), but 5.8 s — int8 kernel overhead exceeds traffic saved at 135M GEMM sizes. torchao int8wo: dead and dangerous — its CUDA path needs Triton (absent) and the fallback emitted garbage logits that crashed the stage-1 encoder. Lesson: at 135M scale on this box, every available quantized kernel path is slower-or-broken; quantization needs fused kernels this box cannot build.
 
@@ -220,7 +220,7 @@ Prefilter ladder 2048→1024: +6e-4, 4.6 s, null on both axes (prefilter caps te
 
 Fast corner re-pinned: blend-gate (20,7) reruns 4.5 s at +4e-4 — the 4.4 s record is band, not luck. 218 ledger entries.
 
-## 28. Memory line, attention verdict, crown saturation, 1 s physics (2026-09-15)
+## 28. Memory line, attention verdict, crown saturation, 1 s physics (2026-09-13)
 
 Memory (explicit goal direction): speed-line peak is 4.01 GB, and the composition is now solved — activations (~2.7 GB for 8192×576×30) dominate, not topk workspace (chunked topk: identical 4.6 s/4.01 GB, null) and not the allocator (expandable_segments: identical 4.5 s/4.01 GB, null; max_split_size_mb:128: same peak but 5.2 s slower, dead; EMPTY_EVERY=1 declined by arithmetic — the metric counts live tensors, which empty_cache cannot move). No free lunch exists: only fewer-tokens-per-forward lowers peak. BLOCK 4096 maps the tradeoff exactly: peak 4.01→2.13 GB (-47%) for +0.3 s and +127e-4 (over budget); with K2048 it becomes a legit low-memory line — 2.13 GB, 0.9302, 5.8 s — halving VRAM for ≤4 GB cards at +30e-4/+1.3 s. Recorded as versatility, not speed.
 
@@ -230,7 +230,7 @@ Ratio-up: the crown was assaulted at overlap 6144 (13 segs, exact classic-path r
 
 1 s verdict: the floor is 4 forwards × ~0.8 s + ~0.7 s loop ≈ 4 s, and every faster-path measured this round lost or died (ORT 149 s, quant ×4, prune ×2, batch ×2, multicore, PF, SDPA-mem, skip-oracle, SWA). Sub-1 s needs fewer forwards, i.e. a longer-context smaller model — a new project (new tokenizer, full re-science), not an optimization. 226 ledger entries.
 
-## 29. Triple-achieved: chunked-exact 2.9 s, Qwen crown 0.8442, peak −63% (2026-09-15)
+## 29. Triple-achieved: chunked-exact 2.9 s, Qwen crown 0.8442, peak −63% (2026-09-13)
 
 All three stopping conditions met in one round. Ledger 235.
 

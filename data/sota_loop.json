@@ -2045,6 +2045,13 @@
    "bpb": 0.8391,
    "elapsed_s": 12.2,
    "note": "CROWN: re-pinned 0.8391 EXACT (219/219 x2). Time jitters 14.9->12.2s (paging noise) but bpb rock-solid (deterministic math; paging only costs speed). Ratio crown = 0.8391* (*paged box); practical pick stays K2048 0.8442 (fits 8GB)."
+  },
+  {
+   "id": "1m-chunk",
+   "status": "chart",
+   "bpb": 0.936,
+   "elapsed_s": 29.8,
+   "note": "1MB chunked+gate: 38 segs, 34.3KB/s (49.4->29.8s), PEAK flat 1.50GB, 220 ok. Scale plot new chunked line."
   }
  ],
  "done": false,
