@@ -13,5 +13,6 @@ data/cloud/
 *.sarif
 logs/
 third_party/nacrith/
+third_party/conversion/
 *.bak
 ort-smollm2/
