@@ -1823,6 +1823,20 @@
    "id": "survey-bigctx",
    "status": "dead",
    "note": "Big-context survey: Qwen2.5-0.5B (0.49B, 24L, GQA, 32K ctx, Apache-2.0) looks ideal until the math: 1x30K fwd = 3.4x FLOPs (linear 2x500Mx30K=30T vs 8.8T; attn 900M vs 268M) for 1/4 launches -> net SLOWER (~4-5s), plus new tokenizer (152K vocab) = full re-science + ~1GB bandwidth. Llama-3.2-1B (7x compute) worse. Mamba (linear!) interesting but needs mamba-ssm+Triton (Windows-dead) + new science = new project, not optimization. REJECTED with arithmetic."
+  },
+  {
+   "id": "pipe-gather",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 4.6,
+   "note": "Pipeline retest in gather+gate world: 4.6s identical. Helper-thread contention still exceeds overlap gain. Closed twice."
+  },
+  {
+   "id": "numba-mc-pipe",
+   "status": "dead",
+   "bpb": 0.9272,
+   "elapsed_s": 5.8,
+   "note": "Numba-nogil x4 workers + pipeline helper: EXACT mirror under concurrency but 5.8s LOSES (helper+4workers+main = contention soup; flatten Python fights launches). Thread-count optimum re-confirmed: main+1worker. Multicore closed."
   }
  ],
  "done": false,

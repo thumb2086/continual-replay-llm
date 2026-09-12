@@ -200,7 +200,12 @@ njit Phase-A mirror (typed row Lists, sorted-tri composite keys + bisect, numpy 
 torch.jit.script dies at the transformers CONFIG class (keyword-only defaults unsupported) — fix means vendoring HF modeling; killed in timebox. Torch fusion on Windows comprehensively dead (trace ×3 + script). 200 ledger entries. Best banked 4.4 s.
 
 ## 25. Batch-2 retest + big-context survey: both dead by arithmetic (2026-09-15)
-
 Batch-2 in the gather world: bit-exact 0.9272 but slower (6.4 vs 4.4 s — batched sorts/transfers are bigger, post dominates). Batch closed twice; batch-4 declined (same logic + 4×800MB OOM risk).
 
 Big-context survey (no downloads, math first): Qwen2.5-0.5B (0.49B, 24 layers, GQA, 32K ctx, Apache-2.0) looks like the 4→1 answer until the FLOPs: one 30K forward = 3.4× work (linear 30T vs 8.8T; attention 900M vs 268M) for 1/4 launches — net same-or-slower (~4–5 s), plus a new 152K tokenizer means full re-science and ~1GB bandwidth. Llama-3.2-1B (7× compute) is worse. Mamba/SSM (linear scaling!) is genuinely interesting for 1 s but needs mamba-ssm+Triton (dead on Windows) plus new science — a new project, not an optimization. All rejected with arithmetic on the record.
+
+## 26. Parallelism audit: batch dead twice, multicore dead once (2026-09-15)
+
+Batching loses because of the 8GB VRAM wall, not because batching is wrong: staged logits bloat the allocator (d2h doubles), and WDDM punishes deep queues. Batch-2 retest in the gather world: exact but 6.4 s; batch-4 declined (same logic + 4×800MB OOM risk).
+
+Last unturned stone — nogil-num­ba × 4 workers + pipeline helper (true multicore Phase-A, free main): bit-EXACT mirror under concurrency, but 5.8 s loses (helper + workers + main = contention soup; flatten Python fights launches). Thread-count optimum re-confirmed: main + 1 worker, 4.4 s. 204 ledger entries. Nothing left unmeasured on this box.

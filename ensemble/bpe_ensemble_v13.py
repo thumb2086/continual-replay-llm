@@ -1783,7 +1783,7 @@ def main():
                     _futs = []
                 elif (NUMBA_DRIVER and _range_numba is not None
                         and not USE_PROC_LOOP and USE_GPU_TOPK
-                        and not _EXCLPROBE and N_LOOP_WORKERS == 1):
+                        and not _EXCLPROBE and N_LOOP_WORKERS >= 1):
                     _futs = [_pool.submit(
                         _range_numba_wrap, V, block, T0, T0, T0 + NC,
                         _coded, prev_tail,
