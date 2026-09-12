@@ -17,7 +17,7 @@ Replay-first 的小串流語言模型持續學習——用在**實用神經文�
 
 傳統算法快約百萬倍、比率差 2～3 倍——不同世界（見 `FINAL-REPORT.md` §8 精神）。在神經（<1.0 bpb）世界裡：比率這裡第一，速度第二。
 
-![速度-比率 Pareto](pareto.png)
+![速度-比率 Pareto](pareto_v3.png)
 
 Pareto（安靜箱，全 220/220 驗證）：crown ov4096 0.9139 @ 19.4 秒，knee ov2048 0.9194 @ 14.2 秒（7.0 KB/s），最快 ov0 0.9268 @ 12.0 秒（8.3 KB/s）。v2：19 點（overlap 加密＋off75 硬區曲線＋兩顆 1MB 鑽石，含 1MB@off25 **0.9076**）。8 切片均值 0.9037。腳本：`tools/pareto_plot.py`。
 

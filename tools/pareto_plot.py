@@ -95,6 +95,6 @@ ax.grid(True, alpha=0.3)
 ax.set_xlim(0, 10.5)
 
 fig.tight_layout()
-fig.savefig("pareto.png", dpi=120)
-print("saved pareto.png")
+fig.savefig("pareto_v3.png", dpi=120)
+print("saved pareto_v3.png")
 print(f"points: {len(OFF50) + len(OFF75) + len(MB1)}")

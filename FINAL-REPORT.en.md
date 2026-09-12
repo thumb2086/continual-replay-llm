@@ -97,7 +97,7 @@ unigram-ensemble, pure trigram, TOP_K 4096, prefilter 16384, CONF sweep, cache-i
 | ov1024 | 0.9237 | 13.5 | 7.4 |
 | ov0 | 0.9268 | 12.0 | 8.3 |
 
-All 8 points beat the SOTA line (0.9389). Knee at ov2048 (each further 0.001 bpb costs more). 10KB/s unreached (fastest 8.3). Plot: `pareto.png`, script: `pareto_plot.py`.
+All 8 points beat the SOTA line (0.9389). Knee at ov2048 (each further 0.001 bpb costs more). 10KB/s unreached (fastest 8.3). Plot: `pareto_v3.png`, script: `tools/pareto_plot.py`.
 
 v2 (19 points): fine overlap grid (ov512 0.9232, ov1536 0.9237, ov2560 0.9169, ov5120 0.9164 — ±0.002 segmentation noise, non-monotonic); off75 hard-region second curve (ov0 0.9785 → ov4096 0.9662, loses throughout but parallel in shape); two 1MB diamonds (off50 0.9222, off25 **0.9076**, new 1MB best). 8-slice mean 0.9037 (off0 0.8307 / off10 0.8934 / off25 0.9218 / off35 0.8747 / off50 0.9139 / off60 0.8949 / off75 0.9662 / off90 0.9339, off75 loss honestly kept).
 
