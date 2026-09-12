@@ -40,14 +40,17 @@ MB1 = [
 SOTA_BPB = 0.9389          # Nacrith paper, full file
 NNCP_KBS = 3.25            # NNCP v2 reference speed
 
-fig, ax = plt.subplots(figsize=(10, 6.5))
+fig, ax = plt.subplots(figsize=(11, 6.5))
 ax.axhline(SOTA_BPB, color="red", linestyle="--", linewidth=1,
            label="SOTA ratio 0.9389 (worse above)")
 ax.axvline(NNCP_KBS, color="orange", linestyle="--", linewidth=1,
            label="NNCP v2 speed 3.25KB/s (slower left)")
 
 
-def curve(pts, color, label):
+def curve(pts, color, label, show=(), offsets=None):
+    """show: labels worth annotating; offsets: label -> (dx, dy).
+    Unlisted points render as bare dots (no overlap)."""
+    offsets = offsets or {}
     xs = [p[1] for p in pts]
     ys = [p[2] for p in pts]
     order = sorted(range(len(pts)), key=lambda i: pts[i][1])
@@ -55,27 +58,41 @@ def curve(pts, color, label):
             color=color, linewidth=1.2, alpha=0.7, label=label)
     for lab, x, y in pts:
         star = lab.endswith("crown") or lab.endswith("knee")
-        ax.scatter([x], [y], s=140 if star else 70,
+        ax.scatter([x], [y], s=140 if star else 60,
                    marker="*" if star else "o", color=color,
                    edgecolors="black", zorder=3)
-        ax.annotate(lab, (x, y), textcoords="offset points",
-                    xytext=(6, 6), fontsize=8)
+        if lab in show:
+            dx, dy = offsets.get(lab, (6, 6))
+            ax.annotate(lab, (x, y), textcoords="offset points",
+                        xytext=(dx, dy), fontsize=8,
+                        arrowprops=dict(arrowstyle="-", color="gray",
+                                        lw=0.7, shrinkB=2))
 
 
-curve(OFF50, "steelblue", "off50 (article region, 12 pts)")
-curve(OFF75, "seagreen", "off75 (hard region, 5 pts)")
+curve(OFF50, "steelblue", "off50 (article region, 12 pts)",
+      show=("ov4096\ncrown", "ov2048\nknee", "ov0", "ov6144", "ov3072",
+            "ov1024"),
+      offsets={"ov4096\ncrown": (-52, -16), "ov2048\nknee": (8, -18),
+               "ov0": (6, 8), "ov6144": (-46, 6), "ov3072": (-40, 10),
+               "ov1024": (8, 8)})
+curve(OFF75, "seagreen", "off75 (hard region, 5 pts)",
+      show=("ov4096", "ov0"),
+      offsets={"ov4096": (-46, 8), "ov0": (8, -14)})
 for lab, x, y in MB1:
     ax.scatter([x], [y], s=160, marker="D", color="purple",
                edgecolors="black", zorder=4)
-    ax.annotate(lab, (x, y), textcoords="offset points", xytext=(6, -12),
-                fontsize=8)
+    dy = 8 if "off50" in lab else -18
+    ax.annotate(lab, (x, y), textcoords="offset points", xytext=(8, dy),
+                fontsize=8,
+                arrowprops=dict(arrowstyle="-", color="gray", lw=0.7,
+                                shrinkB=2))
 
 ax.set_xlabel("KB/s (faster right)")
 ax.set_ylabel("bits/byte (lower better)")
 ax.set_title("Speed vs ratio (SmolLM2-135M ensemble, measured)")
-ax.legend(loc="upper right", fontsize=9)
+ax.legend(loc="upper left", bbox_to_anchor=(0.01, 0.99), fontsize=9)
 ax.grid(True, alpha=0.3)
-ax.set_xlim(0, 10)
+ax.set_xlim(0, 10.5)
 
 fig.tight_layout()
 fig.savefig("pareto.png", dpi=120)
