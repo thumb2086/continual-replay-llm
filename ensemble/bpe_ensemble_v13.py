@@ -75,6 +75,7 @@ USE_CACHE_S2 = int(os.environ.get("USE_CACHE_S2", "1"))
 USE_NUMBA_LOOP = int(os.environ.get("USE_NUMBA_LOOP", "1"))
 USE_FP16_XFER = int(os.environ.get("USE_FP16_XFER", "0"))
 USE_CUDA_GRAPH = int(os.environ.get("USE_CUDA_GRAPH", "0"))
+GRAPH_FULL = int(os.environ.get("GRAPH_FULL", "0"))  # v13-graph2: full-model static-shape replay (flash era retry; old zeros bug was math-era trunk-only). 0 = off.
 PREFILTER = int(os.environ.get("PREFILTER", "2048"))
 USE_GPU_TOPK = int(os.environ.get("USE_GPU_TOPK", "1"))
 BATCH_FWD = int(os.environ.get("BATCH_FWD", "1"))
@@ -84,6 +85,8 @@ USE_PROC_LOOP = int(os.environ.get("USE_PROC_LOOP", "0"))  # v13-proc: Phase-A i
 N_PROC = int(os.environ.get("N_PROC", "4"))
 PIPELINE = int(os.environ.get("PIPELINE", "0"))  # v13-pipe: helper-thread finish overlaps next fwd; default off
 EMPTY_EVERY = int(os.environ.get("EMPTY_EVERY", "1"))  # v13: empty_cache cadence (segs); default every seg
+SKIP_EVERY = int(os.environ.get("SKIP_EVERY", "0"))  # v13-skip: skip LM forward every Nth seg (1st kept); 0 = off. Cache-only topk (lam=0), decoder mirrors via same seg counter; verify guards.
+SKIP_MOD = int(os.environ.get("SKIP_MOD", "1"))  # which residue to skip: (si-1)%N==MOD. MOD=3 skips the 4th seg (warmest tables: best-case probe).
 GC_OFF = int(os.environ.get("GC_OFF", "0"))  # v13-micro: gc.disable() during run (cyclic trash can't form here); default off
 CUDNN_BM = int(os.environ.get("CUDNN_BM", "0"))  # v13-micro: cudnn.benchmark (no convs in Llama; expected null)
 RESTART_EVERY = int(os.environ.get("RESTART_EVERY", "16384"))  # v13-restart: fresh full-window chain restart bound (0 = pure chain = KNOWN GARBAGE beyond 8K positions)
@@ -266,13 +269,18 @@ def _shm_cleanup():
 def _range_core(block, T0, lo, hi, coded, prev_tail,
                 bi_id_of, tri_id_of, bi_keys, bi_vals, bi_tot,
                 tri_keys, tri_vals, tri_tot,
-                blk, tv, ti, pi, obatch, orank, opath, otidx, S):
+                blk, tv, ti, pi, obatch, orank, opath, otidx, S,
+                nolm=False):
     """Single-source Phase-A compute for positions [lo, hi).
 
     Pure: reads block/tables/blk/tv/ti/pi, writes distinct rows of
     obatch/orank/opath/otidx. Thread pool calls it with in-process
     arrays; proc pool calls it with shared-memory views -- one math
     source, the parity gate guards both.
+    nolm (v13-skip): cache-only mode, no LM forward ran. Forces the
+    blend branch with lam=0 (p_row must be zeros); short rows are
+    padded (escape absorbs) instead of raising. Deterministic, so the
+    decoder mirrors exactly; verify guards.
     """
     _sp, _sr, _wk = S[0], S[1], S[2]
     _hs, _his, _oi, _op, _ro, _tg = S[3], S[4], S[5], S[6], S[7], S[8]
@@ -288,7 +296,7 @@ def _range_core(block, T0, lo, hi, coded, prev_tail,
             _it = -1
         _ps = ((OVERLAP > 0 and _t == T0)
                or ((coded + (_t - T0)) % 130 == 0))
-        if _ib < 0 and _it < 0:
+        if (_ib < 0 and _it < 0) and not nolm:
             opath[_pos] = 0
             if USE_GPU_TOPK:
                 _tidx = ti[_t]
@@ -324,6 +332,8 @@ def _range_core(block, T0, lo, hi, coded, prev_tail,
                 _pre = np.argpartition(_pfull, -PREFILTER)[-PREFILTER:]
             _wc = 1.0 - (1.0 - _wT) * (1.0 - _wB)
             _le = 1.0 - (1.0 - BIGRAM_LAMBDA) * _wc
+            if nolm:
+                _le = 0.0  # cache-only: LM term exactly zero
             _sb = ((1.0 - _wT) * _wB / _bt) if _ib >= 0 else 0.0
             _st = (_wT / _tt) if _it >= 0 else 0.0
             _tg[0] += 1
@@ -334,9 +344,21 @@ def _range_core(block, T0, lo, hi, coded, prev_tail,
                 _hs, _his, _oi, _op,
                 int(_tgt), _ro)
             if _n < TOP_K:
-                raise ArithmeticError(
-                    f"candidate shortfall {_n} < {TOP_K}")
-            _rk = int(_ro[0])
+                if nolm:
+                    # short cache rows: zero-pad (escape absorbs the mass).
+                    # Pad ids with 1<<62 (never < tgt, never a real id, so
+                    # the escape rank cross-check stays exact on both sides).
+                    _op[_n:TOP_K] = 0.0
+                    _oi[_n:TOP_K] = (1 << 62)
+                    if _n == 0:
+                        _rk = -1  # no candidates: forced escape (orank
+                        # scratch would otherwise leak the previous row)
+                    _n = TOP_K
+                else:
+                    raise ArithmeticError(
+                        f"candidate shortfall {_n} < {TOP_K}")
+            else:
+                _rk = int(_ro[0])
             obatch[_pos] = _op[:_n]
             if _rk < 0 or _ps:
                 otidx[_pos] = _oi[:_n]
@@ -363,7 +385,7 @@ def _proc_init(specs, _V, _K):
 
 def _proc_range(block, T0, coded, prev_tail,
                 bi_id_of, tri_id_of, bi_keys, bi_vals, bi_tot,
-                tri_keys, tri_vals, tri_tot, lo, hi, parg):
+                tri_keys, tri_vals, tri_tot, lo, hi, parg, nolm=False):
     """Proc-side entry: resolve shm views (input slice pinned by parity),
     run the single-source core. Outputs land in shared memory; the
     future itself carries nothing."""
@@ -374,7 +396,7 @@ def _proc_range(block, T0, coded, prev_tail,
                 _g["blk"][1][parg], _g["tv"][1][parg],
                 _g["ti"][1][parg], _g["pi"][1][parg],
                 _g["obt"][1], _g["ork"][1], _g["opa"][1], _g["oti"][1],
-                _g["scratch"])
+                _g["scratch"], nolm)
     return True
 
 
@@ -673,6 +695,51 @@ def main():
     _rest_pool = ThreadPoolExecutor(max_workers=1)  # v13-pipe: finish helper (never deadlocks: its waits target _pool/_proc_pool)
     _proc_pool = None  # v13-proc: lazy (spawn cost only when enabled)
     _graphs = {}  # CUDA-graph cache: shape -> (graph, static_in, static_out)
+    _graph_dead = [False]  # GRAPH_FULL falsified flag (falls back to eager)
+
+    def _full_forward_graphed(xin):
+        """Full-model single-shape replay. Returns logits [1, L, V] clone.
+        Capture: warmup + static buffers + replay. Any failure -> mark
+        dead (eager forever) and run eager. Static [1,8192] only; the
+        driver guarantees length before calling.
+        """
+        key = tuple(xin.shape)
+        g = _graphs.get(key, "missing")
+        if g == "missing" and not _graph_dead[0]:
+            try:
+                # capture forbids CPU syncs: park the rope-cache patch
+                # (its int() syncs) for warmup+capture; replay replays
+                # the recorded rope ops, values identical either way.
+                try:
+                    _rope_mod.forward = _rope_orig_fwd
+                except Exception:
+                    pass
+                st_in = torch.empty_like(xin)
+                st_in.copy_(xin)
+                for _ in range(3):
+                    _ = model(st_in, use_cache=False).logits
+                torch.cuda.synchronize()
+                st_out = None
+                gr = torch.cuda.CUDAGraph()
+                with torch.cuda.graph(gr):
+                    st_out = model(st_in, use_cache=False).logits
+                _graphs[key] = (gr, st_in, st_out)
+                g = _graphs[key]
+            except Exception as _e:
+                print(f"  [graph2] capture failed {key}: {str(_e)[:160]}; eager forever", flush=True)
+                try:
+                    torch.cuda.synchronize()
+                except Exception:
+                    pass
+                _graph_dead[0] = True
+                _graphs[key] = None
+                g = None
+        if g is None or _graph_dead[0]:
+            return model(xin, use_cache=False).logits
+        gr, st_in, st_out = g
+        st_in.copy_(xin)
+        gr.replay()
+        return st_out.clone()
 
     def _trunk_forward(x):
         """Trunk forward with CUDA-graph replay per input shape.
@@ -921,6 +988,7 @@ def main():
             # seg -> seg, so batching is impossible by design. (BATCH_FWD
             # is accepted but ignored.)
             _have_lg = None
+            _skip = False
             if _stash is not None:
                 # consume pair-mate prefetched by the previous step
                 # (logits already on GPU; tables/carry stayed sequential).
@@ -940,6 +1008,12 @@ def main():
                 chunk = [segs[si]]
                 si += 1
                 (block, T0, NC, n_new) = chunk[0]
+                # v13-skip gate: periodic, seg0 always kept (cold tables).
+                # Causal (seg counter only) so the decoder mirrors exactly;
+                # refused unless threads + recompute + ov0 + no-ORT + no-batch.
+                _skip = (SKIP_EVERY > 0 and BATCH_SEGS <= 1 and not USE_PROC_LOOP
+                         and OVERLAP == 0 and not CHAIN and not USE_ORT
+                         and ((si - 1) % SKIP_EVERY == SKIP_MOD % SKIP_EVERY))
             _fr = None
             if PIPELINE and Pend is not None:
                 # prev seg's finish runs on the helper while main forwards
@@ -979,7 +1053,11 @@ def main():
             if int(os.environ.get("SHAPE_DEBUG", "0")) and si == 1:
                 print(f"  [shdbg] fresh={_nfr} B={_B} NC={NC} F0={_F0} xin={tuple(_xin.shape)}", flush=True)
             _t_attn0 = time.time()
-            if _have_lg is not None:
+            if _skip:
+                # v13-skip: no forward at all; Phase-A runs cache-only
+                # (nolm). Tables/carry/finish stay sequential.
+                _lg_b = None
+            elif _have_lg is not None:
                 _lg_b = _have_lg
                 _nfr = _lg_b.shape[0]
             elif USE_ORT:
@@ -1011,11 +1089,17 @@ def main():
                     si += 1
                     del _out, _xin, _xin2
                 else:
-                    _out = model(_xin, use_cache=bool(CHAIN))
-                    _past = _out.past_key_values if CHAIN else None
-                    _abs_pos += _nfr
-                    _lg_b = _out.logits[0]  # [nfr, V] fp16 GPU
-                    del _out, _xin
+                    if GRAPH_FULL and not CHAIN and _nfr == BLOCK_TOKENS:
+                        _lg_all = _full_forward_graphed(_xin)
+                        _abs_pos += _nfr
+                        _lg_b = _lg_all[0]  # [nfr, V] fp16 GPU
+                        del _lg_all, _xin
+                    else:
+                        _out = model(_xin, use_cache=bool(CHAIN))
+                        _past = _out.past_key_values if CHAIN else None
+                        _abs_pos += _nfr
+                        _lg_b = _out.logits[0]  # [nfr, V] fp16 GPU
+                        del _out, _xin
             else:
                 _cpos = torch.arange(_abs_pos, _abs_pos + _nfr,
                                        device=device)
@@ -1044,7 +1128,7 @@ def main():
                 _t_dr0 = time.time()
                 torch.cuda.synchronize()
                 t_attn_gpu += time.time() - _t_dr0
-            if USE_GPU_TOPK:
+            if USE_GPU_TOPK and not _skip:
                 _t_topk0 = time.time()
                 # v13-fp16sm: fp16 softmax halves GPU traffic (WDDM-proven:
                 # pure PCIe is 0.12s; the 6.1s d2h is GPU fp32-softmax exec).
@@ -1085,7 +1169,7 @@ def main():
                           pi_f[-1].copy(), blk_f[-1].copy())
                 del tv_f, ti_f, pv_f, pi_f, blk_f
                 t_shmw += time.time() - _t_shmw0
-            else:
+            elif not _skip:
                 _par = si % 2  # same ping-pong (submit always references it)
                 lg_f = _lg_b.float().cpu().numpy()
                 lg_full = np.zeros((_B, V), dtype=np.float64)
@@ -1100,7 +1184,20 @@ def main():
                 blk_probs = probs_cpu
                 probs_b = None
                 del lg, e, lg_f
-            del _lg_b
+            else:
+                # v13-skip inits: zeros (p_row for lam=0 reads 0.0);
+                # pi overwritten by the cache-union fill before submit.
+                # tv/ti unread (nolm forces blend); _carry cleared
+                # (only read when _F0 > 0, impossible at ov0).
+                _par = 0  # skip: shm ping-pong unused (threads zeros path)
+                tv = np.zeros((_B, TOP_K), dtype=np.float32)
+                ti = np.zeros((_B, TOP_K), dtype=np.int64)
+                pi = np.zeros((_B, PREFILTER), dtype=np.int64)
+                blk_probs = np.zeros((_B, V), dtype=np.float32)
+                lg_full = None
+                _carry = None
+            if _lg_b is not None:
+                del _lg_b
             if EMPTY_EVERY > 0:
                 torch.cuda.empty_cache()
             _ev1.record()
@@ -1167,6 +1264,42 @@ def main():
                 else:
                     tri_id_of, tri_keys, tri_vals, tri_tot = {}, [], [], []
                 ph_frz += _cpu() - _ta
+                # v13-skip: cache-union prefilter fill (no LM topk ran).
+                # pre = dedup(bigram row + trigram row) capped at
+                # PREFILTER; the kernel's brow/trow-exclusive loops cover
+                # anything truncated, and zero-tail is mirror-consistent
+                # (decoder runs this same fill). Timed into freeze.
+                _nolm = bool(_skip)
+                if _nolm:
+                    _taU = _cpu()
+                    for _upos in range(NC):
+                        _t = T0 + _upos
+                        _pv = block[_t]
+                        _pv2 = block[_t - 1] if _t > 0 else prev_tail
+                        _uk = []
+                        _useen = set()
+                        _ib = bi_id_of.get(_pv, -1)
+                        if _ib >= 0:
+                            for _kk in bi_keys[_ib]:
+                                _kk = int(_kk)
+                                if _kk not in _useen:
+                                    _useen.add(_kk)
+                                    _uk.append(_kk)
+                                    if len(_uk) >= PREFILTER:
+                                        break
+                        if USE_TRIGRAM and _pv2 is not None:
+                            _it = tri_id_of.get((_pv2, _pv), -1)
+                            if _it >= 0:
+                                for _kk in tri_keys[_it]:
+                                    _kk = int(_kk)
+                                    if _kk not in _useen:
+                                        _useen.add(_kk)
+                                        _uk.append(_kk)
+                                        if len(_uk) >= PREFILTER:
+                                            break
+                        if _uk:
+                            pi[_t, :len(_uk)] = _uk
+                    ph_frz += _cpu() - _taU  # union fill timed as freeze
                 # ---- v9 phase-1: per-position blend+rank, batched cum ----
                 # v13-proc: outputs live in shared memory (workers write,
                 # main reads); esc_vec/sym_arr stay local (serial Phase-B).
@@ -1218,7 +1351,7 @@ def main():
                                 tri_keys, tri_vals, tri_tot,
                                 blk_probs, tv, ti, pi,
                                 topk_batch, rank_arr, path_arr, tidx_batch,
-                                _thr_scratch[_w]))
+                                _thr_scratch[_w], _nolm))
                 Pend = dict(block=block, T0=T0, NC=NC, n_new=n_new, tv=tv, ti=ti, pi=pi, blk_probs=blk_probs, lg_full=lg_full, obatch=topk_batch, esc_vec=esc_vec, sym_arr=sym_arr, orank=rank_arr, opath=path_arr, otidx=tidx_batch, esc_infos=esc_infos, sbase=sbase, futs=_futs, taA=_taA, coded_in=_coded, ptail_in=prev_tail, p2tail_in=prev2_tail, vok_in=n_verify_ok, vfail_in=n_verify_fail, uni_rest=uni_rest_cum, all_ids=all_ids, V=V, floor_int=_FLOOR_INT, ord=si)
                 # (Phase-B/code/verify/tables moved into _seg_finish above;
                 # this segment's finish runs deferred via Pend.)

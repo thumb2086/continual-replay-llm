@@ -1473,6 +1473,44 @@
    "bpb": 0.9004,
    "elapsed_s": 30.9,
    "note": "TRIGRAM_CONF 3->10 at K8192: +1e-4 noise. Tri axis flat at big K, closed. RATIO CHECKPOINT COMPLETE: 9 probes, K-ladder peaked (inverted-U), lambda/overlap/CONF/tri/PF/floor/S2 all flat."
+  },
+  {
+   "id": "skip-every2",
+   "status": "dead",
+   "bpb": 2.2634,
+   "elapsed_s": 6.0,
+   "note": "Blind periodic skip: skipped B(102k)+D(80k) vs ~25k normal. +1.34 bpb for -38% time. TERRIBLE trade. (Autopsy bonus: gate skips every matching residue, not one seg; D<B cost proves cache warmth matters.)"
+  },
+  {
+   "id": "skip-best",
+   "status": "dead",
+   "bpb": 1.5323,
+   "elapsed_s": 8.4,
+   "note": "BEST-CASE skip (warmest seg D only): +61k bits (+0.60 bpb) to save 1 forward (-13% time). LM forward is load-bearing (LAMBDA=0.99 said so). SEGMENT-SKIP FALSIFIED. Implementation kept behind SKIP_EVERY=0."
+  },
+  {
+   "id": "graph2-full",
+   "status": "dead",
+   "bpb": 0.9268,
+   "elapsed_s": 11.2,
+   "note": "Full-model static replay WORKS (bit-exact, rope-sync was the capture killer) but zero speedup (11.2 vs 9.7s). Replay does not dodge WDDM/preemption. GRAPHS CLOSED twice. Default off."
+  },
+  {
+   "id": "wsl-env",
+   "status": "kept",
+   "note": "WSL full port BUILT offline: 63 wheels via Windows side-download (dual manylinux_2_17+2_28 tags; sys_platform markers silently drop nvidia deps on host; direct-fetch for nvjitlink/nvrtc; nvjitlink 12.4->12.9 fixed cusparse undefined-symbol; tokenizers pin relaxed for transformers 4.57.6). torch 2.14+cu126 + triton 3.8 + CUDA all import. Recipe kept in paper."
+  },
+  {
+   "id": "wsl-eager",
+   "status": "dead",
+   "bpb": 0.9266,
+   "elapsed_s": 12.9,
+   "note": "WSL eager 100KB: 12.9s SLOWER than Windows 9.7s. Cross-platform parity 0.9266 vs 0.9268 (2e-4, transformers 4.57.6 confirmed). WSL paravirt overhead > WDDM. No scheduling miracle."
+  },
+  {
+   "id": "wsl-inductor",
+   "status": "dead",
+   "note": "Inductor reduce-overhead 0.85s/fwd LOSES to eager 0.33 (dynamo overhead on tiny model); default mode 0.32 ties eager. maxdiff 0.37 numeric drift (mirror-safe, ratio unmeasured). max-autotune declined: targets GEMMs, our wall is scheduling (proven). WSL CLOSED."
   }
  ],
  "done": false,

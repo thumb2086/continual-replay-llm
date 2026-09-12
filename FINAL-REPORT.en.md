@@ -148,3 +148,9 @@ Speed (4 probes, all null): 2 loop workers lose to 1 (14.3 s, GIL curve 1<2<8 co
 Ratio (9 probes): K ladder PEAKED — K16384 regresses to 0.9027 (+24e-4, 52.4 s, PEAK 8.26GB paged!): inverted-U (−89/−37/−10/+24), never exceed K8192 on 8GB. Flat/closed: lambda 0.995, ov6144@K8 (+1e-4), CONF 20, TRI-CONF 10, PF-beyond-K, S2, floor 1e-7. New curve points: K6144 0.9004@28.5 s, ov2048@K8 0.9058@23.6 s, ov1024@K8 0.9099@22.3 s, ov0@K8 0.9127@21.8 s (big-K helps ov0 most, −141e-4, at 2.2× time).
 
 Pareto v4: 28 points (OFF50 21). All 220/220. Crown 0.9003 / speed 10.2KB/s stand.
+
+## 16. WSL full port: built, slower, closed (2026-09-14)
+
+WSL (no network) got a full offline env: 63 wheels side-downloaded on Windows (dual `manylinux_2_17+2_28` platform tags — pip 26 dropped the bare alias; `sys_platform` markers silently drop nvidia deps on a Windows host so they were fetched explicitly; nvjitlink 12.4→12.9 fixed a cusparse undefined-symbol; tokenizers pin relaxed for transformers 4.57.6). torch 2.14+cu126 + triton 3.8 + CUDA 12.9 + gcc all live. Recipe: `pip download --platform manylinux_2_17_x86_64 --platform manylinux_2_28_x86_64 --python-version 3.12 --implementation cp --abi cp312` on Windows, copy to `~/wheels`, `pip install --no-index --no-deps`.
+
+Results: WSL eager 100KB = 12.9 s (SLOWER than Windows 9.7 s; paravirt overhead > WDDM) with cross-platform parity 0.9266 vs 0.9268 (2e-4). Inductor reduce-overhead 0.85 s/fwd loses to eager 0.33 (dynamo overhead on a tiny model); default mode ties (0.32). Max-autotune declined on the record: it tunes GEMMs, our proven wall is scheduling. Speed goal ≤8.0 s: UNMET with full evidence — 9.7 s stands as this box's wall. Remaining inputs that could reopen it: an idle box, a bigger GPU, or a different model.

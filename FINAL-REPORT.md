@@ -145,4 +145,10 @@ logit 手術取消，有證據：單機實測 softmax＋2×topk＋gather＋全�
 
 Pareto v4：28 點（OFF50 21 點）。全 220/220。王座 0.9003／速度 10.2KB/s 不動。
 
+## 16. WSL 全移植：建成、更慢、關閉（2026-09-14）
+
+WSL（無網路）離線建成全套環境：63 個輪子在 Windows 代下載（雙 `manylinux_2_17＋2_28` 平台標籤——pip 26 拔掉裸別名；`sys_platform` 標記在 Windows 主機靜默丟掉 nvidia 依賴，改顯式抓；nvjitlink 12.4→12.9 修 cusparse 未定義符號；tokenizers pin 放寬給 transformers 4.57.6）。torch 2.14＋cu126＋triton 3.8＋CUDA 12.9＋gcc 全活。配方：Windows 下 `pip download --platform manylinux_2_17_x86_64 --platform manylinux_2_28_x86_64 --python-version 3.12 --implementation cp --abi cp312`，拷到 `~/wheels`，`pip install --no-index --no-deps`。
+
+結果：WSL eager 100KB＝12.9 秒（比 Windows 9.7 秒慢；半虛擬化開銷大於 WDDM），跨平台一致 0.9266 vs 0.9268（2e-4）。Inductor reduce-overhead 0.85 秒/forward 輸 eager 0.33（小模型上 dynamo 開銷）；default 模式打平（0.32）。max-autotune 書面拒絕：它調 GEMM，我們證過的牆是調度。速度 goal≤8.0 秒：證據齊全判 UNMET——9.7 秒就是這台箱子的牆。能重開它的輸入：閒置的箱子、更大的卡，或換模型。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。
