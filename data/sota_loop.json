@@ -1127,6 +1127,68 @@
    "id": "10KBS-VERDICT",
    "status": "closed",
    "note": "10KB/s unreached (best 12.0s ov0). fwd launch-bound, no code left. ceiling: 8.3 quiet-light, 3.7 busy."
+  },
+  {
+   "id": "edge-ov0-empty8",
+   "status": "ok",
+   "bpb": 0.9268,
+   "elapsed_s": 12.3,
+   "note": "EMPTY_EVERY=8 changes nothing (12.0->12.3 noise). 10KB/s closed for good."
+  },
+  {
+   "id": "pareto-fine-ov512",
+   "status": "ok",
+   "bpb": 0.9232,
+   "elapsed_s": 13.1
+  },
+  {
+   "id": "pareto-fine-ov1536",
+   "status": "ok",
+   "bpb": 0.9237,
+   "elapsed_s": 13.8,
+   "note": "non-monotonic wiggle +0.0005, honest"
+  },
+  {
+   "id": "pareto-fine-ov2560",
+   "status": "ok",
+   "bpb": 0.9169,
+   "elapsed_s": 16.1
+  },
+  {
+   "id": "pareto-fine-ov5120",
+   "status": "ok",
+   "bpb": 0.9164,
+   "elapsed_s": 24.6,
+   "note": "worse than ov4096 AND slower (segmentation noise +-0.002)"
+  },
+  {
+   "id": "pareto-off75-curve",
+   "status": "ok",
+   "note": "ov0 0.9785/11.3, ov1024 0.9723/12.4, ov2048 0.9687/14.2, ov3072 0.9653/15.6. hard region loses to SOTA throughout, shape holds."
+  },
+  {
+   "id": "pareto-slices2",
+   "status": "ok",
+   "note": "off10 0.8934, off35 0.8747 (mid-file best!), off60 0.8949, off90 0.9339. 8-slice mean 0.9037."
+  },
+  {
+   "id": "pareto-knee2",
+   "status": "ok",
+   "note": "ov2048 off0 0.8325, off75 0.9687. knee stable across regions."
+  },
+  {
+   "id": "flagship2-1MB-off25",
+   "status": "ok",
+   "bpb": 0.9076,
+   "elapsed_s": 262.7,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "NEW 1MB BEST. warmer tables win. beats SOTA 3.3%."
+  },
+  {
+   "id": "PLOT-V2",
+   "status": "done",
+   "note": "19 points, KB/s axis, off50+off75 curves, 1MB diamonds."
   }
  ],
  "done": false,
