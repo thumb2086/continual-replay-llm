@@ -1593,6 +1593,41 @@
    "bpb": 0.9039,
    "elapsed_s": 632.2,
    "note": "10MB gather-speed: 632s (16.2KB/s, 1.73x vs classic). PEAK 4.01GB flat (no growth). Ladder point for scale chart."
+  },
+  {
+   "id": "crown-confirm",
+   "status": "kept",
+   "bpb": 0.9003,
+   "elapsed_s": 28.1,
+   "note": "Classic crown re-confirmed EXACT on current code (all later edits zero-impact with flags off). Time 28.1 vs 24.0 = box noise band."
+  },
+  {
+   "id": "knee-gather",
+   "status": "kept",
+   "bpb": 0.9194,
+   "elapsed_s": 5.9,
+   "note": "Knee ov2048/K1024 + gather: ratio EXACT (pi-only cost ~0 at knee!), 12.0s->5.9s. New Pareto point (16.9KB/s)."
+  },
+  {
+   "id": "ov1024-gather",
+   "status": "kept",
+   "bpb": 0.9241,
+   "elapsed_s": 5.5,
+   "note": "ov1024/K1024+gather: 0.9241 (+4e-4 pi cost, consistent), 5.5s=18.2KB/s. New Pareto point."
+  },
+  {
+   "id": "K3072-gather",
+   "status": "kept",
+   "bpb": 0.9029,
+   "elapsed_s": 9.7,
+   "note": "K3072/PF3072+gather/ov4096: 0.9029@9.7s=10.3KB/s. Ladder fill (2048:0.9050 -> 3072:0.9029 -> 4096:0.9013). New Pareto point."
+  },
+  {
+   "id": "ov3072k8-gather",
+   "status": "kept",
+   "bpb": 0.9026,
+   "elapsed_s": 15.0,
+   "note": "ov3072/K8192+gather: 0.9026@15s=6.7KB/s. Overlap still matters at big K (0.002 gap to ov4096). New Pareto point."
   }
  ],
  "done": false,

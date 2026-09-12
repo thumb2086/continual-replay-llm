@@ -166,3 +166,7 @@ Scale ladder (all 220/220): speed-gather 5.3 s / 56.9 s / 632 s (100KB/1MB/10MB:
 ## 18. Intuitive charts: best goes top-right (2026-09-14)
 
 The old Pareto plots had best (fast + tight) sinking to the bottom-right (y = bpb, lower better) — backwards from reading intuition. Both plots now use y = compression ratio 8/bpb (higher better): x = throughput (faster right), red SOTA line at 8.52x (worse below), ideal corner top-right. Same 30 measured points, same script (`tools/pareto_plot.py`). The frontier honestly shows the trade: crown top-middle (8.89x @ 4.2KB/s), gather bottom-right (8.63x @ 18.9KB/s) — nothing sits top-right yet; that empty corner is the next frontier.
+
+## 19. Fresh Pareto: old era deleted, 6 new probes (2026-09-14)
+
+Ten pre-flash timings deleted (BC7/ov6144/TRI0/ov5120/ov3072/ov2560/ov1536/ov512/ov1024/ov0-classic — stale scheduler era). Six new runs, all 220/220: crown-classic re-confirmed EXACT 0.9003 (later code zero-impact with flags off); knee+gather 0.9194 EXACT @ 5.9 s (pi-only cost ~0 at knee, 12.0→5.9 s); ov1024+gather 0.9241@5.5 s; K3072+gather 0.9029@9.7 s (ladder fill); ov3072K8+gather 0.9026@15.0 s (overlap still matters at big K, 0.002 gap); ov0K2+gather 0.9183@5.7 s. OFF50 now 17 current-code points. Crown 0.9003 / speed 18.9KB/s stand.

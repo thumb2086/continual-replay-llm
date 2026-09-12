@@ -163,4 +163,8 @@ gather（logits 上 topk＋lse＋pi-gather＋CPU exp＋稀疏 blk，numba V-stam
 
 舊 Pareto 圖最好（又快又緊）沉在右下角（y＝bpb 越低越好）——跟閱讀直覺反著。兩張圖 y 軸改壓縮比 8/bpb（越高越好）：x＝吞吐（越右越快），紅色 SOTA 線在 8.52x（之下皆輸），理想角落右上。同樣 30 個實測點，同腳本（`tools/pareto_plot.py`）。前沿線誠實顯示取捨：王座上中（8.89x @ 4.2KB/s）、gather 右下（8.63x @ 18.9KB/s）——右上還空著；那個空角就是下一條前沿。
 
+## 19. Pareto 洗牌：舊時代刪除＋6 新探針（2026-09-14）
+
+刪 10 個前 flash 計時（BC7/ov6144/TRI0/ov5120/ov3072/ov2560/ov1536/ov512/ov1024/ov0-classic——舊調度時代）。6 新跑全 220/220：王座 classic 重驗一字不差 0.9003（後面所有改動在旗關時零影響）；knee＋gather 0.9194 不動 @ 5.9 秒（knee 處 pi-only 代價約 0，12.0→5.9 秒）；ov1024＋gather 0.9241@5.5 秒；K3072＋gather 0.9029@9.7 秒（階梯填補）；ov3072K8＋gather 0.9026@15.0 秒（大 K 下 overlap 還有 0.002 差距）；ov0K2＋gather 0.9183@5.7 秒。OFF50 現 17 個現行 code 點。王座 0.9003／速度 18.9KB/s 不動。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

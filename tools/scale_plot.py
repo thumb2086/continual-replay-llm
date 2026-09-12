@@ -1,7 +1,8 @@
-"""Size-vs-time (+bpb) scaling chart: 100KB / 1MB / 10MB ladders.
+"""Size-vs-throughput (+ratio) scaling chart: 100KB / 1MB / 10MB ladders.
 
+Top-right is best on BOTH panels (throughput up, ratio up).
 All points measured (220/220). See data/sota_loop.json.
-Saves scale_time_size.png next to this script (also repo root copy).
+Saves scale_time_size.png (repo root, referenced by READMEs).
 """
 import matplotlib
 
@@ -24,40 +25,41 @@ BPB = {
     "crown classic\nov4096/K8192": [0.9003, 0.9078, None],
     "crown gather\nov4096/K8192": [0.9005, None, None],
 }
-SOTA = 0.9389
+SOTA = 8.0 / 0.9389  # 8.52x
+
+
+def _kbs(size_kb, secs):
+    return [s / t for s, t in zip(size_kb, secs)]
+
 
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
 
 for name, ts in TIME.items():
     xs = [s for s, t in zip(SIZES_KB, ts) if t is not None]
-    ys = [t for t in ts if t is not None]
+    ys = _kbs(xs, [t for t in ts if t is not None])
     ax1.loglog(xs, ys, "o-", label=name)
 ax1.set_xlabel("file size (KB, log)")
-ax1.set_ylabel("seconds / file (log)")
-ax1.set_title("Throughput ladder (busy box, all 220/220)")
+ax1.set_ylabel("throughput (KB/s, higher better ^)")
+ax1.set_title("Throughput ladder [top-right is best]")
 ax1.set_xticks(SIZES_KB)
 ax1.set_xticklabels(SIZES_LBL)
 ax1.grid(True, which="both", alpha=0.3)
 ax1.legend(fontsize=8)
-# linear-scaling reference: 10x size -> 10x time through first point
-x0, y0 = SIZES_KB[0], TIME["speed gather\nov0/K1024"][0]
-ax1.loglog(SIZES_KB, [y0 * s / x0 for s in SIZES_KB], "k--", alpha=0.4,
-           label="linear ref")
 
 for name, bs in BPB.items():
     xs = [s for s, b in zip(SIZES_KB, bs) if b is not None]
-    ys = [b for b in bs if b is not None]
+    ys = [8.0 / b for b in bs if b is not None]
     ax2.semilogx(xs, ys, "s-", label=name)
-ax2.axhline(SOTA, color="red", linestyle=":", label="SOTA 0.9389 (full-file)")
+ax2.axhline(SOTA, color="red", linestyle=":", label="SOTA 8.52x (full-file)")
 ax2.set_xlabel("file size (KB, log)")
-ax2.set_ylabel("bits/byte")
-ax2.set_title("Ratio vs scale (cache warms: 10MB < 1MB)")
+ax2.set_ylabel("compression ratio x (higher better ^)")
+ax2.set_title("Ratio vs scale [top-right is best]")
 ax2.set_xticks(SIZES_KB)
 ax2.set_xticklabels(SIZES_LBL)
 ax2.grid(True, which="both", alpha=0.3)
 ax2.legend(fontsize=8)
 
-fig.suptitle("Scaling: size vs time & ratio (measured, no extrapolation)")
+fig.suptitle("Scaling: throughput & ratio vs size (measured, no extrapolation)")
 fig.tight_layout()
 fig.savefig("scale_time_size.png", dpi=110)
 print("saved scale_time_size.png")
