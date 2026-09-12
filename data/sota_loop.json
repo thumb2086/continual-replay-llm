@@ -1811,6 +1811,18 @@
    "id": "script-model",
    "status": "dead",
    "note": "torch.jit.script dies at transformers CONFIG class (keyword-only defaults unsupported by frontend). Fix = vendoring HF modeling (hours + version lock). Killed in timebox. Torch fusion on Windows comprehensively dead (trace x3 + script)."
+  },
+  {
+   "id": "batch2-gather",
+   "status": "null",
+   "bpb": 0.9272,
+   "elapsed_s": 6.4,
+   "note": "Batch-2 retest in gather world: EXACT but slower (6.4 vs 4.4s, d2h 2.1 batched sorts bigger). Batch closed twice. Batch-4 declined by same logic + OOM risk (4x800MB logits)."
+  },
+  {
+   "id": "survey-bigctx",
+   "status": "dead",
+   "note": "Big-context survey: Qwen2.5-0.5B (0.49B, 24L, GQA, 32K ctx, Apache-2.0) looks ideal until the math: 1x30K fwd = 3.4x FLOPs (linear 2x500Mx30K=30T vs 8.8T; attn 900M vs 268M) for 1/4 launches -> net SLOWER (~4-5s), plus new tokenizer (152K vocab) = full re-science + ~1GB bandwidth. Llama-3.2-1B (7x compute) worse. Mamba (linear!) interesting but needs mamba-ssm+Triton (Windows-dead) + new science = new project, not optimization. REJECTED with arithmetic."
   }
  ],
  "done": false,

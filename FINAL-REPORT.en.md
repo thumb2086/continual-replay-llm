@@ -198,3 +198,9 @@ Scoped but declined: numba-driver (EV ~0.4 s, 2–3 h + mirror risk), script-mod
 njit Phase-A mirror (typed row Lists, sorted-tri composite keys + bisect, numpy tagbox, shortfall errbox): BIT-EXACT 0.9272 + 220 pass — but 5.3 s loses to the Python worker's 4.4 s. Flatten overhead (per-seg typed rebuilds) exceeds compute saved; launches did tighten (1.1→0.6 s, nogil proven). Infra kept flagged off — may win at full-file scale (dict.get degrades, idarr stays O(1)).
 
 torch.jit.script dies at the transformers CONFIG class (keyword-only defaults unsupported) — fix means vendoring HF modeling; killed in timebox. Torch fusion on Windows comprehensively dead (trace ×3 + script). 200 ledger entries. Best banked 4.4 s.
+
+## 25. Batch-2 retest + big-context survey: both dead by arithmetic (2026-09-15)
+
+Batch-2 in the gather world: bit-exact 0.9272 but slower (6.4 vs 4.4 s — batched sorts/transfers are bigger, post dominates). Batch closed twice; batch-4 declined (same logic + 4×800MB OOM risk).
+
+Big-context survey (no downloads, math first): Qwen2.5-0.5B (0.49B, 24 layers, GQA, 32K ctx, Apache-2.0) looks like the 4→1 answer until the FLOPs: one 30K forward = 3.4× work (linear 30T vs 8.8T; attention 900M vs 268M) for 1/4 launches — net same-or-slower (~4–5 s), plus a new 152K tokenizer means full re-science and ~1GB bandwidth. Llama-3.2-1B (7× compute) is worse. Mamba/SSM (linear scaling!) is genuinely interesting for 1 s but needs mamba-ssm+Triton (dead on Windows) plus new science — a new project, not an optimization. All rejected with arithmetic on the record.

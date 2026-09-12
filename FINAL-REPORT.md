@@ -199,4 +199,10 @@ njit Phase-A 鏡像（typed 行 List、排序 tri 複合鍵＋二分、numpy tag
 
 torch.jit.script 死在 transformers CONFIG 類（不支援 keyword-only 預設）——修要 vendor 整份 HF modeling；timebox 內處決。Windows 上 torch 融合全面陣亡（trace×3＋script）。ledger 共 200 條。已入帳最佳 4.4 秒。
 
+## 25. batch-2 重測＋大 context survey：都被算術判死（2026-09-15）
+
+gather 世界重測 batch-2：逐位一致 0.9272 但更慢（6.4 vs 4.4 秒——合批的 sort/傳輸更大，後處理主導）。batch 關閉兩次；batch-4 拒絕（同邏輯＋4×800MB OOM 風險）。
+
+大 context survey（不下載，先算帳）：Qwen2.5-0.5B（0.49B、24 層、GQA、32K context、Apache-2.0）看似 4→1 正解，FLOPs 一算翻車：一次 30K forward＝3.4 倍活（線性 30T vs 8.8T；attention 900M vs 268M）換 1/4 發射——淨结果一樣或更慢（約 4–5 秒），外加新 152K tokenizer＝全部重做科學＋約 1GB 頻寬。Llama-3.2-1B（7 倍計算）更慘。Mamba/SSM（線性擴展！）對 1 秒是真有意思，但要 mamba-ssm＋Triton（Windows 死）加全新科學——那是新專案，不是優化。全用算術判死記案。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。
