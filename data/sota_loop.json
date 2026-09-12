@@ -2038,6 +2038,13 @@
    "bpb": 0.8391,
    "elapsed_s": 14.9,
    "note": "Qwen K4096/PF4096: 0.8391 (-51e-4 diminishing) BUT PEAK 9.11GB pages over 8GB -> fwd 14.0s thrash. Documents the big-V VRAM wall; not the crown pick."
+  },
+  {
+   "id": "qwen-k4-crown",
+   "status": "banked",
+   "bpb": 0.8391,
+   "elapsed_s": 12.2,
+   "note": "CROWN: re-pinned 0.8391 EXACT (219/219 x2). Time jitters 14.9->12.2s (paging noise) but bpb rock-solid (deterministic math; paging only costs speed). Ratio crown = 0.8391* (*paged box); practical pick stays K2048 0.8442 (fits 8GB)."
   }
  ],
  "done": false,

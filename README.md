@@ -2,14 +2,14 @@
 
 > 正體中文版見 [README.zh-Hant.md](README.zh-Hant.md)。交卷論文：[FINAL-REPORT.md](FINAL-REPORT.md)（繁中）· [FINAL-REPORT.en.md](FINAL-REPORT.en.md)（English）。
 
-Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: SmolLM2-135M ensemble at **0.9003 bits/byte** on enwik8 (beats the 0.9389 SOTA line by 4.1% on the same slice class), chunked-exact speed line **2.9 s** (34.5 KB/s, 1.50 GB peak), Qwen2.5-0.5B line at **0.8442 bits/byte** — with every number measured and every failure kept.
+Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: SmolLM2-135M ensemble at **0.9003 bits/byte** on enwik8 (beats the 0.9389 SOTA line by 4.1% on the same slice class), chunked-exact speed line **2.9 s** (34.5 KB/s, 1.50 GB peak), Qwen2.5-0.5B line at **0.8391 bits/byte** (*paged box; practical pick 0.8442 fits 8 GB) — with every number measured and every failure kept.
 
 ## Headline numbers (all measured, 2026-09-15)
 
 | System | bpb ↓ | Speed | Lossless check |
 |---|---|---|---|
 | **Ours v13 chunked (speed)** | 0.9276 | busy box **34.5 KB/s** (ov0/K1024+chunk, 2.9 s, peak 1.50 GB) | 220/220 roundtrip |
-| **Ours Qwen2.5-0.5B (ratio crown)** | **0.8442** | 18.3 KB/s (single 28K-seg K2048, 5.6 s) | 219/219 roundtrip |
+| **Ours Qwen2.5-0.5B (ratio crown)** | **0.8391*** | 8.4 KB/s (single 28K-seg K4096, ~12 s, *peaks 9.11 GB) · practical 0.8442 @ 5.6 s | 219/219 roundtrip |
 | Nacrith (SOTA, same-slice H2H) | 1.2248 | 0.25 KB/s (their CPU build) | byte-exact ✓ |
 | NNCP v2 (ref value) | ~0.94 | 3.25 KB/s | — |
 | CMIX (literature) | ~0.9 | ~0.1–1 KB/s | — |
