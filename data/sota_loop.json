@@ -1799,6 +1799,18 @@
    "bpb": 0.9273,
    "elapsed_s": 7.8,
    "note": "Prefetch-1 HURTS on WDDM (4.6->7.8s): deeper queues schedule worse under contention; staged 800MB perturbs flash heuristics (+1e-4). Overlap theory needs a clean scheduler (unlike this box). Default stays off. Next: numba-driver scoped (EV 0.4, needs 2-3h) + script-model (EV 0.5, needs 1-2h); stacked best-case still ~3.5, short of 3.0."
+  },
+  {
+   "id": "numba-driver",
+   "status": "dead",
+   "bpb": 0.9272,
+   "elapsed_s": 5.3,
+   "note": "njit Phase-A mirror: BIT-EXACT (0.9272) incl. tri-bisect, tagbox, shortfall guards. But 5.3s LOSES to Python worker 4.4s: flatten overhead (typed Lists/sorted tri/idarr per seg, main/worker serial) exceeds compute saved. attn launches DID tighten (1.1->0.6s, nogil proven) but not enough. Infra kept flagged off (may win at full-file scale where dict.get degrades and idarr stays O(1))."
+  },
+  {
+   "id": "script-model",
+   "status": "dead",
+   "note": "torch.jit.script dies at transformers CONFIG class (keyword-only defaults unsupported by frontend). Fix = vendoring HF modeling (hours + version lock). Killed in timebox. Torch fusion on Windows comprehensively dead (trace x3 + script)."
   }
  ],
  "done": false,

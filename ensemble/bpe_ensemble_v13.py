@@ -87,6 +87,7 @@ PIPELINE = int(os.environ.get("PIPELINE", "0"))  # v13-pipe: helper-thread finis
 EMPTY_EVERY = int(os.environ.get("EMPTY_EVERY", "0"))  # v13: empty_cache cadence (segs); measured null, default off (was every seg)
 SKIP_EVERY = int(os.environ.get("SKIP_EVERY", "0"))  # v13-skip: skip LM forward every Nth seg (1st kept); 0 = off. Cache-only topk (lam=0), decoder mirrors via same seg counter; verify guards.
 SKIP_MOD = int(os.environ.get("SKIP_MOD", "1"))  # which residue to skip: (si-1)%N==MOD. MOD=3 skips the 4th seg (warmest tables: best-case probe).
+NUMBA_DRIVER = int(os.environ.get("NUMBA_DRIVER", "0"))  # v13-numdrv: Phase-A driver as njit in the worker (nogil compute, free main). Bit-identical mirror; verify + bpb-EXACT gate. Refused unless threads + gputopk + 1 worker + probe off.
 _EXCLPROBE = int(os.environ.get("EXCLPROBE", "0"))  # v13-exclprobe: count exclusive-key target hits (pi-only gather safety)
 _PIONLY = int(os.environ.get("PI_ONLY", "0"))  # v13-pionly: truncate brow/trow to pi-members (ratio-cost probe)
 BLEND_BT_MIN = int(os.environ.get("BLEND_BT_MIN", "5"))  # v13 blend-gate: skip blend unless bigram row total >= this (5/2 proven EXACT: low-count blends are pure waste; 0 = classic existence gate)
@@ -481,6 +482,208 @@ except Exception:
     _compact_pi = None  # numba missing: fall back to np.isin path
 
 
+try:
+    import numba as _nb2
+
+    @_nb2.njit(cache=True)
+    def _range_numba(block, T0, lo, hi, coded, pt_i, has_pt,
+                     bi_idarr, bi_rk, bi_rv, bi_tots,
+                     tri_sk, tri_si, tri_rk, tri_rv, tri_tots,
+                     blk, tv, ti, pi, obatch, orank, opath, otidx,
+                     sp, sr, wk, hs, his, oi, op, ro, tagbox,
+                     ok, ov, otk, otv, e64, e64f, errbox,
+                     f_tri, f_ov0, f_cB, f_cT, f_lam, f_K, f_P,
+                     f_eff, f_nolm):
+        """njit mirror of _range_core (v13-numdrv).
+
+        Same reads, same branches, same kernel calls in the same order,
+        so results are bit-identical (verify + bpb-EXACT gate). Runs
+        nogil in a pool worker: main launches freely, worker grinds.
+        Differences vs the Python twin, all unreachable-or-identical:
+        shortfall pad path initializes _rk=-1 (Python would reuse a
+        stale one -- reachable only when pre<TOP_K, impossible since
+        prefilter>=K by the 1topk exactness requirement); EXCLPROBE and
+        CPU-argpartition paths are refused at the wrapper (fall back).
+        tri lookup via sorted composite keys + binary search
+        (key=(p2<<16)|p1; ids < 2**16 guaranteed by wrapper assert).
+        """
+        for _t in range(lo, hi):
+            _pos = _t - T0
+            _prev = block[_t]
+            _tgt = block[_t + 1]
+            _p2ok = (_t > 0) or has_pt
+            _prev2 = block[_t - 1] if _t > 0 else pt_i
+            if 0 <= _prev < bi_idarr.shape[0]:
+                _ib = bi_idarr[_prev]
+            else:
+                _ib = -1
+            _it = -1
+            if f_tri and _p2ok:
+                _key = (_prev2 << 16) | _prev
+                _a2 = 0
+                _b2 = tri_sk.shape[0]
+                while _a2 < _b2:
+                    _m2 = (_a2 + _b2) // 2
+                    if tri_sk[_m2] < _key:
+                        _a2 = _m2 + 1
+                    else:
+                        _b2 = _m2
+                if _a2 < tri_sk.shape[0] and tri_sk[_a2] == _key:
+                    _it = tri_si[_a2]
+            _rk = -1
+            _ps = (f_ov0 and _t == T0) or ((coded + (_t - T0)) % 130 == 0)
+            if ((_ib < 0 and _it < 0) and not f_nolm):
+                opath[_pos] = 0
+                _hit0 = -1
+                for _j in range(f_K):
+                    if ti[_t, _j] == _tgt:
+                        _hit0 = _j
+                        break
+                _rk = _hit0
+                for _j in range(f_K):
+                    hs[_j] = np.float64(tv[_t, _j])
+                    otidx[_pos, _j] = ti[_t, _j] if (_rk < 0 or _ps) else otidx[_pos, _j]
+                for _j in range(f_K):
+                    obatch[_pos, _j] = hs[_j]
+            else:
+                opath[_pos] = 1
+                if _ib >= 0:
+                    _brk = bi_rk[_ib]
+                    _brv = bi_rv[_ib]
+                    _bt = bi_tots[_ib]
+                    _wB = _bt / (_bt + f_cB)
+                else:
+                    _brk = e64
+                    _brv = e64f
+                    _bt = 1.0
+                    _wB = 0.0
+                if _it >= 0:
+                    _trk = tri_rk[_it]
+                    _trv = tri_rv[_it]
+                    _tt = tri_tots[_it]
+                    _wT = _tt / (_tt + f_cT)
+                else:
+                    _trk = e64
+                    _trv = e64f
+                    _tt = 1.0
+                    _wT = 0.0
+                _pfull = blk[_t]
+                _pre = pi[_t]
+                _wc = 1.0 - (1.0 - _wT) * (1.0 - _wB)
+                _le = 1.0 - (1.0 - f_lam) * _wc
+                if f_nolm:
+                    _le = 0.0
+                if f_eff:
+                    _ctag = tagbox[0] + 1
+                    tagbox[0] = _ctag
+                    _cnb, _cnt = _compact_pi(
+                        _brk, _brv, _trk, _trv,
+                        _pre, sp, _ctag, ok, ov, otk, otv)
+                    _brk = ok[:_cnb]
+                    _brv = ov[:_cnb]
+                    _trk = otk[:_cnt]
+                    _trv = otv[:_cnt]
+                if _ib >= 0:
+                    _sb = ((1.0 - _wT) * _wB / _bt)
+                else:
+                    _sb = 0.0
+                if _it >= 0:
+                    _st = (_wT / _tt)
+                else:
+                    _st = 0.0
+                tagbox[0] += 1
+                _n = nb_blend_row(
+                    _pfull, _pre, _brk, _brv, _trk, _trv,
+                    _sb, _st, _le, f_K,
+                    sp, sr, wk, tagbox[0],
+                    hs, his, oi, op,
+                    _tgt, ro)
+                if _n > f_K:
+                    errbox[0] = 2  # heap contract broken (Python would
+                    return  # broadcast-crash here too); abort loudly
+                if _n < f_K:
+                    if f_nolm:
+                        for _j in range(_n, f_K):
+                            op[_j] = 0.0
+                            oi[_j] = (1 << 62)
+                        if _n == 0:
+                            _rk = -1
+                        _n = f_K
+                    else:
+                        errbox[0] = 1
+                        return
+                else:
+                    _rk = int(ro[0])
+                for _j in range(_n):
+                    obatch[_pos, _j] = op[_j]
+                if _rk < 0 or _ps:
+                    for _j in range(_n):
+                        otidx[_pos, _j] = oi[_j]
+            orank[_pos] = _rk
+except Exception:
+    _range_numba = None  # numba missing/uncompilable: driver unavailable
+
+
+def _range_numba_wrap(VV, block_list, T0, lo, hi, coded, prev_tail,
+                      bi_id_of, tri_id_of, bi_keys, bi_vals, bi_tot,
+                      tri_keys, tri_vals, tri_tot,
+                      blk, tv, ti, pi, obatch, orank, opath, otidx, S,
+                      f_tri, f_ov0, f_cB, f_cT, f_lam, f_K, f_P,
+                      f_eff, f_nolm):
+    """Worker-side entry for the njit driver: flatten tables to numba
+    shapes (id array + typed row Lists + sorted tri keys), then run.
+    Raises like the Python twin on shortfall (via errbox)."""
+    from numba import types
+    from numba.typed import List
+    def _tl(_items, _dt, _as):
+        _tl2 = List.empty_list(_dt)
+        for _a in _items:
+            _tl2.append(np.ascontiguousarray(_a, dtype=_as))
+        return _tl2
+    block = np.asarray(block_list, dtype=np.int64)
+    if prev_tail is None:
+        pt_i = np.int64(-1)
+        has_pt = False
+    else:
+        pt_i = np.int64(prev_tail)
+        has_pt = True
+    bi_idarr = np.full(VV, -1, dtype=np.int64)
+    for _tok, _idx in bi_id_of.items():
+        if 0 <= _tok < VV:
+            bi_idarr[_tok] = int(_idx)
+    bi_rk = _tl(bi_keys, types.int64[:], np.int64)
+    bi_rv = _tl(bi_vals, types.float64[:], np.float64)
+    bi_tots = np.ascontiguousarray(bi_tot, dtype=np.float64)
+    _titems = sorted(tri_id_of.items())
+    tri_sk = np.empty(len(_titems), dtype=np.int64)
+    tri_si = np.empty(len(_titems), dtype=np.int64)
+    for _i, ((_a, _b), _idx) in enumerate(_titems):
+        if _a >= 65536 or _b >= 65536:
+            raise ValueError("tri id overflow for 16-bit packing")
+        tri_sk[_i] = (_a << 16) | _b
+        tri_si[_i] = _idx
+    tri_rk = _tl(tri_keys, types.int64[:], np.int64)
+    tri_rv = _tl(tri_vals, types.float64[:], np.float64)
+    tri_tots = np.ascontiguousarray(tri_tot, dtype=np.float64)
+    sp, sr, wk, hs, his, oi, op, ro = S[0], S[1], S[2], S[3], S[4], S[5], S[6], S[7]
+    tagbox = S[8]
+    ok, ov, otk, otv = S[9], S[10], S[11], S[12]
+    e64 = np.empty(0, dtype=np.int64)
+    e64f = np.empty(0, dtype=np.float64)
+    errbox = np.zeros(1, dtype=np.int64)
+    _range_numba(block, T0, lo, hi, coded, pt_i, has_pt,
+                 bi_idarr, bi_rk, bi_rv, bi_tots,
+                 tri_sk, tri_si, tri_rk, tri_rv, tri_tots,
+                 blk, tv, ti, pi, obatch, orank, opath, otidx,
+                 sp, sr, wk, hs, his, oi, op, ro, tagbox,
+                 ok, ov, otk, otv, e64, e64f, errbox,
+                 f_tri, f_ov0, f_cB, f_cT, f_lam, f_K, f_P,
+                 f_eff, f_nolm)
+    if errbox[0]:
+        raise ArithmeticError("candidate shortfall (numba path)")
+    return True
+
+
 def _freeze_update(counts, totals, id_of, keys, vals, tots, dirty):
     """Incremental freeze: only new + dirty rows are rebuilt, the rest
     are reused verbatim (same arrays, same values as a full rebuild:
@@ -778,7 +981,9 @@ def main():
             np.zeros(V, dtype=np.float64), np.empty(TOP_K, dtype=np.float64),
             np.empty(TOP_K, dtype=np.int64), np.empty(TOP_K, dtype=np.int64),
             np.empty(TOP_K, dtype=np.float64), np.zeros(1, dtype=np.int64),
-            [0],
+            # v13-numdrv: tag box is numpy (was [0] list) so the njit
+            # driver can bump it; same Python syntax everywhere.
+            np.zeros(1, dtype=np.int64),
             # v13-gather: pi-truncation temps (>= PREFILTER: pi-subset
             # always fits, so compaction is exact, never lossy)
             np.empty(PREFILTER, dtype=np.int64), np.empty(PREFILTER, dtype=np.float64),
@@ -1565,6 +1770,9 @@ def main():
                 # shared memory. Default: threads (validated path).
                 # N_LOOP_WORKERS<=0: inline in main (zero threads, zero GIL
                 # fight during launches; same math, verify guards).
+                # v13-numdrv: njit driver in the worker (same math, nogil
+                # compute + free main for launches); refused unless
+                # threads + gputopk + 1 worker + probe off.
                 if N_LOOP_WORKERS <= 0 and not USE_PROC_LOOP:
                     _range_core(block, T0, T0, T0 + NC, _coded, prev_tail,
                                 bi_id_of, tri_id_of, bi_keys, bi_vals, bi_tot,
@@ -1573,6 +1781,20 @@ def main():
                                 topk_batch, rank_arr, path_arr, tidx_batch,
                                 _thr_scratch[0], _nolm)
                     _futs = []
+                elif (NUMBA_DRIVER and _range_numba is not None
+                        and not USE_PROC_LOOP and USE_GPU_TOPK
+                        and not _EXCLPROBE and N_LOOP_WORKERS == 1):
+                    _futs = [_pool.submit(
+                        _range_numba_wrap, V, block, T0, T0, T0 + NC,
+                        _coded, prev_tail,
+                        bi_id_of, tri_id_of, bi_keys, bi_vals, bi_tot,
+                        tri_keys, tri_vals, tri_tot,
+                        blk_probs, tv, ti, pi,
+                        topk_batch, rank_arr, path_arr, tidx_batch,
+                        _thr_scratch[0],
+                        USE_TRIGRAM, OVERLAP > 0, BIGRAM_CONF, TRIGRAM_CONF,
+                        BIGRAM_LAMBDA, TOP_K, PREFILTER,
+                        bool(_PIONLY_EFF), bool(_nolm))]
                 elif USE_PROC_LOOP:
                     if _proc_pool is None:
                         _proc_pool = ProcessPoolExecutor(

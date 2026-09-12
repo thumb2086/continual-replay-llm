@@ -193,4 +193,10 @@ CUDA_DEVICE_MAX_CONNECTIONS=1：null（4.7 秒帶內）。prefetch-1（N 的 Pha
 
 評估後不開工：numba 驅動（EV 約 0.4 秒，2–3 小時＋鏡像風險）、script 模型發射（EV 約 0.5 秒，1–2 小時）。全疊最佳約 3.5 秒，到不了 3.0——不是誠實能承諾的計畫。code 端關在 4.4 秒（22.7KB/s）；剩牌只有閒置箱。
 
+## 24. numba 驅動＋script 模型：都死了，都有用（2026-09-15）
+
+njit Phase-A 鏡像（typed 行 List、排序 tri 複合鍵＋二分、numpy tag 盒、shortfall errbox）：逐位一致 0.9272＋220 通過——但 5.3 秒輸 Python worker 的 4.4 秒。展平開銷（逐段 typed 重建）大過省的計算；發射確實變緊（1.1→0.6 秒，nogil 證畢）。基建留旗關著——全檔規模可能翻盤（dict.get 退化，idarr 恆 O(1)）。
+
+torch.jit.script 死在 transformers CONFIG 類（不支援 keyword-only 預設）——修要 vendor 整份 HF modeling；timebox 內處決。Windows 上 torch 融合全面陣亡（trace×3＋script）。ledger 共 200 條。已入帳最佳 4.4 秒。
+
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。

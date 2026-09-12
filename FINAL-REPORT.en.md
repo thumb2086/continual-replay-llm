@@ -189,7 +189,12 @@ Gate on crown K8192 (where blend kernels are 8x bigger): (5,2) → 0.9005 @ 15.2
 EXP_FP16: null (+1e-4, no faster — exp is not the bottleneck; dropped). Pareto v7: 27 points. 1 s verdict stands (floor ≈ 3 s); best banked 4.4 s speed / 13.3 s crown.
 
 ## 23. Prefetch falsified, micro closed (2026-09-15)
-
 CUDA_DEVICE_MAX_CONNECTIONS=1: null (4.7 s in band). Prefetch-1 (launch N+1's forward during N's Phase-A) HURTS on WDDM: 4.6 → 7.8 s — deeper queues schedule worse under contention, and the staged 800MB perturbs flash heuristics (+1e-4 bpb noise). Overlap needs a clean scheduler; this box isn't one. Default off.
 
 Scoped but declined: numba-driver (EV ~0.4 s, 2–3 h + mirror risk), script-model dispatch (EV ~0.5 s, 1–2 h). Stacked best case ≈ 3.5 s, still short of 3.0 — not an honest plan to promise. Code-side fully closed at 4.4 s (22.7KB/s); remaining lever is an idle box.
+
+## 24. Numba driver + script-model: both dead, both useful (2026-09-15)
+
+njit Phase-A mirror (typed row Lists, sorted-tri composite keys + bisect, numpy tagbox, shortfall errbox): BIT-EXACT 0.9272 + 220 pass — but 5.3 s loses to the Python worker's 4.4 s. Flatten overhead (per-seg typed rebuilds) exceeds compute saved; launches did tighten (1.1→0.6 s, nogil proven). Infra kept flagged off — may win at full-file scale (dict.get degrades, idarr stays O(1)).
+
+torch.jit.script dies at the transformers CONFIG class (keyword-only defaults unsupported) — fix means vendoring HF modeling; killed in timebox. Torch fusion on Windows comprehensively dead (trace ×3 + script). 200 ledger entries. Best banked 4.4 s.
