@@ -63,6 +63,9 @@ verify_enwik8_full.py  全檔驗證工具（見誠實但書 §7）
 logs/                  所有跑 log（各實驗 stdout/stderr）
 data/*.json            各輪結果文件（只有指標，沒有權重）
 train_v3.py、compare_*.py、sweep_*.py  持續學習線（見 paper.md）
+archive/               已退役軌跡（base＋v3–v9，`git mv` 保留歷史）
+                       （扁平結構是承重的：30+ 腳本以 sibling 方式 import
+                       real_compression/ac32；打包重構需動 30 檔，先緩）
 ```
 
 腳本在本目錄跑（`sys.path` 假設如此）；不要搬進子目錄，否則 import 全斷。實驗開關（`USE_PROC_LOOP`、`PIPELINE`、`USE_ORT`、`CHAIN`）預設全關——預設值永遠是已驗證路徑。

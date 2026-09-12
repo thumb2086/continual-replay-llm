@@ -67,6 +67,10 @@ verify_enwik8_full.py  Full-file verify tooling (see §7 caveats)
 logs/                  All run logs (stdout/stderr per experiment)
 data/*.json            Per-run result files (metrics only, no weights)
 train_v3.py, compare_*.py, sweep_*.py  Continual-learning track (see paper.md)
+archive/               Superseded trail (base + v3–v9, `git mv` kept history)
+                       (flat layout is load-bearing: 30+ scripts import
+                       real_compression/ac32 as siblings; repackaging needs
+                       a 30-file import refactor, deferred)
 ```
 
 Scripts run from this directory (`sys.path` assumes it); don't move them into subfolders without fixing imports. Experimental flags (`USE_PROC_LOOP`, `PIPELINE`, `USE_ORT`, `CHAIN`) default off — defaults are always the validated path.
