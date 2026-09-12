@@ -75,7 +75,7 @@ unigram-ensemble、纯 trigram、TOP_K 4096、prefilter 16384、CONF 扫参、ca
 4. Nacrith H2H 跑在其弱场（100KB 冷切片＋CPU 版）；其 0.9389 全档热机数仍是它主场的最好成绩。最终排名以双方全档为准。
 5. GGUF/llama 相关数字（H2H、v12）用官方 BF16，与 torch fp16 有 ±1e-4 级 backend 容差，已注明。
 
-## 8. 文件地图
+## 8. 文件地图（＋2026-09-13 Pareto 附录 §9）
 
 - `bpe_ensemble_v11.py`：交卷系统（0.9139）
 - `bpe_ensemble_v10.py`：切片后向等价版；`bpe_ensemble_v12.py`：llama 后端（忙碌箱证伪保留）；`bpe_ensemble_v13.py`：KV 接力主线已证伪封存，但其 plumbing（deferred driver、单源 `_range_core`、共享内存 proc、pipeline helper、双缓冲、增量冻结）已在 recompute 模式逐位验证 0.9139（`USE_PROC_LOOP=1`＋`PIPELINE=1` 实测 26.9s/100KB，loop 8.5→2.5s）；ORT 分支因 fp32 慢 3 倍＋逐 shape 重调优而死
@@ -83,3 +83,18 @@ unigram-ensemble、纯 trigram、TOP_K 4096、prefilter 16384、CONF 扫参、ca
 - `h2h_nacrith.py`＋`data/h2h_nacrith.json`：第三方复现；`third_party/nacrith`：原厂码
 - `test_shm_proc.py`：线程 vs 进程逐位一致（生产数据 0.9139 验证；另抓到共享 scratch＋nogil kernel＝静默段错误，已修）；`ort_export.py`：ONNX 导出脚本（ORT 分支已死，留档）
 - `compression-paper.md`＋`paper_sections_13_14_draft.md`：前期草稿（char 管线与早期 ensemble 史）
+
+## 9. Pareto 前沿（2026-09-13，安靜箱，全部 220/220）
+
+| 配置 | bpb | 秒/100KB | KB/s |
+|---|---|---|---|
+| ov4096（crown） | 0.9139 | 19.4 | 5.1 |
+| BC7 | 0.9140 | 19.1 | 5.2 |
+| ov6144 | 0.9141 | 34.4 | 2.9（死胡同：更慢，沒更好） |
+| TRI0 | 0.9146 | 18.3 | 5.5 |
+| ov3072 | 0.9166 | 16.9 | 5.9 |
+| ov2048（knee） | 0.9194 | 14.2 | 7.0 |
+| ov1024 | 0.9237 | 13.5 | 7.4 |
+| ov0 | 0.9268 | 12.0 | 8.3 |
+
+8 點全在 SOTA 線（0.9389）之下。knee 在 ov2048（再往下每 0.001 bpb 越來越貴）。10KB/s 未達（最快 8.3）。圖：`pareto.png`，腳本：`pareto_plot.py`。

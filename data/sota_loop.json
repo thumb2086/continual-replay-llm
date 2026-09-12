@@ -1001,6 +1001,86 @@
    "verified_ok": 220,
    "verified_fail": 0,
    "note": "pipeline helper overlap: loop 3.9->2.5s. busy 3.7KB/s. speed program lands here."
+  },
+  {
+   "id": "quiet-baseline",
+   "status": "ok",
+   "bpb": 0.9139,
+   "elapsed_s": 27.0,
+   "note": "box claimed idle but fwd still 24.4s (GPU-side contention). loop 2.1s wall."
+  },
+  {
+   "id": "ov3072-check",
+   "status": "ok",
+   "bpb": 0.9166,
+   "elapsed_s": 22.8,
+   "note": "+0.0027 ratio for -4s. overlap tax is real."
+  },
+  {
+   "id": "sdpa-verdict",
+   "status": "ok",
+   "note": "auto/mem-eff 4-5ms, flash 142ms, math 110ms per 8K-attn. backend already optimal. fwd is LAUNCH-bound (450 tiny launches x WDDM queue), not compute. no code lever left on fwd."
+  },
+  {
+   "id": "true-quiet",
+   "status": "ok",
+   "bpb": 0.9139,
+   "elapsed_s": 19.4,
+   "verified_ok": 220,
+   "verified_fail": 0,
+   "note": "user closed everything. fwd 17.4s (not 12): quiet rate 3.7K tok/s. MACHINE CEILING @0.9139 = 19.4s = 5.3KB/s. 10KB/s needs ov0-speed-config (~0.920) or new hardware."
+  },
+  {
+   "id": "pareto-ov3072q",
+   "status": "ok",
+   "bpb": 0.9166,
+   "elapsed_s": 16.9
+  },
+  {
+   "id": "pareto-ov2048",
+   "status": "ok",
+   "bpb": 0.9194,
+   "elapsed_s": 14.2,
+   "note": "KNEE: 7.0KB/s"
+  },
+  {
+   "id": "pareto-ov1024",
+   "status": "ok",
+   "bpb": 0.9237,
+   "elapsed_s": 13.5
+  },
+  {
+   "id": "pareto-ov0",
+   "status": "ok",
+   "bpb": 0.9268,
+   "elapsed_s": 12.0,
+   "note": "fastest sub-SOTA: 8.3KB/s"
+  },
+  {
+   "id": "pareto-ov6144f",
+   "status": "ok",
+   "bpb": 0.9141,
+   "elapsed_s": 34.4,
+   "note": "ratio push FAILED (saturated)"
+  },
+  {
+   "id": "pareto-bc7",
+   "status": "ok",
+   "bpb": 0.914,
+   "elapsed_s": 19.1,
+   "note": "CONF flat again"
+  },
+  {
+   "id": "pareto-tri0",
+   "status": "ok",
+   "bpb": 0.9146,
+   "elapsed_s": 18.3,
+   "note": "trigram worth +0.0007, kept"
+  },
+  {
+   "id": "PARETO-VERDICT",
+   "status": "done",
+   "note": "crown ov4096 0.9139/19.4s; knee ov2048 0.9194/14.2s; fastest ov0 0.9268/12.0s. ALL 8 pts beat SOTA 0.9389. 10KB/s unreached (8.3 best)."
   }
  ],
  "done": false,

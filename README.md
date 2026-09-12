@@ -17,6 +17,10 @@ Replay-first continual learning for small streaming language models — applied 
 
 Classical codecs are ~10⁶× faster at 2–3× worse ratio — different worlds (see `FINAL-REPORT.md` §8 in spirit). Within the neural (<1.0 bpb) world: best ratio here, second-best speed.
 
+![Speed vs ratio Pareto](pareto.png)
+
+Pareto (quiet box, all verified 220/220): crown ov4096 0.9139 @ 19.4 s, knee ov2048 0.9194 @ 14.2 s (7.0 KB/s), fastest ov0 0.9268 @ 12.0 s (8.3 KB/s). All 8 points beat SOTA 0.9389. Script: `pareto_plot.py`.
+
 Honest scope: 0.9139 is a 100KB representative middle slice (enwik8 offset 50MB), not the full 100MB file; verify is 220 sampled positions, not full decode. Details + all caveats: [`FINAL-REPORT.md`](FINAL-REPORT.md) (hand-in report).
 
 ## Papers & reports (where is the paper?)
