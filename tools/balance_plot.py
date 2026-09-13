@@ -44,18 +44,20 @@ sota_pts=[p for p in PTS if p[2]<=SOTA_BPB]
 best=max(sota_pts, key=lambda p: score(p[1],p[2]))
 print(f"Balanced (SOTA-constrained) = {best[0]} score={score(best[1],best[2]):.2f} {best[1]:.1f}KB/s {best[2]:.4f} ratio={8/best[2]:.2f}")
 
-fig, ax = plt.subplots(figsize=(10,5))
+fig, ax = plt.subplots(figsize=(13,6))
 xs=[p[1] for p in PTS]
 ys=[8/p[2] for p in PTS]
 labels=[p[0] for p in PTS]
 # size by score, color best red
 sizes=[60+80*(score(p[1],p[2])/score(best[1],best[2])) for p in PTS]
 ax.scatter(xs, ys, c=['red' if p==best else 'steelblue' for p in PTS], s=sizes, edgecolors='black', zorder=3, alpha=0.85)
-offs={"chunk 34.5*": (8,10), "chunkK2 27": (8,-14), "chunkK4 16.9": (-40,12), "K8k crown": (-50,12), "Qwen K4k*": (8,10)}
+from adjustText import adjust_text
+texts=[]
 for x,y,l in zip(xs,ys,labels):
-    if l in offs:
-        ax.annotate(l, (x,y), textcoords="offset points", xytext=offs[l], fontsize=7,
-                    arrowprops=dict(arrowstyle="-", color="gray", lw=0.6))
+    txt=ax.text(x, y, l.replace("\n"," "), fontsize=6, ha="center", va="bottom")
+    texts.append(txt)
+adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle="-", color="gray", lw=0.5, shrinkB=2),
+            expand_points=(1.4,1.6), force_text=0.5, lim=80)
 ax.set_xscale("log")
 ax.set_xlabel("KB/s (faster right, log)")
 ax.set_ylabel("compression ratio x = 8/bpb (higher better ^)")

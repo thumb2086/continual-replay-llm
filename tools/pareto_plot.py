@@ -68,7 +68,7 @@ NNCP_KBS = 3.25            # NNCP v2 reference speed
 
 
 def _base(title, ymin, ymax):
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(13, 7))
     ax.axhline(SOTA_RATIO, color="red", linestyle="--", linewidth=1,
                label="SOTA 8.52x (worse below)")
     ax.axvline(NNCP_KBS, color="orange", linestyle="--", linewidth=1,
@@ -84,55 +84,39 @@ def _base(title, ymin, ymax):
     return fig, ax
 
 
-def _anno(ax, lab, x, y, dx, dy):
-    ax.annotate(lab, (x, y), textcoords="offset points", xytext=(dx, dy),
-                fontsize=9,
-                arrowprops=dict(arrowstyle="-", color="gray", lw=0.7,
-                                shrinkB=2))
-
-
 def _dots(ax, pts, color, show, offsets):
+    # show/offsets kept for compatibility but now ALL labels are drawn with repel
+    from adjustText import adjust_text
     xs = [p[1] for p in pts]
     ys = [8.0 / p[2] for p in pts]
     order = sorted(range(len(pts)), key=lambda i: pts[i][1])
     ax.plot([xs[i] for i in order], [ys[i] for i in order],
             color=color, linewidth=1.4, alpha=0.7)
+    texts=[]
     for lab, x, _bpb in pts:
         y = 8.0 / _bpb
         star = lab.endswith("crown") or lab.endswith("knee")
         ax.scatter([x], [y], s=150 if star else 80,
                    marker="*" if star else "o", color=color,
                    edgecolors="black", zorder=3)
-        if lab in show:
-            _anno(ax, lab, x, y, *offsets.get(lab, (8, 8)))
-
-
-def _diamonds(ax, xoff=10):
+        # all labels, small font, repel handles overlap
+        txt=ax.text(x, y, lab.replace("\n"," "), fontsize=6, ha="center", va="bottom")
+        texts.append(txt)
+    # also diamonds
     for lab, x, _bpb in MB1:
         y = 8.0 / _bpb
-        ax.scatter([x], [y], s=160, marker="D", color="purple",
+        ax.scatter([x], [y], s=140, marker="D", color="purple",
                    edgecolors="black", zorder=4)
-        # spread 1MB labels: off50 cluster crowded, push up; chunked/gate207 push out
-        if "chunked" in lab: dx, dy = 12, 12
-        elif "gate207" in lab: dx, dy = 14, -16
-        elif "off50" in lab: dx, dy = -30, 18
-        elif "off25" in lab: dx, dy = 8, -22
-        else: dx, dy = xoff, 14
-        _anno(ax, lab, x, y, dx, dy)
+        txt=ax.text(x, y, lab, fontsize=6, ha="center", va="bottom", color="purple")
+        texts.append(txt)
+    adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle="-", color="gray", lw=0.5, shrinkB=2),
+                expand_points=(1.3,1.5), force_text=0.4, force_points=0.3, lim=80)
 
 
 # ---- plot 1: off50 frontier ----
 fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)",
                 8.3, 9.1)
-# reduced labels to avoid crowding; keep frontier extremes + balanced
-_dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K3072 gather",
-                                    "chunk\n34.5KB/s", "chunkK2\n27KB/s",
-                                    "chunkK4\n16.9KB/s",
-                                    "crown gate207"),
-      offsets={"K8k\ncrown": (-78, 16), "K3072 gather": (10, 14),
-               "chunk\n34.5KB/s": (10, 12), "chunkK2\n27KB/s": (10, 10),
-               "chunkK4\n16.9KB/s": (10, -18), "crown gate207": (-82, -16)})
-_diamonds(ax, xoff=12)
+_dots(ax, OFF50, "steelblue", show=None, offsets=None)
 ax.set_xlim(2, 55)
 fig.tight_layout()
 fig.savefig("pareto_off50.png", dpi=120)
@@ -141,14 +125,7 @@ print("saved pareto_off50.png")
 # ---- plot 2: off75 hard region ----
 fig, ax = _base("Speed vs ratio, hard region (SmolLM2-135M, measured)",
                 7.9, 8.7)
-# spread the two close gate labels vertically
-_dots(ax, OFF75, "seagreen", show=("ov4096", "ov0",
-                                    "gate207 gather\n25KB/s",
-                                    "K2048 gate\n22KB/s"),
-      offsets={"ov4096": (-40, -14), "ov0": (12, -14),
-               "gate207 gather\n25KB/s": (12, 16),
-               "K2048 gate\n22KB/s": (12, -20)})
-_diamonds(ax, xoff=12)
+_dots(ax, OFF75, "seagreen", show=None, offsets=None)
 ax.set_xlim(2, 42)
 fig.tight_layout()
 fig.savefig("pareto_off75.png", dpi=120)
