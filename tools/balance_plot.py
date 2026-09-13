@@ -51,9 +51,10 @@ labels=[p[0] for p in PTS]
 # size by score, color best red
 sizes=[60+80*(score(p[1],p[2])/score(best[1],best[2])) for p in PTS]
 ax.scatter(xs, ys, c=['red' if p==best else 'steelblue' for p in PTS], s=sizes, edgecolors='black', zorder=3, alpha=0.85)
+offs={"chunk 34.5*": (8,10), "chunkK2 27": (8,-14), "chunkK4 16.9": (-40,12), "K8k crown": (-50,12), "Qwen K4k*": (8,10)}
 for x,y,l in zip(xs,ys,labels):
-    if l in (best[0], "K8k crown", "Qwen K4k*", "chunkK2 27", "chunkK4 16.9"):
-        ax.annotate(l, (x,y), textcoords="offset points", xytext=(6,6), fontsize=8,
+    if l in offs:
+        ax.annotate(l, (x,y), textcoords="offset points", xytext=offs[l], fontsize=7,
                     arrowprops=dict(arrowstyle="-", color="gray", lw=0.6))
 ax.set_xscale("log")
 ax.set_xlabel("KB/s (faster right, log)")

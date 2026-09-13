@@ -102,11 +102,11 @@ def pareto_panel(ax, pts, title, ymin, ymax, color, show, offsets, xlim):
     ax.grid(True, which="both", alpha=0.3); ax.legend(fontsize=7, loc="lower left"); plain(ax)
 
 ax1 = fig.add_subplot(gs[0,0]); pareto_panel(ax1, OFF50, "Pareto: article region (off50)", 8.3, 9.1, "steelblue",
-    show=("K8k\ncrown","K16k","knee gather","ov4096\nK1k","K3072 gather","chunk\n34.5KB/s","chunkK2\n27KB/s","chunkK4\n16.9KB/s","gate\n22.7KB/s","crown gate207"),
-    offsets={"K8k\ncrown":(-64,14),"K16k":(8,12),"knee gather":(8,18),"ov4096\nK1k":(-64,-12),"K3072 gather":(8,12),"chunk\n34.5KB/s":(8,12),"chunkK2\n27KB/s":(8,-16),"chunkK4\n16.9KB/s":(8,14),"gate\n22.7KB/s":(10,-14),"crown gate207":(-72,-14)}, xlim=50)
+    show=("K8k\ncrown","K3072 gather","chunk\n34.5KB/s","chunkK2\n27KB/s","chunkK4\n16.9KB/s","crown gate207"),
+    offsets={"K8k\ncrown":(-78,16),"K3072 gather":(10,14),"chunk\n34.5KB/s":(10,12),"chunkK2\n27KB/s":(10,10),"chunkK4\n16.9KB/s":(10,-18),"crown gate207":(-82,-16)}, xlim=55)
 ax2 = fig.add_subplot(gs[0,1]); pareto_panel(ax2, OFF75, "Pareto: hard region (off75)", 7.9, 8.7, "seagreen",
-    show=("ov4096","ov3072","ov0","gate207 gather\n25KB/s","K2048 gate\n22KB/s"),
-    offsets={"ov4096":(-52,-10),"ov3072":(10,16),"ov0":(10,-8),"gate207 gather\n25KB/s":(10,10),"K2048 gate\n22KB/s":(10,-14)}, xlim=40)
+    show=("ov4096","ov0","gate207 gather\n25KB/s","K2048 gate\n22KB/s"),
+    offsets={"ov4096":(-40,-14),"ov0":(12,-14),"gate207 gather\n25KB/s":(12,16),"K2048 gate\n22KB/s":(12,-20)}, xlim=42)
 
 # scale
 def kbs(sz,sec): return [s/t for s,t in zip(sz,sec)]
@@ -139,9 +139,10 @@ ax5 = fig.add_subplot(gs[2,:])
 xs=[p[1] for p in PTS]; ys=[8/p[2] for p in PTS]
 sizes=[50+60*(score(p[1],p[2])/score(best[1],best[2])) for p in PTS]
 ax5.scatter(xs, ys, c=['red' if p==best else 'steelblue' for p in PTS], s=sizes, edgecolors='black', zorder=3, alpha=0.85)
+offs={"chunk\n34.5KB/s": (8,10), "chunkK2\n27KB/s": (8,-14), "chunkK4\n16.9KB/s": (-40,12), "K8k\ncrown": (-50,12), "Qwen K4k*": (8,10)}
 for x,y,l in zip(xs,ys,[p[0] for p in PTS]):
-    if l in (best[0], "K8k\ncrown", "Qwen K4k*", "chunkK2\n27KB/s", "chunkK4\n16.9KB/s"):
-        ax5.annotate(l,(x,y), textcoords="offset points", xytext=(6,6), fontsize=7, arrowprops=dict(arrowstyle="-", color="gray", lw=0.6))
+    if l in offs:
+        ax5.annotate(l,(x,y), textcoords="offset points", xytext=offs[l], fontsize=7, arrowprops=dict(arrowstyle="-", color="gray", lw=0.6))
 ax5.set_xscale("log"); ax5.set_xlabel("KB/s (faster right, log)"); ax5.set_ylabel("compression ratio x = 8/bpb (higher better ^)")
 ax5.set_title(f"Balance: ratio vs speed (SOTA 8.52x) — best = {best[0]}  score={score(best[1],best[2]):.1f}  size=score", fontsize=9)
 ax5.axhline(SOTA_RATIO, color="red", linestyle="--", lw=1, label="SOTA 8.52x")

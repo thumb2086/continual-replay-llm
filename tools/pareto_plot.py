@@ -107,30 +107,33 @@ def _dots(ax, pts, color, show, offsets):
             _anno(ax, lab, x, y, *offsets.get(lab, (8, 8)))
 
 
-def _diamonds(ax):
+def _diamonds(ax, xoff=10):
     for lab, x, _bpb in MB1:
         y = 8.0 / _bpb
-        ax.scatter([x], [y], s=180, marker="D", color="purple",
+        ax.scatter([x], [y], s=160, marker="D", color="purple",
                    edgecolors="black", zorder=4)
-        _anno(ax, lab, x, y, 10, -10 if "off50" in lab else 20)
+        # spread 1MB labels: off50 cluster crowded, push up; chunked/gate207 push out
+        if "chunked" in lab: dx, dy = 12, 12
+        elif "gate207" in lab: dx, dy = 14, -16
+        elif "off50" in lab: dx, dy = -30, 18
+        elif "off25" in lab: dx, dy = 8, -22
+        else: dx, dy = xoff, 14
+        _anno(ax, lab, x, y, dx, dy)
 
 
 # ---- plot 1: off50 frontier ----
 fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)",
                 8.3, 9.1)
-_dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K16k", "knee gather",
-                                    "ov4096\nK1k", "K3072 gather",
+# reduced labels to avoid crowding; keep frontier extremes + balanced
+_dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K3072 gather",
                                     "chunk\n34.5KB/s", "chunkK2\n27KB/s",
                                     "chunkK4\n16.9KB/s",
-                                    "gate\n22.7KB/s",
                                     "crown gate207"),
-      offsets={"K8k\ncrown": (-64, 14), "K16k": (8, 12),
-               "knee gather": (8, 18), "ov4096\nK1k": (-64, -12),
-               "K3072 gather": (8, 12), "chunk\n34.5KB/s": (8, 12),
-               "chunkK2\n27KB/s": (8, -16), "chunkK4\n16.9KB/s": (8, 14),
-               "gate\n22.7KB/s": (10, -14), "crown gate207": (-72, -14)})
-_diamonds(ax)
-ax.set_xlim(2, 50)
+      offsets={"K8k\ncrown": (-78, 16), "K3072 gather": (10, 14),
+               "chunk\n34.5KB/s": (10, 12), "chunkK2\n27KB/s": (10, 10),
+               "chunkK4\n16.9KB/s": (10, -18), "crown gate207": (-82, -16)})
+_diamonds(ax, xoff=12)
+ax.set_xlim(2, 55)
 fig.tight_layout()
 fig.savefig("pareto_off50.png", dpi=120)
 print("saved pareto_off50.png")
@@ -138,14 +141,15 @@ print("saved pareto_off50.png")
 # ---- plot 2: off75 hard region ----
 fig, ax = _base("Speed vs ratio, hard region (SmolLM2-135M, measured)",
                 7.9, 8.7)
-_dots(ax, OFF75, "seagreen", show=("ov4096", "ov3072", "ov0",
+# spread the two close gate labels vertically
+_dots(ax, OFF75, "seagreen", show=("ov4096", "ov0",
                                     "gate207 gather\n25KB/s",
                                     "K2048 gate\n22KB/s"),
-      offsets={"ov4096": (-52, -10), "ov3072": (10, 16), "ov0": (10, -8),
-               "gate207 gather\n25KB/s": (10, 10),
-               "K2048 gate\n22KB/s": (10, -14)})
-_diamonds(ax)
-ax.set_xlim(2, 40)
+      offsets={"ov4096": (-40, -14), "ov0": (12, -14),
+               "gate207 gather\n25KB/s": (12, 16),
+               "K2048 gate\n22KB/s": (12, -20)})
+_diamonds(ax, xoff=12)
+ax.set_xlim(2, 42)
 fig.tight_layout()
 fig.savefig("pareto_off75.png", dpi=120)
 print("saved pareto_off75.png")
