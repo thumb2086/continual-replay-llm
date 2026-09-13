@@ -23,6 +23,7 @@ Classical codecs are ~10⁶× faster at 2–3× worse ratio — different worlds
 ![Speed vs ratio, article region](pareto_off50.png)
 ![Speed vs ratio, hard region](pareto_off75.png)
 ![Size vs time & ratio ladder](scale_time_size.png)
+![Balance score curve](balance_curve.png)
 
 Pareto (busy box, all verified 220/220): crown ov4096/K8192 0.9003 @ 24.0 s, knee ov2048 0.9194 @ 12.0 s (8.3 KB/s), fastest **chunked** ov0/K1024 0.9276 @ **2.9 s** (34.5 KB/s, 1.50 GB peak, exact) — middle nodes chunkK2 0.9187 @ 3.7 s / chunkK4 0.9142 @ 5.9 s fill the gap. K ladder: 1024→0.9139 @ 17.3 s / 2048→0.9050 @ 18.0 s / 4096→0.9013 @ 20.2 s / 8192→0.9003. Scale ladder (all 220/220): **chunked-speed 2.9 s / 29.8 s / 273.7 s (100KB/1MB/10MB, 34.5/34.3/37.4 KB/s, peak flat 1.50 GB)**; crown classic 24.0 s / 254.7 s / **1755 s** (0.9003/0.9078/0.8765 — 10MB warms). Pareto 35 points (incl. off75 curve + 1MB diamonds, Qwen 0.8391* separate line). Iterations: rope-cache −24% fwd, gather −45%, **chunked prefill+head −63% peak & −37% time** (all exact). Script: `tools/pareto_plot.py` + `tools/scale_plot.py`.
 

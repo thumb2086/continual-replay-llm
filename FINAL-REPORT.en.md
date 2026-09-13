@@ -258,3 +258,23 @@ Note: chunked ladder is anomalously "faster at scale" (37.4 > 34.3 — cache war
 **1 MB/s verdict: arithmetic-dead (zero new code).** Best measured 37.4 KB/s is **27×** short of 1024 KB/s. Floor: single forward 0.5–0.6 s (chunked, WDDM-resident); SmolLM2 needs 372 forwards → 190.9 s forward wall, Qwen single forward 4.5–5.1 s costlier — fewer forwards, costlier forwards. All faster paths already closed (ORT 149 s, quant ×4, batch ×2, multicore, PF/SDPA-mem, prefetch 7.8 s regression, ORT-fusion 11 s); no lever turns 0.5 s into 0.02 s. **Conclusion: 1 MB/s is unreachable on this hardware+model family; it needs a fully idle box + multiples of silicon + a new architecture (not an optimization).**
 
 **0.7 verdict: arithmetic-dead (zero new code, K4096 already shows diminishing).** Qwen 0.8391→0.7 needs **1391e-4**, while measured K ladder steps are −117→−51e-4 (diminishing; next double ~−20e-4), requiring ~70 doublings; meanwhile PEAK 4.85→5.32→9.11 GB already pages. The 0.5B ceiling sits in the 0.83 band; a larger model (3B class) multiplies traffic ×6 and forward cost ×-multiple, with the same diminishing tail. **Conclusion: 0.7 is outside the reachable domain on a single 8 GB card; it needs a larger model + retraining + a paged box, not sliced-100 KB optimization.**
+
+## 31. Low-memory balance hunt: SOTA-constrained carpet + score curve (2026-09-13)
+
+**Carpet (all 220/220, zero-install, low-mem, PEAK 1.5GB):**
+- BLOCK4096 K512 2.3s 43.5KB/s but 0.9564 FAILS SOTA (+176e-4)
+- BLOCK4096 K1024 2.9s 0.9415 FAILS SOTA (+26e-4)
+- BLOCK4096 K2048 6.0s 0.9302 SOTA-pass but slower
+- 8192 K512 3.3s 0.9433 FAILS
+- GATE 50/15 chunk 4.2s 0.9281 passes but slower than 20/7 2.9s — gate optimum stays 20/7
+- K16384 chunk 29.2s 0.9154 worse than K8192 0.9003, 9.45GB paging
+- Qwen PF1024 4.7s 0.8559 same as PF2048
+
+**Balance score = (8/bpb)*log(KB/s):**
+- Best SOTA-constrained = **chunk 34.5KB/s 0.9276 score=30.53** (current speed crown)
+- Runner-up chunkK2 27KB/s 0.9187 score=28.71 (middle balanced)
+- Qwen K2048 17.9KB/s 0.8442 score=27.32 (ratio-side balanced)
+- Fig: balance_curve.png marks balanced point, log X top-right best.
+
+**Conclusion:** No-HW best balance remains current chunk 34.5; chunkK2 is the speed-ratio knee, Qwen K2048 the ratio-side optimum. Three form new Pareto knee; curves updated.
+
