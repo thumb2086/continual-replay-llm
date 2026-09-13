@@ -49,7 +49,8 @@ ax1.set_title("Throughput ladder [top-right is best]")
 ax1.set_xticks(SIZES_KB)
 ax1.set_xticklabels(SIZES_LBL)
 ax1.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
-ax1.yaxis.set_minor_formatter(NullFormatter())  # no sci-notation minors
+ax1.yaxis.set_minor_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
+# x ticks are custom 100KB/1MB/10MB, keep plain; minors off to avoid clutter
 ax1.xaxis.set_minor_formatter(NullFormatter())
 ax1.grid(True, which="both", alpha=0.3)
 ax1.legend(fontsize=8)

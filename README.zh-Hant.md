@@ -18,8 +18,10 @@ Replay-first 的小串流語言模型持續學習——用在**實用神經文�
 
 傳統算法快約百萬倍、比率差 2～3 倍——不同世界（見 `FINAL-REPORT.md` §8 精神）。在神經（<1.0 bpb）世界裡：比率這裡第一，速度第二。
 
-![Pareto 前沿（側邊 plain）](pareto_off50.png)
-![Scale 梯子（側邊 plain）](scale_time_size.png)
+![Pareto 文章區，右上為理想空角（tradeoff）](pareto_off50.png)
+![Pareto 硬區](pareto_off75.png)
+![Scale 梯子，右上為佳](scale_time_size.png)
+![Balance 平衡分，右上為佳](balance_curve.png)
 
 Pareto（忙碌箱，全 220/220 驗證）：crown ov4096/K8192 0.9003 @ 24.0 秒，knee ov2048 0.9194 @ 12.0 秒（8.3 KB/s），最快 **chunked** ov0/K1024 0.9276 @ **2.9 秒**（34.5KB/s，1.50GB 峰值，逐位一致）——中間節點 chunkK2 0.9187 @ 3.7 秒／chunkK4 0.9142 @ 5.9 秒填空。放量梯子（全 220/220）：**chunked 速度 2.9 秒／29.8 秒／273.7 秒（100KB/1MB/10MB，34.5/34.3/37.4KB/s，峰值扁平 1.50GB）**；crown classic 24.0 秒／254.7 秒／**1755 秒**（0.9003/0.9078/0.8765——10MB 熱機）。Pareto 35 點（含 K 階梯＋overlap 加密＋off75 硬區＋1MB 鑽石，Qwen 0.8391* 另線）。迭代：rope-cache 省 24%、gather 省 45%、**chunked prefill+head 省 63% 峰值與 37% 時間**（全逐位一致）。腳本：`tools/pareto_plot.py`＋`tools/scale_plot.py`。
 
