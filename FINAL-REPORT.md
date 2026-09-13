@@ -290,3 +290,23 @@ ledger 共 243 條；§30 補齊本輪「繼續極致優化」目標的第三個
 **修：** 三圖庫全改 plain（FuncFormatter g，小刻度亦 g），不 Null；Pareto x 改 log 2→55/42、y 放寬 8.3→9.1/7.9→8.7 使右上為佳的空角顯形；1MB 紫鑽按 chunked/gate207/off50/off25 四向外推；全部標籤改 adjustText 斥力（13×7 畫布、6pt），23 点全標且不疊；K16k 納入 xlim 1.5→60。
 **圖：** 一圖一表 4 張——pareto_off50.png / pareto_off75.png / scale_time_size.png / balance_curve.png（balance 改 比率 vs 速度，SOTA 回 8.52x，點大小=平衡分；原 score 0 橙線為 log1 bug 已修）。
 
+## 33. 現況定版（2026-09-13，254 條 ledger，四圖 plain）
+
+**以本節為準，§9–§10 舊數字為歷史（見標註）；全數以 ledger 與重生圖為準。**
+
+**定版數字（全 220/220，busy box 3060Ti 8GB，WDDM）：**
+- 比率王 SmolLM2 0.9003（ov4096/K8192, 24.0s, 5.01GB 100KB；10MB 0.8765@1755s 熱機再降 313e-4）
+- 比率王 Qwen 0.8391*（K4096, 219/219, 12.2s, *9.11GB 分頁；實用 0.8442@5.6s 5.32GB）勝 SOTA 10.6%
+- 速度王 chunked 34.5KB/s（ov0/K1024, 2.9s, 1.50GB, 逐位一致）；梯子 2.9s/29.8s/273.7s (34.5/34.3/37.4KB/s, PEAK 1.50GB 扁平)；中間 chunkK2 27KB/s 0.9187 / chunkK4 16.9KB/s 0.9142
+- 平衡分 SOTA 內最高 chunk 34.5 score=30.53（(8/bpb)·log KB/s），上輪地毯 7 點 SOTA 內無新王
+
+**圖（各 plain 刻度，adjustText 全標不疊）：**
+- pareto_off50.png（35 點現行，log X 1.5→60, y 8.3→9.1，右上為佳空角）
+- pareto_off75.png（7 點硬區，log X）
+- scale_time_size.png（六線，log X 100KB/1MB/10MB，y plain）
+- balance_curve.png（比率 vs 速度，SOTA 8.52x，點大小=平衡分）
+
+**取捨與判決：** Pareto 前沿為對角 trade-off（越快略掉比率 0.27/10×），右上空角為理想；Scale 梯子 chunk 越大量越快（37.4>34.3 熱機）；1MB/s（27×差）與 0.7（1391e-4差）於 8GB 卡算術死，已以 tiny-model 1.6s/3.37 與 Qwen 32K 同比 0.8391 實證。
+
+**可重現：** 王座 ov4096/K8192 與速度王 chunk ov0/K1024 CHUNK_PRE4096/HEAD2048/SPARSE1 兩行 PowerShell 見 §1；圖 python tools/pareto_plot.py && python tools/scale_plot.py && python tools/balance_plot.py 一鍵重生。
+

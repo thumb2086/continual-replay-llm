@@ -285,3 +285,24 @@ Note: chunked ladder is anomalously "faster at scale" (37.4 > 34.3 — cache war
 **Changes:** all three plotters to plain g for both majors and minors; Pareto x to log 2→55/42, y widened 8.3→9.1/7.9→8.7 so top-right ideal empty corner shows; 1MB diamonds spread four-way; all labels via adjustText repel on 13×7 canvas, 6pt, full labeling without overlap; K16k included via xlim 1.5→60.
 **Figs:** one image per chart, 4 total — pareto_off50.png / pareto_off75.png / scale_time_size.png / balance_curve.png (balance now ratio vs speed, SOTA 8.52x, size=score; old orange score 0 line was log1 bug, fixed).
 
+
+## 33. Current snapshot (2026-09-13, 254-ledger, 4 plain figures)
+
+**This section supersedes §§9–10 historical numbers; ledger and regenerated figures are authoritative.**
+
+**Final numbers (all 220/220, busy 3060Ti 8GB, WDDM):**
+- Ratio crown SmolLM2 0.9003 (ov4096/K8192, 24.0s, 5.01GB 100KB; 10MB 0.8765@1755s, -313e-4 warmup)
+- Ratio crown Qwen 0.8391* (K4096, 219/219, 12.2s, *9.11GB paged; practical 0.8442@5.6s 5.32GB) beats SOTA 10.6%
+- Speed crown chunked 34.5KB/s (ov0/K1024, 2.9s, 1.50GB, exact); ladder 2.9s/29.8s/273.7s (34.5/34.3/37.4KB/s, PEAK 1.50GB flat); middle chunkK2 27KB/s 0.9187 / chunkK4 16.9KB/s 0.9142
+- Balance SOTA-constrained best chunk 34.5 score=30.53 ((8/bpb)·log KB/s), carpet 7 points no new crown
+
+**Figures (all plain ticks, adjustText non-overlapping):**
+- pareto_off50.png (35 pts, log X 1.5→60, y 8.3→9.1, top-right ideal empty)
+- pareto_off75.png (7 pts hard, log X)
+- scale_time_size.png (6 lines, log X)
+- balance_curve.png (ratio vs speed, SOTA 8.52x, size=score)
+
+**Trade-off & verdicts:** Pareto is diagonal (faster slightly lower ratio, 0.27/10×) with empty top-right ideal; Scale chunk gets faster at scale (37.4>34.3); 1MB/s (27×) and 0.7 (1391e-4) arithmetic-dead on 8GB, proven via tiny 1.6s/3.37 and Qwen 32K same 0.8391.
+
+**Repro:** crowns as in §1; figures via python tools/pareto_plot.py && python tools/scale_plot.py && python tools/balance_plot.py.
+
