@@ -13,6 +13,9 @@ import struct
 import sys
 import time
 
+# Add project root to path so we can import ac32, real_compression, etc.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 __version__ = "0.1.0"
 
 MAGIC = b"ZLLM"
@@ -187,31 +190,17 @@ def cmd_encode(args):
                     cum = np.zeros(len(freqs) + 1, dtype=np.int64)
                     np.cumsum(freqs, out=cum[1:])
 
+                    enc = ArithmeticEncoder(store=True)
                     if target in set(topk_idx.tolist()):
                         s1 = int(np.where(topk_idx == target)[0][0])
-                        enc = ArithmeticEncoder(store=True)
-                        enc.encode_symbol(cum, s1)
-                        _, nb = enc.finish()
-                        n_escapes += 0
                     else:
+                        s1 = top_k
                         n_escapes += 1
-                        s1 = top_k
-                        enc = ArithmeticEncoder(store=True)
-                        enc.encode_symbol(cum, s1)
-                        _, nb = enc.finish()
-                        nb += 100
-
-                    enc_count = ArithmeticEncoder(store=True)
-                    if target in set(topk_idx.tolist()):
-                        s1 = int(np.where(topk_idx == target)[0][0])
-                    else:
-                        s1 = top_k
-                    enc_count.encode_symbol(cum, s1)
-                    bitstr, count = enc_count.finish()
+                    enc.encode_symbol(cum, s1)
+                    bitstr, count = enc.finish()
                     if bitstr:
-                        all_bits.extend(int(bitstr[i:i+8], 2).to_bytes(1, "big")
-                                        for i in range(0, len(bitstr), 8)
-                                        if i + 8 <= len(bitstr))
+                        for b in bitstr:
+                            all_bits.append(int(b))
 
                 block_n = b0 // block_tokens + 1
                 total_n = (len(ids) + block_tokens - 1) // block_tokens
@@ -243,7 +232,17 @@ def cmd_encode(args):
             f.write(MAGIC)
             f.write(struct.pack(">H", FORMAT_VERSION))
             f.write(hdr_bytes)
-            f.write(bytes(all_bits))
+            # Pack bit list into bytes
+            bit_bytes = bytearray()
+            for i in range(0, len(all_bits), 8):
+                byte = 0
+                for j in range(8):
+                    if i + j < len(all_bits):
+                        byte = (byte << 1) | all_bits[i + j]
+                    else:
+                        byte = byte << 1
+                bit_bytes.append(byte)
+            f.write(bit_bytes)
 
         compressed_size = os.path.getsize(output_path)
         dt = time.time() - t0

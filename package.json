@@ -1,0 +1,37 @@
+{
+  "name": "zllm",
+  "version": "0.1.0",
+  "description": "Neural text compression with LLM + arithmetic coding",
+  "bin": {
+    "zllm": "bin/zllm.js"
+  },
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node bin/zllm.js --version",
+    "postinstall": "node src/postinstall.js"
+  },
+  "keywords": [
+    "compression",
+    "llm",
+    "neural",
+    "arithmetic-coding",
+    "smollm",
+    "qwen"
+  ],
+  "author": "thumb2086",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "zllm/",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thumb2086/continual-replay-llm"
+  }
+}
