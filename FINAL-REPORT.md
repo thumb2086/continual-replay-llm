@@ -310,3 +310,24 @@ ledger 共 243 條；§30 補齊本輪「繼續極致優化」目標的第三個
 
 **可重現：** 王座 ov4096/K8192 與速度王 chunk ov0/K1024 CHUNK_PRE4096/HEAD2048/SPARSE1 兩行 PowerShell 見 §1；圖 python tools/pareto_plot.py && python tools/scale_plot.py && python tools/balance_plot.py 一鍵重生。
 
+
+## 34. CLI 化與架構重整：zllm 0.1.0 + 團隊分工 + 30 天路線圖（2026-09-13）
+
+**CLI 工具（Agent 3 交付）。** 建立 zllm/ 套件，python -m zllm 即用：
+- zllm encode <file> [-o file.zllm] [--preset fast|balanced|ratio|ratio-qwen] — 壓縮文字為 .zllm 檔案
+- zllm decode <file.zllm> [-o file.txt] — 解壓縮回文字（近似路徑，概率重建；完整 bitstream 逆向需 v13 full pipeline）
+- zllm bench [--size 100kb|1mb|10mb] [--preset ...] — 自動化量測
+- zllm info <file.zllm> — 顯示 .zllm 內涵資訊（bpb/模型/壓縮比/速度）
+
+.zllm 容器格式：magic ZLLM（4B）+ version（2B）+ header 長度（4B）+ JSON header（模型/bpb/config/tokens）+ bitstream。
+
+四個 preset 對應四條已驗證線（全 220/220）：fast=34.5KB/s 0.9276、balanced=27KB/s 0.9187、ratio=0.9003、ratio-qwen=0.8442。
+
+pyproject.toml 一鍵安裝：pip install -e .，依賴 torch/transformers/numba/numpy。
+
+**架構審查（Step 1）。** ARCHITECTURE.md 記：核心瓶頸 = v13 1923 行單檔（無 CLI/無 decode/無測試）；缺：CLI 入口（20+ env var）、decode 路徑（半成品）、pyproject.toml、單元測試、.zllm 格式。
+
+**團隊分工（Step 2）。** 四個 Agent Role 定義與 Task Backlog（見 ARCHITECTURE.md）：演算法研究（PAQ/context-mixing）、效能優化（numba 向量化/fused kernel）、CLI 基建（decode/path/測試）、論文評估（benchmark 自動化/比較表）。
+
+**30 天路線圖（Step 3）。** W1 CLI+decode→W2 演算法深挖→W3 效能推進→W4 論文+發表；見 ARCHITECTURE.md 完整 checkbox list。
+

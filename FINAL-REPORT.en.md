@@ -306,3 +306,24 @@ Note: chunked ladder is anomalously "faster at scale" (37.4 > 34.3 — cache war
 
 **Repro:** crowns as in §1; figures via python tools/pareto_plot.py && python tools/scale_plot.py && python tools/balance_plot.py.
 
+
+## 34. CLI + architecture overhaul: zllm 0.1.0 + agent team + 30-day roadmap (2026-09-13)
+
+**CLI tool (Agent 3 deliverable).** New zllm/ package, python -m zllm:
+- zllm encode <file> [-o file.zllm] [--preset fast|balanced|ratio|ratio-qwen]
+- zllm decode <file.zllm> [-o file.txt] (approximate probability-based; full bitstream reversal needs v13 pipeline)
+- zllm bench [--size 100kb|1mb|10mb] [--preset ...]
+- zllm info <file.zllm> (header metadata)
+
+.zllm container: magic ZLLM (4B) + version (2B) + header_len (4B) + JSON header + bitstream.
+
+Four presets map to verified lines (all 220/220): fast=34.5KB/s 0.9276, balanced=27KB/s 0.9187, ratio=0.9003, ratio-qwen=0.8442.
+
+pyproject.toml for pip install -e ., deps: torch/transformers/numba/numpy.
+
+**Architecture audit (Step 1).** See ARCHITECTURE.md: core bottleneck = v13 1923-line monolith (no CLI/decode/tests); gaps: CLI entry, decode path, packaging, tests, container format.
+
+**Agent team (Step 2).** Four roles with task backlogs (see ARCHITECTURE.md): Algorithm Research, Performance/Hardware, CLI/Infrastructure, Paper/Evaluation.
+
+**30-day roadmap (Step 3).** W1 CLI+decode -> W2 algorithm deepening -> W3 perf push -> W4 paper+release. Full checklist in ARCHITECTURE.md.
+

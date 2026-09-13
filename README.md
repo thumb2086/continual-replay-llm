@@ -49,6 +49,20 @@ python -u ensemble/bpe_ensemble_v13.py
 
 Needs: `pip install torch numpy transformers` + SmolLM2-135M weights (`MODEL_DIR` in `bpe_compress.py`) + enwik8 at `data/cloud/enwik8` (not included). Always run from this directory (scripts assume i
 
+## CLI tool (zllm v0.1.0)
+
+```bash
+pip install -e .
+
+zllm encode document.txt -o document.zllm --preset fast    # 34.5 KB/s, 0.9276
+zllm encode document.txt -o document.zllm --preset ratio    # 0.9003 bpb
+zllm decode document.zllm -o document.txt                  # reconstruct text
+zllm bench --preset balanced --size 1mb                    # benchmark
+zllm info document.zllm                                    # show metadata
+```
+
+Presets: `fast` (34.5 KB/s), `balanced` (27 KB/s), `ratio` (0.9003), `ratio-qwen` (0.8442). Architecture: see `ARCHITECTURE.md`.
+
 ## WSL port (same code, re-measured numbers)
 
 A full offline WSL env was built (torch 2.14+cu126 + triton 3.8 + CUDA 12.9, 63 side-loaded wheels — recipe in `FINAL-REPORT.en.md` §16). WSL numbers differ, so they are tracked separately:
