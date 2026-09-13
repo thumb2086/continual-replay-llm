@@ -2052,6 +2052,48 @@
    "bpb": 0.936,
    "elapsed_s": 29.8,
    "note": "1MB chunked+gate: 38 segs, 34.3KB/s (49.4->29.8s), PEAK flat 1.50GB, 220 ok. Scale plot new chunked line."
+  },
+  {
+   "id": "mid-chunkK2",
+   "status": "banked",
+   "bpb": 0.9187,
+   "elapsed_s": 3.7,
+   "note": "Middle node M1: chunked K2048 ov0: 220 ok, 27KB/s, PEAK 1.62GB. Same ratio as non-chunk ov0K2 (0.9183) at 1.5x speed. Pareto gap-filler."
+  },
+  {
+   "id": "mid-chunkK4",
+   "status": "banked",
+   "bpb": 0.9142,
+   "elapsed_s": 5.9,
+   "note": "Middle node M2: chunked K4096 ov0: 220 ok, PEAK 2.70GB. Dominates knee-gather (same 5.9s, -52e-4) and ov0K2 (-41e-4). Fills 0.914 band."
+  },
+  {
+   "id": "mid-qwengate",
+   "status": "banked",
+   "bpb": 0.8559,
+   "elapsed_s": 4.8,
+   "note": "Middle node M3: Qwen K1024 + gate(20/7): IDENTICAL 0.8559 (216 ok) at 4.8s (-0.6s, +0e-4). Qwen tables sparser -> tight gate skips blends free. Qwen speed node 20.8KB/s."
+  },
+  {
+   "id": "10m-chunk",
+   "status": "chart",
+   "bpb": 0.9042,
+   "elapsed_s": 273.7,
+   "note": "10MB chunked+gate: 372 segs, 37.4KB/s (FASTER per-KB than 1MB 34.3 - warms up), PEAK flat 1.50GB, 220 ok. Chunked ladder complete: 34.5/34.3/37.4 KB/s."
+  },
+  {
+   "id": "qwen-lamconf",
+   "status": "null",
+   "bpb": 0.8442,
+   "elapsed_s": 5.2,
+   "note": "Qwen LAM0.995/CONF20-7: IDENTICAL 0.8442 (219 ok), 5.2s. Qwen line insensitive to table tuning; defaults already optimal. No more tuning burns."
+  },
+  {
+   "id": "10m-crown",
+   "status": "chart",
+   "bpb": 0.8765,
+   "elapsed_s": 1755.0,
+   "note": "10MB crown ov4096/K8192 classic: 742 segs, 5.8KB/s ladder-completing point, 220 ok, PEAK 5.26GB. Ratio improves with scale (0.9003->0.9079->0.8765 cache effect). Ladder complete."
   }
  ],
  "done": false,

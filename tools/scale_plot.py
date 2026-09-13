@@ -18,16 +18,16 @@ TIME = {
     "speed classic\nov0/K1024": [9.7, 104.3, 1095.9],
     "speed gather\nov0/K1024": [5.3, 56.9, 632.2],
     "speed gate207\nov0/K1024": [4.5, 49.4, None],
-    "speed chunked\nov0/K1024": [2.9, 29.8, None],
-    "crown classic\nov4096/K8192": [24.0, 254.7, None],
+    "speed chunked\nov0/K1024": [2.9, 29.8, 273.7],
+    "crown classic\nov4096/K8192": [24.0, 254.7, 1755.0],
     "crown gather\nov4096/K8192": [27.4, 201.6, None],
 }
 BPB = {
     "speed classic\nov0/K1024": [0.9268, 0.9347, 0.9025],
     "speed gather\nov0/K1024": [0.9272, 0.9355, 0.9039],
     "speed gate207\nov0/K1024": [0.9276, 0.9359, None],
-    "speed chunked\nov0/K1024": [0.9276, 0.9360, None],
-    "crown classic\nov4096/K8192": [0.9003, 0.9078, None],
+    "speed chunked\nov0/K1024": [0.9276, 0.9360, 0.9042],
+    "crown classic\nov4096/K8192": [0.9003, 0.9078, 0.8765],
     "crown gather\nov4096/K8192": [0.9005, 0.9079, None],
 }
 SOTA = 8.0 / 0.9389  # 8.52x

@@ -242,3 +242,22 @@ Prefilter 2048→1024：+6e-4、4.6 秒，雙軸 null（prefilter 卡的是暫�
 **誠實剩餘。**1 秒還沒到：Qwen 只打一發，但一發 5.1s——發射少了，發射貴了；地板搬家，沒有消失。最明顯的未建組合是 chunk＋overlap（chunk 目前拒 OVERLAP＞0；SmolLM2 王座還跑 classic）。Qwen 調參剛起步（3 跑：無 gate/CONF/LAMBDA/PF 梯子、無 1MB 梯子）。Pareto 圖維持 SmolLM2 純血；Qwen 線先住本節，掙到自己的圖再說。
 
 復現（王座，PowerShell，約 60 秒）：`TOP_K=8192`、`PREFILTER=8192`、`OVERLAP=4096`、`FLOOR_FRAC=1e-6`、`N_LOOP_WORKERS=1`，其餘預設，`python -u ensemble/bpe_ensemble_v13.py`——驗收 `bits/byte: 0.9003`、`Verified: 220 lossless, fails: 0`。速度版：`TOP_K=1024`、`OVERLAP=0`、`PREFILTER=2048`——驗收 0.9268、約 9.8 秒。
+
+## 30. 極致挑戰：1MB/s 與 0.7 的物理判決、完整梯子、中間節點（2026-09-13）
+
+ledger 共 243 條；§30 補齊本輪「繼續極致優化」目標的第三個極限探針。
+
+**中間平衡節點（Pareto 填空，3 個新 bank）。**chunkK2（K2048 ov0、chunk）：0.9187 @ 3.7s＝27KB/s，PEAK 1.62GB——與非 chunk 同比率（0.9183）但快 1.5 倍。chunkK4（K4096 ov0、chunk）：0.9142 @ 5.9s＝16.9KB/s，PEAK 2.70GB——同速支配 knee-gather 與 ov0K2（−52/−41e-4），填 0.914 帶。Qwen gate（0.5B K1024＋gate 20/7）：0.8559 @ 4.8s＝20.8KB/s——與 K1024 一字不差（216 單位）但 −0.6s，稀疏表讓緊門零代價。圖：`pareto_off50.png` 加三點（35 點現行）。
+
+**完整梯子（100KB→1MB→10MB，全 220/220，PEAK 扁平證明無洩漏）。**
+
+| 方案 | 100KB | 1MB | 10MB |
+|---|---|---|---|
+| speed chunked ov0/K1024 | 0.9276 @ **2.9s** 34.5KB/s 1.50GB | 0.9360 @ **29.8s** 34.3KB/s 1.50GB | **0.9042** @ **273.7s** 37.4KB/s 1.50GB |
+| crown classic ov4096/K8192 | 0.9003 @ 24.0s 4.2KB/s 5.01GB | 0.9078 @ 254.7s 4.0KB/s 5.01GB | **0.8765** @ **1755s** 5.8KB/s 5.26GB |
+
+發現：chunk 梯子反常「越大量越快」（37.4＞34.3——cache 熱起來），crown 在 10MB 再降 **−313e-4**（0.9078→0.8765，長文熱機紅利）。圖：`scale_time_size.png` 六線齊（修科學記號小刻度）。
+
+**1MB/s 判決：算術死（零新碼）。**最快實測 37.4KB/s，距 1024KB/s **27 倍**。地板：單發 forward 0.5–0.6s（chunk 後，WDDM 常駐），SmolLM2 需 372 發→190.9s forward 牆，Qwen 單發 4.5–5.1s 更貴——發射少、發射貴，地板搬家沒消失。全量零加速路徑本輪已關（ORT 149s、量化×4、batch×2、multicore、PF/SDPA-mem、prefetch 7.8s 反傷、ORT-fusion 11s），無槓桿能把 0.5s 打成 0.02s。**結論：此硬體＋此模型族到不了 1MB/s；要百倍需全閒置＋數倍矽＋新架構（非優化）。**
+
+**0.7 判決：算術死（零新碼，K4096 已證邊際）。**Qwen 0.8391→0.7 還差 **1391e-4**，而 K1024→2048→4096 實測遞減 −117→−51e-4（邊際遞減），再翻倍只值約 −20e-4 量級，要 70 步翻倍；同時 PEAK 4.85→5.32→9.11GB（*分頁），Qwen-K4096 已爆 8GB 卡。0.5B 模型天花板就在 0.83 帶，更大模型（3B 級）流量×6、forward×數倍，速度再崩，且受同樣尾部收益遞減。**結論：單卡 8GB 上 0.7 不在可達域；該線需更大模型＋重訓＋分頁箱，不是 100KB 切片優化能及。**

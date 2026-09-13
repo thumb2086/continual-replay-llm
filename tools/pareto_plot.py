@@ -17,6 +17,9 @@ import matplotlib.pyplot as plt
 OFF50 = [
     ("gate\n22.7KB/s", 100 / 4.4, 0.9276),
     ("gather\n18.9KB/s", 100 / 5.3, 0.9272),
+    ("chunk\n34.5KB/s", 100 / 2.9, 0.9276),
+    ("chunkK2\n27KB/s", 100 / 3.7, 0.9187),
+    ("chunkK4\n16.9KB/s", 100 / 5.9, 0.9142),
     ("ov0K2 gather", 100 / 5.7, 0.9183),
     ("knee gather", 100 / 5.9, 0.9194),
     ("ov1024 gather", 100 / 5.5, 0.9241),
@@ -51,6 +54,7 @@ MB1 = [
     ("1MB@off25", 1024 / 262.7, 0.9076),
     ("1MB gate207", 1024 / 49.4, 0.9359),
     ("1MB crown-g", 1024 / 201.6, 0.9079),
+    ("1MB chunked", 1024 / 29.8, 0.9360),
 ]
 SOTA_BPB = 0.9389          # Nacrith paper, full file
 SOTA_RATIO = 8.0 / SOTA_BPB  # 8.52x: higher-is-better twin of the SOTA line
@@ -108,14 +112,17 @@ fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)",
                 8.4, 9.0)
 _dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K16k", "knee gather",
                                     "ov4096\nK1k", "K3072 gather",
-                                    "gather\n18.9KB/s", "gate\n22.7KB/s",
+                                    "chunk\n34.5KB/s", "chunkK2\n27KB/s",
+                                    "chunkK4\n16.9KB/s",
+                                    "gate\n22.7KB/s",
                                     "crown gate207"),
       offsets={"K8k\ncrown": (-64, 14), "K16k": (8, 12),
                "knee gather": (8, 18), "ov4096\nK1k": (-64, -12),
-               "K3072 gather": (8, 12), "gather\n18.9KB/s": (8, 10),
+               "K3072 gather": (8, 12), "chunk\n34.5KB/s": (8, 12),
+               "chunkK2\n27KB/s": (8, -16), "chunkK4\n16.9KB/s": (8, 14),
                "gate\n22.7KB/s": (10, -14), "crown gate207": (-72, -14)})
 _diamonds(ax)
-ax.set_xlim(0, 24)
+ax.set_xlim(0, 36)
 fig.tight_layout()
 fig.savefig("pareto_off50.png", dpi=120)
 print("saved pareto_off50.png")

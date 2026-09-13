@@ -239,3 +239,22 @@ All three stopping conditions met in one round. Ledger 235.
 **Qwen line (stopping b).** Qwen2.5-0.5B (Apache-2.0, 942 MB, new tokenizer/id-space so a separate line; MODEL_OVERRIDE hook, decoder needs the same env). One 28K-token segment: K1024 → 0.8559 @ 5.4 s (216 units); K2048 → 0.8442 @ 5.6 s (219 units, PEAK 5.32 GB — the practical crown pick, clean, no paging); K4096/PF4096 → **0.8391** @ 12–15 s, re-pinned EXACT twice (219/219 ×2) — the ratio crown (PEAK 9.11 GB pages over the 8 GB card, so time jitters 12–15 s, but bpb is deterministic math and rock-solid; kept as crowned record with a *paged-box asterisk, plus the big-V VRAM wall documented). Enablers: the chunk path (8.7 GB logits would OOM otherwise), the sparse path (17 GB dense blk avoided), and a deterministic alphabet clamp in uniform_cum_32 (floor auto-fits V; both sides agree with no new knobs). Stopping (b): 0.8442 < 0.9003 ✓.
 
 **Honest remainder.** 1 s still stands off: Qwen fires ONE forward and it costs 5.1 s — fewer forwards, costlier forwards; the floor moved, not removed. The obvious unbuilt combination is chunk+overlap (chunking is currently refused under OVERLAP>0; the SmolLM2 crown still runs classic). Qwen tuning barely started (3 runs: no gate/CONF/LAMBDA/PF ladder, no 1 MB ladder). Pareto plots stay SmolLM2-pure; the Qwen line lives in this section until it earns its own figure.
+
+## 30. Extreme challenges: 1 MB/s and 0.7 are physics-dead, ladder complete, middle nodes (2026-09-13)
+
+Ledger 243; §30 closes the "keep pushing" extreme goal.
+
+**Middle balanced nodes (Pareto gap-fillers, 3 new banks).** chunkK2 (K2048 ov0, chunked): 0.9187 @ 3.7 s = 27 KB/s, PEAK 1.62 GB — same ratio as non-chunk ov0K2 (0.9183) at 1.5× speed. chunkK4 (K4096 ov0, chunked): 0.9142 @ 5.9 s = 16.9 KB/s, PEAK 2.70 GB — dominates knee-gather and ov0K2 at the same speed (−52/−41e-4), fills the 0.914 band. Qwen gate (0.5B K1024 + gate 20/7): 0.8559 @ 4.8 s = 20.8 KB/s — identical to K1024 (216 units) at −0.6 s, sparse tables make the tight gate free. Pareto: +3 points (35 total).
+
+**Full ladder (100 KB → 1 MB → 10 MB, all 220/220, PEAK flat = no leak).**
+
+| scheme | 100 KB | 1 MB | 10 MB |
+|---|---|---|---|
+| speed chunked ov0/K1024 | 0.9276 @ **2.9 s** 34.5 KB/s 1.50 GB | 0.9360 @ **29.8 s** 34.3 KB/s 1.50 GB | **0.9042** @ **273.7 s** 37.4 KB/s 1.50 GB |
+| crown classic ov4096/K8192 | 0.9003 @ 24.0 s 4.2 KB/s 5.01 GB | 0.9078 @ 254.7 s 4.0 KB/s 5.01 GB | **0.8765** @ **1755 s** 5.8 KB/s 5.26 GB |
+
+Note: chunked ladder is anomalously "faster at scale" (37.4 > 34.3 — cache warms), and the crown drops **−313e-4** at 10 MB (0.9078→0.8765, long-text warmup bonus). Chart: `scale_time_size.png` six lines, sci-notation minors removed.
+
+**1 MB/s verdict: arithmetic-dead (zero new code).** Best measured 37.4 KB/s is **27×** short of 1024 KB/s. Floor: single forward 0.5–0.6 s (chunked, WDDM-resident); SmolLM2 needs 372 forwards → 190.9 s forward wall, Qwen single forward 4.5–5.1 s costlier — fewer forwards, costlier forwards. All faster paths already closed (ORT 149 s, quant ×4, batch ×2, multicore, PF/SDPA-mem, prefetch 7.8 s regression, ORT-fusion 11 s); no lever turns 0.5 s into 0.02 s. **Conclusion: 1 MB/s is unreachable on this hardware+model family; it needs a fully idle box + multiples of silicon + a new architecture (not an optimization).**
+
+**0.7 verdict: arithmetic-dead (zero new code, K4096 already shows diminishing).** Qwen 0.8391→0.7 needs **1391e-4**, while measured K ladder steps are −117→−51e-4 (diminishing; next double ~−20e-4), requiring ~70 doublings; meanwhile PEAK 4.85→5.32→9.11 GB already pages. The 0.5B ceiling sits in the 0.83 band; a larger model (3B class) multiplies traffic ×6 and forward cost ×-multiple, with the same diminishing tail. **Conclusion: 0.7 is outside the reachable domain on a single 8 GB card; it needs a larger model + retraining + a paged box, not sliced-100 KB optimization.**
