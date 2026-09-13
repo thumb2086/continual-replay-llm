@@ -4,6 +4,7 @@ Highlights the balanced point that beats SOTA on both axes.
 import math, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter, NullFormatter
 
 # All 100KB OFF50 points (current 35) + new carpet points
 PTS = [
@@ -57,6 +58,10 @@ ax.set_xlabel("KB/s (faster right, log)")
 ax.set_ylabel("score = (8/bpb) * log(KB/s)  (higher better)")
 ax.set_title("Balance curve (SOTA bpb≤0.9389) — top-right is best")
 ax.grid(True, which="both", alpha=0.3)
+ax.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
+ax.yaxis.set_minor_formatter(NullFormatter())
+ax.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
+ax.xaxis.set_minor_formatter(NullFormatter())
 # SOTA fail zone annotation
 ax.axhline(score(1,SOTA_BPB), color="orange", linestyle="--", label="SOTA ratio floor")
 ax.legend()

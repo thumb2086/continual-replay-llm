@@ -9,6 +9,12 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter, NullFormatter
+def _plain(ax):
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
+    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
+    ax.xaxis.set_minor_formatter(NullFormatter())
 
 # (label, KB/s, bpb). Fresh era only: current-code numbers (gather default
 # on unless noted). Pre-flash timings (BC7/ov6144/TRI0/ov5120/ov3072/ov2560/
@@ -73,6 +79,7 @@ def _base(title, ymin, ymax):
     ax.set_ylim(ymin, ymax)
     ax.legend(loc="lower left", bbox_to_anchor=(0.01, 0.01), fontsize=9)
     ax.grid(True, alpha=0.3)
+    _plain(ax)
     return fig, ax
 
 
