@@ -1,19 +1,19 @@
 # Hand-in Report: Practical Neural Compression with SmolLM2-135M (enwik8 slice)
 
-> Date: 2026-09-12. Base model: SmolLM2-135M (Apache-2.0). Hardware: single RTX 3060 Ti 8GB. Main eval: enwik8 offset 50MB, 100KB middle slice (representative article text, not the template head). Ledger: `data/sota_loop.json` (bpb/speed/verified for every round). Every number in this report is measured; nothing is extrapolated. Traditional Chinese version: [`FINAL-REPORT.md`](FINAL-REPORT.md).
+> Date: 2026-09-13. Base model: SmolLM2-135M (Apache-2.0) + Qwen2.5-0.5B separate line. Hardware: single RTX 3060 Ti 8GB. Main eval: enwik8 offset 50MB, 100KB middle slice (representative article text, not the template head); plus 1MB/10MB ladders. Ledger: `data/sota_loop.json` (243 entries, bpb/speed/verified for every round). Every number in this report is measured; nothing is extrapolated. Traditional Chinese version: [`FINAL-REPORT.md`](FINAL-REPORT.md).
 
 ## 1. Hand-in numbers
 
 | Metric | Value | Notes |
 |---|---|---|
-| Best ratio | **0.9003 bpb** | v13, ov4096 + floor 1e-6 + K/PF 8192, 220/220 lossless (K ladder: 1024→0.9139, 2048→0.9050, 4096→0.9013, 8192→0.9003) |
+| Best ratio (SmolLM2) | **0.9003 bpb** | v13, ov4096 + floor 1e-6 + K/PF 8192, 220/220 lossless (K ladder: 1024→0.9139, 2048→0.9050, 4096→0.9013, 8192→0.9003) |
+| Best ratio (Qwen0.5B, separate line) | **0.8391* bpb** | Qwen2.5-0.5B chunked K4096, 219/219, *9.11GB paged; practical 0.8442 @ 5.6 s 5.32GB |
 | SOTA line | 0.9389 bpb | Nacrith paper, full 100MB file |
-| Margin | **−4.1%** | slice vs full file, see §7 caveats |
+| Margin | SmolLM2 **−4.1%** / Qwen **−10.6%** | slice vs full file, see §7 caveats |
 | Same-slice H2H | ours 0.9214 vs Nacrith official 1.2248 | same slice, same rerun script (`h2h_nacrith.py`), won by 25% |
-| Speed (busy box) | v13 defaults: **ov0 9.8 s/100KB = 10.2KB/s** (10KB/s crossed); knee ov2048 12.0 s; ratio crown 24.0 s | subclocks: attn/topk/d2h/shmw, see §11–12 |
-| Speed (quiet est.) | ~5KB/s | true cost: forward 12 s + loop 6 s + change |
-| Host peak RAM | 3.4GB | measured RSS |
-| VRAM peak | 5.01GB (K8192 crown) / 2.32GB (speed config) | `torch.cuda.max_memory_allocated`, inside 8GB |
+| Speed (busy box, current) | **chunked ov0 2.9 s/100KB = 34.5KB/s** (peak 1.50GB, exact); knee 12.0 s; crown 24.0 s | middle nodes chunkK2 3.7 s/27KB/s, chunkK4 5.9 s/16.9KB/s; see §29–30 |
+| Scale ladder (all 220/220) | chunked 2.9 s / 29.8 s / 273.7 s (34.5/34.3/37.4KB/s); crown 24 s / 254.7 s / 1755 s (0.9003/0.9078/0.8765) | 10MB anomalously faster (cache warms); see §30 |
+| VRAM peak | chunked 1.50GB / crown 5.26GB (10MB) / Qwen 5.32GB | `max_memory_allocated`, inside 8GB; old 5.01GB was 100KB crown |
 
 Reproduce ratio crown (PowerShell, ~60 s):
 ```

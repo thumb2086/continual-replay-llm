@@ -22,9 +22,7 @@ Replay-first 的小串流語言模型持續學習——用在**實用神經文�
 ![速度-比率，硬區](pareto_off75.png)
 ![大小-時間與比率梯子](scale_time_size.png)
 
-Pareto（忙碌箱，全 220/220 驗證）：crown ov4096/K8192 0.9003 @ 24.0 秒，knee ov2048 0.9194 @ 12.0 秒（8.3 KB/s），最快 gather ov0/K1024 0.9272 @ 5.3 秒（18.9 KB/s）。放量梯子（全 220/220）：gather 速度 5.3 秒／56.9 秒／632 秒（100KB/1MB/10MB）——新 `tools/scale_plot.py`→`scale_time_size.png`。Pareto v5：30 點（含 K 階梯＋overlap 加密＋off75 硬區曲線＋兩顆 1MB 鑽石，含 1MB@off25 **0.9076**）。最終迭代：rope-cache 省 forward 24%（逐位一致）、gather 省 45%（預設開）。速度牆：WDDM 調度＋箱子搶佔（單機實測本體 0.02 秒/段）。腳本：`tools/pareto_plot.py`。
-
-穩健性（最佳配置，100KB 切片）：off0 0.8307（模板頭）／off25 0.9218／off50 0.9139／off75 **0.9662（這裡輸 SOTA——硬區間，如實保留）**；1MB flagship @ off50：**0.9222**（贏 SOTA 1.8%），220/220。10KB/s：未達（最快 12.0 秒）；forward 是 launch-bound，code 端無牌可打。
+Pareto（忙碌箱，全 220/220 驗證）：crown ov4096/K8192 0.9003 @ 24.0 秒，knee ov2048 0.9194 @ 12.0 秒（8.3 KB/s），最快 **chunked** ov0/K1024 0.9276 @ **2.9 秒**（34.5KB/s，1.50GB 峰值，逐位一致）——中間節點 chunkK2 0.9187 @ 3.7 秒／chunkK4 0.9142 @ 5.9 秒填空。放量梯子（全 220/220）：**chunked 速度 2.9 秒／29.8 秒／273.7 秒（100KB/1MB/10MB，34.5/34.3/37.4KB/s，峰值扁平 1.50GB）**；crown classic 24.0 秒／254.7 秒／**1755 秒**（0.9003/0.9078/0.8765——10MB 熱機）。Pareto 35 點（含 K 階梯＋overlap 加密＋off75 硬區＋1MB 鑽石，Qwen 0.8391* 另線）。迭代：rope-cache 省 24%、gather 省 45%、**chunked prefill+head 省 63% 峰值與 37% 時間**（全逐位一致）。腳本：`tools/pareto_plot.py`＋`tools/scale_plot.py`。
 
 ## 論文與報告（論文在哪？）
 

@@ -6,7 +6,7 @@
 ## Objective
 極致優化：挑戰1MB/s吞吐、0.7壓縮率；完整100KB到10MB速度測試；更新所有圖表；新增平衡比率與速度的中間節點。
 ## Stopping condition
-任一達成即 achieved：(a) 任一尺寸bank≥1MB/s（預算內）；(b) 任一尺寸bank≤0.7；(c) 完整梯子（100KB/1MB/10MB×速度/王座/中間線）＋圖表更新＋≥2個新中間節點bank。若物理 verdict 到不了則 unmet（附ladder＋證據）。（停止條件為推導，聲明如上。）
+任一達成即 achieved：(a) 任一尺寸bank>=1MB/s（預算內）；(b) 任一尺寸bank<=0.7；(c) 完整梯子（100KB/1MB/10MB×速度/王座/中間線）＋圖表更新＋>=2個新中間節點bank。若物理 verdict 到不了則 unmet（附ladder＋證據）。（停止條件為推導，聲明如上。）
 ## Must read first
 - ensemble/bpe_ensemble_v13.py：chunk三件套＋gate、Qwen env（MODEL_OVERRIDE/S2_FLOOR）
 - tools/scale_plot.py、tools/pareto_plot.py（31點現況）、logs/w_1m_chunk.log（34.3KB/s）
