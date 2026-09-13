@@ -278,3 +278,10 @@ Note: chunked ladder is anomalously "faster at scale" (37.4 > 34.3 — cache war
 
 **Conclusion:** No-HW best balance remains current chunk 34.5; chunkK2 is the speed-ratio knee, Qwen K2048 the ratio-side optimum. Three form new Pareto knee; curves updated.
 
+
+## 32. Figure polish: 4 charts, plain ticks, de-overlapped, log frontier (2026-09-13)
+
+**Fixes:** sci-notation side numbers (2×10¹) + vanished minors + overlapping labels (K8k/K16k, gate 22/25, 1MB diamonds) + left-clipped frontier (K16k 1.9 KB/s outside xlim) + top-right vs bottom-right confusion.
+**Changes:** all three plotters to plain g for both majors and minors; Pareto x to log 2→55/42, y widened 8.3→9.1/7.9→8.7 so top-right ideal empty corner shows; 1MB diamonds spread four-way; all labels via adjustText repel on 13×7 canvas, 6pt, full labeling without overlap; K16k included via xlim 1.5→60.
+**Figs:** one image per chart, 4 total — pareto_off50.png / pareto_off75.png / scale_time_size.png / balance_curve.png (balance now ratio vs speed, SOTA 8.52x, size=score; old orange score 0 line was log1 bug, fixed).
+

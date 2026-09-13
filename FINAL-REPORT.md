@@ -283,3 +283,10 @@ ledger 共 243 條；§30 補齊本輪「繼續極致優化」目標的第三個
 
 **結論：** 不換硬體下，最佳平衡仍是現行 chunk 34.5；中間節點 chunkK2 是速度-比率折衷最優（SOTA 內），Qwen K2048 是比率側最優。三點構成新 Pareto 膝蓋，曲線已更新。
 
+
+## 32. 圖表整頓：四圖 plain 刻度、去重疊、log 前沿（2026-09-13）
+
+**問題：** 側邊科學記號（2×10¹）+ 小刻度消失 + 標籤重疊（K8k/K16k、gate 22KB/s/25KB/s、1MB 紫鑽壓點）+ 左沿被切（K16k 1.9KB/s 落 xlim 外，藍前沿斷線）+ 右上/右下混淆。
+**修：** 三圖庫全改 plain（FuncFormatter g，小刻度亦 g），不 Null；Pareto x 改 log 2→55/42、y 放寬 8.3→9.1/7.9→8.7 使右上為佳的空角顯形；1MB 紫鑽按 chunked/gate207/off50/off25 四向外推；全部標籤改 adjustText 斥力（13×7 畫布、6pt），23 点全標且不疊；K16k 納入 xlim 1.5→60。
+**圖：** 一圖一表 4 張——pareto_off50.png / pareto_off75.png / scale_time_size.png / balance_curve.png（balance 改 比率 vs 速度，SOTA 回 8.52x，點大小=平衡分；原 score 0 橙線為 log1 bug 已修）。
+
