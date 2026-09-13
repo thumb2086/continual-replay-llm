@@ -117,7 +117,7 @@ def _dots(ax, pts, color, show, offsets):
 fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)",
                 8.3, 9.1)
 _dots(ax, OFF50, "steelblue", show=None, offsets=None)
-ax.set_xlim(2, 55)
+ax.set_xlim(1.5, 60)
 fig.tight_layout()
 fig.savefig("pareto_off50.png", dpi=120)
 print("saved pareto_off50.png")

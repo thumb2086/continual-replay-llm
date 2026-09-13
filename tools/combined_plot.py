@@ -103,7 +103,7 @@ def pareto_panel(ax, pts, title, ymin, ymax, color, show, offsets, xlim):
 
 ax1 = fig.add_subplot(gs[0,0]); pareto_panel(ax1, OFF50, "Pareto: article region (off50)", 8.3, 9.1, "steelblue",
     show=("K8k\ncrown","K3072 gather","chunk\n34.5KB/s","chunkK2\n27KB/s","chunkK4\n16.9KB/s","crown gate207"),
-    offsets={"K8k\ncrown":(-78,16),"K3072 gather":(10,14),"chunk\n34.5KB/s":(10,12),"chunkK2\n27KB/s":(10,10),"chunkK4\n16.9KB/s":(10,-18),"crown gate207":(-82,-16)}, xlim=55)
+    offsets={"K8k\ncrown":(-78,16),"K3072 gather":(10,14),"chunk\n34.5KB/s":(10,12),"chunkK2\n27KB/s":(10,10),"chunkK4\n16.9KB/s":(10,-18),"crown gate207":(-82,-16)}, xlim=60)
 ax2 = fig.add_subplot(gs[0,1]); pareto_panel(ax2, OFF75, "Pareto: hard region (off75)", 7.9, 8.7, "seagreen",
     show=("ov4096","ov0","gate207 gather\n25KB/s","K2048 gate\n22KB/s"),
     offsets={"ov4096":(-40,-14),"ov0":(12,-14),"gate207 gather\n25KB/s":(12,16),"K2048 gate\n22KB/s":(12,-20)}, xlim=42)
