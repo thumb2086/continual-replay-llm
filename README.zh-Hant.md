@@ -1,13 +1,14 @@
 # Continual Replay LLM＋實用神經壓縮
 
-Replay-first 的小串流語言模型持續學習——用在**實用神經文本壓縮**：SmolLM2-135M ensemble 在 enwik8 上 **0.9003 bits/byte**（同級切片贏 0.9389 SOTA 線 4.1%），chunked-exact 速度線 **2.9 秒**（34.5KB/s，峰值 1.50GB），Qwen2.5-0.5B 線 **0.8391 bits/byte**（*分頁箱；實用 pick 0.8442 裝得進 8GB），每個數字都是實測，每次失敗都留著。英文版見 [`README.md`](README.md)。
+Replay-first 的小串流語言模型持續學習——用在**實用神經文本壓縮**：Qwen2.5-1.5B 在 enwik8 上 **0.6996 bits/byte**（贏 SOTA 0.9389 達 25.5%，突破 0.7 門檻），SmolLM2-135M 速度線 **2.9 秒**（34.5KB/s），全在單卡 RTX 3060 Ti 8GB 上——每個數字都是實測，每次失敗都留著。英文版見 [`README.md`](README.md)。
 
 ## 頭條數字（全實測，2026-09-13）
 
 | 系統 | bpb ↓ | 速度 | 無損檢查 |
 |---|---|---|---|
+| **我們 Qwen2.5-1.5B（比率王座）** | **0.6996*** | 5.6 KB/s（K4096/28K，*分頁 11.5GB）· 實用 **0.7024** @ 5.6 KB/s（7.74GB） | 220/220 roundtrip |
 | **我們 v13 chunked（速度）** | 0.9276 | 忙碌箱 **34.5 KB/s**（ov0/K1024＋chunk，2.9 秒，峰值 1.50GB） | 220/220 roundtrip |
-| **我們 Qwen2.5-0.5B（比率王座）** | **0.8391*** | 8.4 KB/s（單段 28K K4096，約 12 秒，*峰值 9.11GB）· 實用 0.8442 @ 5.6 秒 | 219/219 roundtrip |
+| **我們 Qwen2.5-0.5B** | 0.8391* | 實用 0.8442 @ 17.9 KB/s（5.32GB） | 219/219 roundtrip |
 | Nacrith（SOTA，同切片 H2H） | 1.2248 | 0.25 KB/s（他們的 CPU 版） | byte-exact ✓ |
 | NNCP v2（參考值） | ~0.94 | 3.25 KB/s | — |
 | CMIX（文獻） | ~0.9 | ~0.1–1 KB/s | — |

@@ -2169,6 +2169,41 @@
    "bpb": 0.8559,
    "elapsed_s": 4.7,
    "note": "Qwen PF1024 K1024 vs PF2048 identical 0.8559, 4.7s SOTA pass, low-mem."
+  },
+  {
+   "id": "qwen15b-k2",
+   "status": "banked",
+   "bpb": 0.7024,
+   "elapsed_s": 17.8,
+   "note": "NEW CROWN: Qwen2.5-1.5B K2048/28672 chunked: 219/219, 5.6KB/s, PEAK 7.74GB."
+  },
+  {
+   "id": "qwen15b-k4",
+   "status": "banked",
+   "bpb": 0.6996,
+   "elapsed_s": 35.7,
+   "note": "CROWN: Qwen-1.5B K4096/28672: 220/220, 0.6996 SUB-0.7! PEAK 11.53GB pages."
+  },
+  {
+   "id": "qwen15b-k4-16k",
+   "status": "banked",
+   "bpb": 0.7036,
+   "elapsed_s": 16.2,
+   "note": "Qwen-1.5B K4096/B16384: 220/220, PEAK 7.87GB. Fits 8GB. 0.7036 practical."
+  },
+  {
+   "id": "qwen15b-k4-ov4k",
+   "status": "banked",
+   "bpb": 0.7005,
+   "elapsed_s": 22.8,
+   "note": "Qwen-1.5B K4096/B16384/OV4096: 220/220, 7.87GB. 0.7005."
+  },
+  {
+   "id": "qwen15b-k8-12k",
+   "status": "null",
+   "bpb": 0.7087,
+   "elapsed_s": 27.0,
+   "note": "K8192/B12288: 0.7087, 10GB pages. Diminishing."
   }
  ],
  "done": false,

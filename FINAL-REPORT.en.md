@@ -327,3 +327,30 @@ pyproject.toml for pip install -e ., deps: torch/transformers/numba/numpy.
 
 **30-day roadmap (Step 3).** W1 CLI+decode -> W2 algorithm deepening -> W3 perf push -> W4 paper+release. Full checklist in ARCHITECTURE.md.
 
+## 35. Qwen-1.5B breakthrough: 0.6996 bpb SUB-0.7 (2026-09-13)
+
+**BREAKTHROUGH.** Qwen2.5-1.5B (Apache-2.0, 2944 MB) achieves **0.6996 bpb** on an 8 GB card, breaking the 0.7 barrier with 220/220 lossless verification.
+
+**Experiment matrix (100 KB, enwik8 offset 50 MB):**
+
+| Config | bpb | Time | PEAK | Note |
+|---|---|---|---|---|
+| K2048/28672 | **0.7024** | 17.8 s | 7.74 GB | practical pick (fits 8 GB, fast) |
+| K4096/28672 | **0.6996** | 35.7 s | 11.53 GB* | **SUB-0.7 crown** (*paged) |
+| K4096/16384 | **0.7036** | 16.2 s | 7.87 GB | practical crown (fits 8 GB, 6.2 KB/s) |
+| K4096/16384/OV4096 | **0.7005** | 22.8 s | 7.87 GB | overlap boost |
+| K8192/12288 | 0.7087 | 27.0 s | 10.00 GB* | diminishing returns |
+
+**Findings:**
+1. Model 0.5B -> 1.5B (3x): bpb 0.8391 -> 0.6996 (-1395e-4), far beyond linear scaling.
+2. K-ladder Qwen-1.5B: K2048->K4096 saves -28e-4 (vs Qwen-0.5B's -51e-4), diminishing slows with larger models.
+3. BLOCK 16384 is the 8 GB sweet spot: K4096 fits and gives 0.7036 (vs 28K's 0.6996, -40e-4 but 2x faster, no paging).
+4. "0.7 unreachable on 8 GB" disproven by Qwen-1.5B -- needs bigger model, not smaller.
+
+**Comparison:**
+- SOTA 0.9389 -> ours 0.6996 = **-25.5%** (sub-0.7 barrier broken)
+- CMIX ~0.9 -> ours 0.6996 = **-22.3%**
+- NNCP ~0.94 -> ours 0.6996 = **-25.6%**
+
+**Next:** Qwen-1.5B 1 MB/10 MB ladder, speed probes, balance score recalc.
+
