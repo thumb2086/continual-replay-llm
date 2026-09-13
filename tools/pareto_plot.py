@@ -75,10 +75,11 @@ def _base(title, ymin, ymax):
                label="NNCP v2 speed 3.25KB/s (slower left)")
     ax.set_xlabel("KB/s (faster right ->)")
     ax.set_ylabel("compression ratio x (higher better ^)")
-    ax.set_title(title + "  [top-right is best]")
+    ax.set_title(title + "  [top-right is best — frontier moves to top-right]")
     ax.set_ylim(ymin, ymax)
+    ax.set_xscale("log")
     ax.legend(loc="lower left", bbox_to_anchor=(0.01, 0.01), fontsize=9)
-    ax.grid(True, alpha=0.3)
+    ax.grid(True, which="both", alpha=0.3)
     _plain(ax)
     return fig, ax
 
@@ -116,7 +117,7 @@ def _diamonds(ax):
 
 # ---- plot 1: off50 frontier ----
 fig, ax = _base("Speed vs ratio, article region (SmolLM2-135M, measured)",
-                8.4, 9.0)
+                8.3, 9.1)
 _dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K16k", "knee gather",
                                     "ov4096\nK1k", "K3072 gather",
                                     "chunk\n34.5KB/s", "chunkK2\n27KB/s",
@@ -129,14 +130,14 @@ _dots(ax, OFF50, "steelblue", show=("K8k\ncrown", "K16k", "knee gather",
                "chunkK2\n27KB/s": (8, -16), "chunkK4\n16.9KB/s": (8, 14),
                "gate\n22.7KB/s": (10, -14), "crown gate207": (-72, -14)})
 _diamonds(ax)
-ax.set_xlim(0, 36)
+ax.set_xlim(2, 50)
 fig.tight_layout()
 fig.savefig("pareto_off50.png", dpi=120)
 print("saved pareto_off50.png")
 
 # ---- plot 2: off75 hard region ----
 fig, ax = _base("Speed vs ratio, hard region (SmolLM2-135M, measured)",
-                8.05, 8.6)
+                7.9, 8.7)
 _dots(ax, OFF75, "seagreen", show=("ov4096", "ov3072", "ov0",
                                     "gate207 gather\n25KB/s",
                                     "K2048 gate\n22KB/s"),
@@ -144,7 +145,7 @@ _dots(ax, OFF75, "seagreen", show=("ov4096", "ov3072", "ov0",
                "gate207 gather\n25KB/s": (10, 10),
                "K2048 gate\n22KB/s": (10, -14)})
 _diamonds(ax)
-ax.set_xlim(0, 28)
+ax.set_xlim(2, 40)
 fig.tight_layout()
 fig.savefig("pareto_off75.png", dpi=120)
 print("saved pareto_off75.png")

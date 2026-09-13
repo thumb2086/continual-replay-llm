@@ -70,11 +70,11 @@ SOTA_BPB = 0.9389
 SOTA_RATIO = 8.0 / SOTA_BPB
 NNCP_KBS = 3.25
 def plain(ax):
-    # force plain numbers on both axes, no 1x10^1
+    # plain numbers, keep minor ticks visible (no 1x10^1)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
-    ax.yaxis.set_minor_formatter(NullFormatter())
+    ax.yaxis.set_minor_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
     ax.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
-    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.xaxis.set_minor_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
 def score(kbs,bpb): return (8/bpb)*math.log(kbs) if kbs>0 else 0
 
 fig = plt.figure(figsize=(14, 14))
@@ -98,15 +98,15 @@ def pareto_panel(ax, pts, title, ymin, ymax, color, show, offsets, xlim):
         ax.scatter([x],[8/b], s=120, marker="D", color="purple", edgecolors="black", zorder=4)
         # only label on left panel to avoid duplication
     ax.set_xlabel("KB/s (faster right ->)"); ax.set_ylabel("compression ratio x (higher better ^)")
-    ax.set_title(title+"  [top-right is best]", fontsize=9); ax.set_ylim(ymin,ymax); ax.set_xlim(0,xlim)
-    ax.grid(True, alpha=0.3); ax.legend(fontsize=7, loc="lower left"); plain(ax)
+    ax.set_title(title+"  [top-right is best — frontier moves to top-right]", fontsize=9); ax.set_ylim(ymin,ymax); ax.set_xscale("log"); ax.set_xlim(2, xlim)
+    ax.grid(True, which="both", alpha=0.3); ax.legend(fontsize=7, loc="lower left"); plain(ax)
 
-ax1 = fig.add_subplot(gs[0,0]); pareto_panel(ax1, OFF50, "Pareto: article region (off50)", 8.4, 9.0, "steelblue",
+ax1 = fig.add_subplot(gs[0,0]); pareto_panel(ax1, OFF50, "Pareto: article region (off50)", 8.3, 9.1, "steelblue",
     show=("K8k\ncrown","K16k","knee gather","ov4096\nK1k","K3072 gather","chunk\n34.5KB/s","chunkK2\n27KB/s","chunkK4\n16.9KB/s","gate\n22.7KB/s","crown gate207"),
-    offsets={"K8k\ncrown":(-64,14),"K16k":(8,12),"knee gather":(8,18),"ov4096\nK1k":(-64,-12),"K3072 gather":(8,12),"chunk\n34.5KB/s":(8,12),"chunkK2\n27KB/s":(8,-16),"chunkK4\n16.9KB/s":(8,14),"gate\n22.7KB/s":(10,-14),"crown gate207":(-72,-14)}, xlim=36)
-ax2 = fig.add_subplot(gs[0,1]); pareto_panel(ax2, OFF75, "Pareto: hard region (off75)", 8.05, 8.6, "seagreen",
+    offsets={"K8k\ncrown":(-64,14),"K16k":(8,12),"knee gather":(8,18),"ov4096\nK1k":(-64,-12),"K3072 gather":(8,12),"chunk\n34.5KB/s":(8,12),"chunkK2\n27KB/s":(8,-16),"chunkK4\n16.9KB/s":(8,14),"gate\n22.7KB/s":(10,-14),"crown gate207":(-72,-14)}, xlim=50)
+ax2 = fig.add_subplot(gs[0,1]); pareto_panel(ax2, OFF75, "Pareto: hard region (off75)", 7.9, 8.7, "seagreen",
     show=("ov4096","ov3072","ov0","gate207 gather\n25KB/s","K2048 gate\n22KB/s"),
-    offsets={"ov4096":(-52,-10),"ov3072":(10,16),"ov0":(10,-8),"gate207 gather\n25KB/s":(10,10),"K2048 gate\n22KB/s":(10,-14)}, xlim=28)
+    offsets={"ov4096":(-52,-10),"ov3072":(10,16),"ov0":(10,-8),"gate207 gather\n25KB/s":(10,10),"K2048 gate\n22KB/s":(10,-14)}, xlim=40)
 
 # scale
 def kbs(sz,sec): return [s/t for s,t in zip(sz,sec)]
@@ -116,7 +116,8 @@ for n,ts in TIME.items():
     ax3.loglog(xs,ys,"o-", label=n)
 ax3.set_xlabel("file size (KB, log)"); ax3.set_ylabel("throughput (KB/s, higher better ^)")
 ax3.set_title("Throughput ladder [top-right is best]", fontsize=9); ax3.set_xticks(SIZES_KB); ax3.set_xticklabels(SIZES_LBL)
-ax3.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}")); ax3.yaxis.set_minor_formatter(NullFormatter()); ax3.xaxis.set_minor_formatter(NullFormatter())
+ax3.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}")); ax3.yaxis.set_minor_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
+ax3.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}")); ax3.xaxis.set_minor_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
 ax3.grid(True, which="both", alpha=0.3); ax3.legend(fontsize=6)
 
 ax4 = fig.add_subplot(gs[1,1])
@@ -126,7 +127,9 @@ for n,bs in BPB.items():
 ax4.axhline(SOTA_RATIO, color="red", linestyle=":", label="SOTA 8.52x")
 ax4.set_xlabel("file size (KB, log)"); ax4.set_ylabel("compression ratio x (higher better ^)")
 ax4.set_title("Ratio vs scale [top-right is best]", fontsize=9); ax4.set_xticks(SIZES_KB); ax4.set_xticklabels(SIZES_LBL)
-ax4.grid(True, which="both", alpha=0.3); ax4.legend(fontsize=6); ax4.xaxis.set_minor_formatter(NullFormatter())
+ax4.grid(True, which="both", alpha=0.3); ax4.legend(fontsize=6)
+ax4.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}")); ax4.yaxis.set_minor_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
+ax4.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}")); ax4.xaxis.set_minor_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
 
 # balance
 PTS = OFF50 + [("Qwen K2k",100/5.6,0.8442),("Qwen K4k*",100/12.2,0.8391)]
@@ -141,8 +144,8 @@ for x,y,l in zip(xs,ys,[p[0] for p in PTS]):
 ax5.set_xscale("log"); ax5.set_xlabel("KB/s (faster right, log)"); ax5.set_ylabel("score = (8/bpb)*log(KB/s)")
 ax5.set_title(f"Balance curve (SOTA bpb<={SOTA_BPB}) — best = {best[0]}  score={score(best[1],best[2]):.1f}", fontsize=9)
 ax5.grid(True, which="both", alpha=0.3)
-ax5.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}")); ax5.yaxis.set_minor_formatter(NullFormatter())
-ax5.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}")); ax5.xaxis.set_minor_formatter(NullFormatter())
+ax5.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}")); ax5.yaxis.set_minor_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
+ax5.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}")); ax5.xaxis.set_minor_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
 
 fig.suptitle("Combined: Pareto + Scale + Balance (all measured, no extrapolation)", fontsize=11)
 fig.tight_layout(rect=[0,0,1,0.96])
