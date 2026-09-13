@@ -1,6 +1,5 @@
-"""Balance curve: score = (8/bpb) * log(KB/s), SOTA-constrained.
-Highlights the balanced point that beats SOTA on both axes.
-"""
+"""Balance: compression ratio vs speed, SOTA-constrained.
+Score used only to pick the balanced best; y is plain ratio (higher better)."""
 import math, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -39,32 +38,35 @@ PTS = [
 def score(kbs,bpb): return (8/bpb)*math.log(kbs) if kbs>0 else 0
 
 SOTA_BPB=0.9389
+SOTA_RATIO=8.0/SOTA_BPB
 # filter SOTA-constrained (bpb<=SOTA)
 sota_pts=[p for p in PTS if p[2]<=SOTA_BPB]
 best=max(sota_pts, key=lambda p: score(p[1],p[2]))
-print(f"Balanced (SOTA-constrained) = {best[0]} score={score(best[1],best[2]):.2f} {best[1]:.1f}KB/s {best[2]:.4f}")
+print(f"Balanced (SOTA-constrained) = {best[0]} score={score(best[1],best[2]):.2f} {best[1]:.1f}KB/s {best[2]:.4f} ratio={8/best[2]:.2f}")
 
 fig, ax = plt.subplots(figsize=(10,5))
 xs=[p[1] for p in PTS]
-ys=[score(p[1],p[2]) for p in PTS]
+ys=[8/p[2] for p in PTS]
 labels=[p[0] for p in PTS]
-ax.scatter(xs, ys, c=['red' if p==best else 'steelblue' for p in PTS], s=80, edgecolors='black', zorder=3)
+# size by score, color best red
+sizes=[60+80*(score(p[1],p[2])/score(best[1],best[2])) for p in PTS]
+ax.scatter(xs, ys, c=['red' if p==best else 'steelblue' for p in PTS], s=sizes, edgecolors='black', zorder=3, alpha=0.85)
 for x,y,l in zip(xs,ys,labels):
     if l in (best[0], "K8k crown", "Qwen K4k*", "chunkK2 27", "chunkK4 16.9"):
         ax.annotate(l, (x,y), textcoords="offset points", xytext=(6,6), fontsize=8,
                     arrowprops=dict(arrowstyle="-", color="gray", lw=0.6))
 ax.set_xscale("log")
 ax.set_xlabel("KB/s (faster right, log)")
-ax.set_ylabel("score = (8/bpb) * log(KB/s)  (higher better)")
-ax.set_title("Balance curve (SOTA bpb≤0.9389) — top-right is best")
+ax.set_ylabel("compression ratio x = 8/bpb (higher better ^)")
+ax.set_title("Balance: ratio vs speed (SOTA 8.52x) — top-right is best, size=balanced score")
 ax.grid(True, which="both", alpha=0.3)
+ax.axhline(SOTA_RATIO, color="red", linestyle="--", lw=1, label="SOTA 8.52x (worse below)")
+ax.axvline(3.25, color="orange", linestyle="--", lw=1, label="NNCP 3.25KB/s (slower left)")
 ax.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
 ax.yaxis.set_minor_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
 ax.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
 ax.xaxis.set_minor_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
-# SOTA fail zone annotation
-ax.axhline(score(1,SOTA_BPB), color="orange", linestyle="--", label="SOTA ratio floor")
-ax.legend()
+ax.legend(fontsize=8, loc="lower left")
 fig.tight_layout()
 fig.savefig("balance_curve.png", dpi=130)
 print("saved balance_curve.png")

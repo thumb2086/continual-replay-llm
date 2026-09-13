@@ -136,16 +136,19 @@ PTS = OFF50 + [("Qwen K2k",100/5.6,0.8442),("Qwen K4k*",100/12.2,0.8391)]
 sota_pts=[p for p in PTS if p[2]<=SOTA_BPB]
 best=max(sota_pts, key=lambda p: score(p[1],p[2]))
 ax5 = fig.add_subplot(gs[2,:])
-xs=[p[1] for p in PTS]; ys=[score(p[1],p[2]) for p in PTS]
-ax5.scatter(xs, ys, c=['red' if p==best else 'steelblue' for p in PTS], s=70, edgecolors='black', zorder=3)
+xs=[p[1] for p in PTS]; ys=[8/p[2] for p in PTS]
+sizes=[50+60*(score(p[1],p[2])/score(best[1],best[2])) for p in PTS]
+ax5.scatter(xs, ys, c=['red' if p==best else 'steelblue' for p in PTS], s=sizes, edgecolors='black', zorder=3, alpha=0.85)
 for x,y,l in zip(xs,ys,[p[0] for p in PTS]):
     if l in (best[0], "K8k\ncrown", "Qwen K4k*", "chunkK2\n27KB/s", "chunkK4\n16.9KB/s"):
         ax5.annotate(l,(x,y), textcoords="offset points", xytext=(6,6), fontsize=7, arrowprops=dict(arrowstyle="-", color="gray", lw=0.6))
-ax5.set_xscale("log"); ax5.set_xlabel("KB/s (faster right, log)"); ax5.set_ylabel("score = (8/bpb)*log(KB/s)")
-ax5.set_title(f"Balance curve (SOTA bpb<={SOTA_BPB}) — best = {best[0]}  score={score(best[1],best[2]):.1f}", fontsize=9)
+ax5.set_xscale("log"); ax5.set_xlabel("KB/s (faster right, log)"); ax5.set_ylabel("compression ratio x = 8/bpb (higher better ^)")
+ax5.set_title(f"Balance: ratio vs speed (SOTA 8.52x) — best = {best[0]}  score={score(best[1],best[2]):.1f}  size=score", fontsize=9)
+ax5.axhline(SOTA_RATIO, color="red", linestyle="--", lw=1, label="SOTA 8.52x")
 ax5.grid(True, which="both", alpha=0.3)
 ax5.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}")); ax5.yaxis.set_minor_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
 ax5.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}")); ax5.xaxis.set_minor_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
+ax5.legend(fontsize=7, loc="lower left")
 
 fig.suptitle("Combined: Pareto + Scale + Balance (all measured, no extrapolation)", fontsize=11)
 fig.tight_layout(rect=[0,0,1,0.96])
