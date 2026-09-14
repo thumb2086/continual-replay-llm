@@ -2337,6 +2337,27 @@
    "bpb": 0.6874,
    "elapsed_s": 182.3,
    "note": "1MB Qwen-3B K2048/B4096+gate: 220/220, 5.6KB/s, PEAK 7.39GB. Better ratio."
+  },
+  {
+   "id": "qwen3b-k512b4",
+   "status": "banked",
+   "bpb": 0.6813,
+   "elapsed_s": 15.5,
+   "note": "100KB K512/B4096+gate: 216/220, 15.5s, 7.23GB."
+  },
+  {
+   "id": "qwen3b-k1024b2",
+   "status": "banked",
+   "bpb": 0.6845,
+   "elapsed_s": 9.7,
+   "note": "100KB K1024/B2048+gate: 218/220, 9.7s, 6.57GB. FASTEST Qwen-3B."
+  },
+  {
+   "id": "qwen3b-k1024b1",
+   "status": "null",
+   "bpb": 0.7086,
+   "elapsed_s": 10.3,
+   "note": "100KB K1024/B1024+gate: 218/220, 10.3s, 6.50GB. Slower than B2048 (overhead)."
   }
  ],
  "done": false,
