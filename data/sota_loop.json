@@ -2316,6 +2316,27 @@
    "bpb": 0.665,
    "elapsed_s": 19.8,
    "note": "Qwen-3B K2048/B4096: 218/218, 19.8s, PEAK 7.39GB. FITS 8GB! New crown."
+  },
+  {
+   "id": "qwen3b-k1b4",
+   "status": "banked",
+   "bpb": 0.6706,
+   "elapsed_s": 15.4,
+   "note": "100KB Qwen-3B K1024/B4096+gate: 218/220, 15.4s, 7.28GB. Fits 8GB."
+  },
+  {
+   "id": "qwen3b-1mb-k1b4",
+   "status": "banked",
+   "bpb": 0.694,
+   "elapsed_s": 134.8,
+   "note": "1MB Qwen-3B K1024/B4096+gate: 220/220, 7.6KB/s, PEAK 7.28GB. SUB-0.7 at 1MB!"
+  },
+  {
+   "id": "qwen3b-1mb-k2b4",
+   "status": "banked",
+   "bpb": 0.6874,
+   "elapsed_s": 182.3,
+   "note": "1MB Qwen-3B K2048/B4096+gate: 220/220, 5.6KB/s, PEAK 7.39GB. Better ratio."
   }
  ],
  "done": false,
