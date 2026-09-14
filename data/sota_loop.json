@@ -2260,6 +2260,34 @@
    "bpb": 0.7319,
    "elapsed_s": 68.7,
    "note": "B8192 CHUNK2k/1k: same bpb 0.7319, 68.7s slower (smaller chunks = more overhead). CHUNK4096/2048 optimal."
+  },
+  {
+   "id": "qwen15b-k512b8-1mb",
+   "status": "banked",
+   "bpb": 0.7533,
+   "elapsed_s": 53.5,
+   "note": "1MB K512/B8192+gate: 220/220, 19.1KB/s, PEAK 5.55GB. Fastest but worst ratio."
+  },
+  {
+   "id": "smol360m",
+   "status": "dead",
+   "bpb": 2.22,
+   "elapsed_s": 9.4,
+   "note": "SmolLM2-360M: 2.22 bpb CATASTROPHIC. Different training target. Skip."
+  },
+  {
+   "id": "qwen15b-lam95",
+   "status": "null",
+   "bpb": 0.7347,
+   "elapsed_s": 60.4,
+   "note": "K2048/B8192 LAM=0.95: +28e-4. Qwen 1.5B: more LLM = better, cache hurts."
+  },
+  {
+   "id": "qwen15b-lam90",
+   "status": "null",
+   "bpb": 0.7405,
+   "elapsed_s": 63.9,
+   "note": "K2048/B8192 LAM=0.90: +86e-4. Bigram cache hurts more at lower LAM."
   }
  ],
  "done": false,
