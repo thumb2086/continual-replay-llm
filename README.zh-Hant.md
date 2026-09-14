@@ -21,6 +21,7 @@ Replay-first 的小串流語言模型持續學習——用在**實用神經文�
 
 ![Pareto 文章區，右上為理想空角（tradeoff）](pareto_off50.png)
 ![Pareto 硬區](pareto_off75.png)
+![全模型 Pareto：SmolLM2 + Qwen-1.5B + Qwen-3B](pareto_all_models.png)
 ![Scale 梯子，右上為佳](scale_time_size.png)
 ![Balance 平衡分，右上為佳](balance_curve.png)
 

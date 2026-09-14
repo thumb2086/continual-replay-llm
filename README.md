@@ -23,6 +23,7 @@ Classical codecs are ~10⁶× faster at 2–3× worse ratio — different worlds
 
 ![Pareto: article region, top-right is best (ideal corner empty = tradeoff)](pareto_off50.png)
 ![Pareto: hard region](pareto_off75.png)
+![All models Pareto: SmolLM2 + Qwen-1.5B + Qwen-3B](pareto_all_models.png)
 ![Scale ladders, top-right is best](scale_time_size.png)
 ![Balance score, top-right is best](balance_curve.png)
 

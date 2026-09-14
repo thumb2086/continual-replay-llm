@@ -61,6 +61,27 @@ MB1 = [
     ("1MB gate207", 1024 / 49.4, 0.9359),
     ("1MB crown-g", 1024 / 201.6, 0.9079),
     ("1MB chunked", 1024 / 29.8, 0.9360),
+    ("1MB qwen1.5b", 1024 / 59.5, 0.7319),
+    ("1MB qwen3b", 1024 / 79.9, 0.7103),
+]
+# Qwen-1.5B line (100KB, separate because different tokenizer/model)
+QWEN15B = [
+    ("qwen1.5b\nK1024/B8192", 100 / 5.51, 0.7402),
+    ("qwen1.5b\nK2048/B8192", 100 / 5.95, 0.7319),
+    ("qwen1.5b\nK1024/B16384", 100 / 8.04, 0.7324),
+    ("qwen1.5b\nK4096/B8192", 100 / 9.48, 0.7281),
+    ("qwen1.5b\nK2048/B16384", 100 / 19.79, 0.7208),
+    ("qwen1.5b\nK2048/B28672", 100 / 25.97, 0.7193),
+    ("qwen1.5b\nK4096/16384ov", 100 / 22.8, 0.7005),
+    ("qwen1.5b\nK4096/28672*", 100 / 35.7, 0.6996),
+]
+# Qwen-3B line (100KB)
+QWEN3B = [
+    ("qwen3b\nK1024/B2048", 100 / 9.7, 0.6845),
+    ("qwen3b\nK1024/B4096", 100 / 15.4, 0.6706),
+    ("qwen3b\nK2048/B4096", 100 / 19.8, 0.6650),
+    ("qwen3b\nK2048/B8192", 100 / 30.0, 0.6573),
+    ("qwen3b\nK2048/B28672*", 100 / 263.4, 0.6450),
 ]
 SOTA_BPB = 0.9389          # Nacrith paper, full file
 SOTA_RATIO = 8.0 / SOTA_BPB  # 8.52x: higher-is-better twin of the SOTA line
@@ -130,4 +151,54 @@ ax.set_xlim(2, 42)
 fig.tight_layout()
 fig.savefig("pareto_off75.png", dpi=120)
 print("saved pareto_off75.png")
-print(f"points: {len(OFF50) + len(OFF75) + len(MB1)}")
+
+# ---- plot 3: all models combined (Qwen + SmolLM2) ----
+from adjustText import adjust_text as _adj
+fig, ax = plt.subplots(figsize=(14, 8))
+ax.axhline(SOTA_RATIO, color="red", linestyle="--", linewidth=1, label="SOTA 8.52x")
+ax.axvline(NNCP_KBS, color="orange", linestyle="--", linewidth=1, label="NNCP 3.25KB/s")
+# SmolLM2 line (reference)
+_sx = [p[1] for p in OFF50]
+_sy = [8/p[2] for p in OFF50]
+_order = sorted(range(len(OFF50)), key=lambda i: OFF50[i][1])
+ax.plot([_sx[i] for i in _order], [_sy[i] for i in _order], "o-", color="steelblue", lw=1.2, alpha=0.5, label="SmolLM2-135M")
+# Qwen-1.5B line
+_qx = [p[1] for p in QWEN15B]
+_qy = [8/p[2] for p in QWEN15B]
+_order = sorted(range(len(QWEN15B)), key=lambda i: QWEN15B[i][1])
+ax.plot([_qx[i] for i in _order], [_qy[i] for i in _order], "s-", color="darkorange", lw=1.5, label="Qwen-1.5B")
+for lab, x, b in QWEN15B:
+    ax.scatter([x], [8/b], s=70, marker="s", color="darkorange", edgecolors="black", zorder=3)
+# Qwen-3B line
+_tx = [p[1] for p in QWEN3B]
+_ty = [8/p[2] for p in QWEN3B]
+_order = sorted(range(len(QWEN3B)), key=lambda i: QWEN3B[i][1])
+ax.plot([_tx[i] for i in _order], [_ty[i] for i in _order], "^-", color="crimson", lw=1.5, label="Qwen-3B")
+for lab, x, b in QWEN3B:
+    ax.scatter([x], [8/b], s=70, marker="^", color="crimson", edgecolors="black", zorder=3)
+# 1MB diamonds
+for lab, x, b in MB1:
+    y = 8/b
+    ax.scatter([x], [y], s=120, marker="D", color="purple", edgecolors="black", zorder=4)
+# Labels
+_texts = []
+for lab, x, b in QWEN15B:
+    t = ax.text(x, 8/b, lab.replace("\n"," "), fontsize=6, ha="center", va="bottom", color="darkorange")
+    _texts.append(t)
+for lab, x, b in QWEN3B:
+    t = ax.text(x, 8/b, lab.replace("\n"," "), fontsize=6, ha="center", va="bottom", color="crimson")
+    _texts.append(t)
+_adj(_texts, ax=ax, arrowprops=dict(arrowstyle="-", color="gray", lw=0.5), expand_points=(1.3,1.5), force_text=0.3, lim=80)
+ax.set_xscale("log")
+ax.set_xlabel("KB/s (faster right, log)")
+ax.set_ylabel("compression ratio x = 8/bpb (higher better ^)")
+ax.set_title("All models: Pareto (top-right is best)")
+ax.set_xlim(0.3, 60)
+ax.set_ylim(10, 14)
+ax.grid(True, which="both", alpha=0.3)
+ax.legend(fontsize=8)
+_plain(ax)
+fig.tight_layout()
+fig.savefig("pareto_all_models.png", dpi=120)
+print("saved pareto_all_models.png")
+print(f"points: {len(OFF50) + len(OFF75) + len(MB1) + len(QWEN15B) + len(QWEN3B)}")
