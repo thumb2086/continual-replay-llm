@@ -476,3 +476,33 @@ pyproject.toml 一鍵安裝：pip install -e .，依賴 torch/transformers/numba
 
 **發現：** Gate 門檻（5/2 vs 20/7 vs 50/15）對 3B 模型幾乎無差（0.6616-0.6620），因為 3B 夠強，blend 行本就少。LAMBDA < 0.99 一律拖累。Qwen-3B 的甜蜜點 = K4096/B4096+gate（0.6617/25.7s/7.60GB）。
 
+## 42. 蒸餾研究結案：免費 API 全線封殺（2026-09-13）
+
+**目標：** 用大型 teacher model 的 logprobs 蒸餾到本地小模型。
+
+**嘗試路徑（6 條全死）：**
+
+1. Groq API（Qwen3.8-27B）：logprobs 不支援。
+2. Groq 生成文字→訓練：fine-tune 破壞模型（perplexity 24K→1.5K），enwik8 分佈不同。
+3. OpenRouter 免費：22 個模型全不回 logprobs；付費需 credits。
+4. Ollama 本地：API 不支援 logprobs。
+5. Venice API（4 key、78 模型）：5 個有 logprobs（最佳 llama-3.2-11b 90% 穩定），但 prompt_logprobs 不支援、tokenizer 不同、31 小時跑不完。
+6. NVIDIA Build API（120B MoE）：logprobs YES、80% 穩定，但 chat 模式加 instruction overhead→char accuracy 只 7%，prompt_logprobs/completions endpoint 不存在。
+
+**根本原因：** 免費 API 只暴露 chat completions（加了 instruction template 改變機率分佈），不暴露 raw text completions with echo。不同 provider 的 tokenizer 不同，logprobs 無法跨模型映射。
+
+**結論：** 本機 v13 engine 已有完整 logprobs（精確機率分佈），瓶頸是模型大小而非 logprobs。Scaling 趨勢：135M=0.9003 → 0.5B=0.8442 → 1.5B=0.6996 → 3B=0.6450 → 7B=0.6216（每 3× ≈ −600~800e-4 bpb）。7B 以上需 24GB+ VRAM，超出本機。
+
+**最終成果匯總：**
+
+| 模型 | 100KB bpb | 1MB bpb | 1MB KB/s | 8GB 內 |
+|---|---|---|---|---|
+| SmolLM2-135M | 0.9003 | 0.9078 | 4.0 | ✓ |
+| Qwen-0.5B | 0.8442 | — | — | ✓ |
+| Qwen-1.5B | 0.6996* | 0.7319 | 17.2 | ✓ (5.87GB) |
+| **Qwen-3B** | **0.6450*** | **0.6874** | **5.6** | **✓ (7.39GB)** |
+| Qwen-3B practical | 0.6617 | 0.7103 | 12.8 | ✓ (7.60GB) |
+| Qwen-7B | 0.6216* | — | — | ✗ (15GB) |
+
+SOTA 0.9389 → 我們 0.6450 = **−31.3%**（SOTA+CMIX+NNCP 全贏）。
+

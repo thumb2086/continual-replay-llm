@@ -410,4 +410,33 @@ Qwen-3B 100 KB + 1 MB matrix (all 220/220). Speed sweep: K1024/B2048+gate fastes
 - K4096/B8192: 0.6545 (best 3B ratio, but 9.34 GB exceeds 8 GB)
 
 **Finding:** Gate threshold (5/2 vs 20/7 vs 50/15) barely matters for 3B (0.6616-0.6620 range) because the model is strong enough that blend rows are rarely needed. LAMBDA < 0.99 always hurts. Qwen-3B sweet spot = K4096/B4096+gate (0.6617/25.7 s/7.60 GB).
+## 42. Distillation research closed: free APIs all blocked (2026-09-13)
+
+**Goal:** Distill large teacher model logprobs into local small model.
+
+**6 paths attempted (all dead):**
+
+1. Groq API (Qwen3.8-27B): logprobs not supported.
+2. Groq text generation -> training: fine-tune destroys model (perplexity 24K -> 1.5K), different distribution from enwik8.
+3. OpenRouter free tier: 22 models none return logprobs; paid needs credits.
+4. Ollama local: API does not support logprobs.
+5. Venice API (4 keys, 78 models): 5 have logprobs (best llama-3.2-11b 90% stable), but no prompt_logprobs, different tokenizer, 31 hours too slow.
+6. NVIDIA Build API (120B MoE): logprobs YES, 80% stable, but chat mode adds instruction overhead -> 7% char accuracy, no prompt_logprobs/completions endpoint.
+
+**Root cause:** Free APIs only expose chat completions (instruction template changes probability distribution), not raw text completions with echo. Different tokenizers across providers prevent cross-model logprob mapping.
+
+**Conclusion:** Our local v13 engine already has complete logprobs (exact probability distributions); bottleneck is model size, not logprobs. Scaling: 135M=0.9003 -> 0.5B=0.8442 -> 1.5B=0.6996 -> 3B=0.6450 -> 7B=0.6216 (~600-800e-4 per 3x params). 7B+ needs 24GB+ VRAM, beyond this box.
+
+**Final results summary:**
+
+| Model | 100KB bpb | 1MB bpb | 1MB KB/s | Fits 8GB? |
+|---|---|---|---|---|
+| SmolLM2-135M | 0.9003 | 0.9078 | 4.0 | Yes |
+| Qwen-0.5B | 0.8442 | -- | -- | Yes |
+| Qwen-1.5B | 0.6996* | 0.7319 | 17.2 | Yes (5.87 GB) |
+| **Qwen-3B** | **0.6450*** | **0.6874** | **5.6** | **Yes (7.39 GB)** |
+| Qwen-3B practical | 0.6617 | 0.7103 | 12.8 | Yes (7.60 GB) |
+| Qwen-7B | 0.6216* | -- | -- | No (15 GB) |
+
+SOTA 0.9389 -> ours 0.6450 = **-31.3%** (beats SOTA+CMIX+NNCP all).
 

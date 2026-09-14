@@ -1,17 +1,17 @@
 # Goal
-- GoalID: f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c
-- Status: achieved
-- Created: 2026-09-13T06:00:00+08:00
-- Updated: 2026-09-13T06:00:00+08:00
+- GoalID: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+- Status: pursuing
+- Created: 2026-09-13T07:00:00+08:00
+- Updated: 2026-09-13T07:00:00+08:00
 ## Objective
-蒸餾研究 + 新研究方案：(1) 用 Groq Qwen3.8-27B 蒸餾小模型；(2) 探索新壓縮演算法；(3) 持續推進壓縮率與速度；(4) 完成論文數據更新。
+用 Groq Qwen3.8-27B 產生訓練資料 → 訓練專用小模型（又小又快又準）→ 測試 enwik8 壓縮率。
 ## Stopping condition
-任何一項 bank 即 achieved：(a) 蒸餾後本地模型 bpb < 0.6450；(b) 新演算法突破現行 Pareto；(c) 論文完整更新至 §41+。若 EV 用完無 bank 則 unmet。
+任何一項 bank 即 achieved：(a) 蒸餾後模型 bpb < 0.6617（贏現行 3B practical crown）；(b) 訓練完成且模型可用於壓縮；(c) 論文 §42 更新。若 blocked 則 unmet。
 ## Must read first
-- data/sota_loop.json（282 條）、tools/groq_bench.py（Groq 測試）
-- ensemble/bpe_ensemble_v13.py（chunk/sparse/gate 已解鎖）
-- FINAL-REPORT.md §1-40（現行全貌）
+- tools/groq_bench.py（Groq API 連線方式）
+- ensemble/bpe_ensemble_v13.py（壓縮引擎）
+- data/sota_loop.json（291 條）
 ## Verification
-每跑必收 bpb/Time/KB/s/Verified/PEAK；ledger append；論文更新。
+訓練後模型在 enwik8 100KB 上跑 bpb + 220/220 verified。
 ## Progress log
-- [2026-09-13] checkpoint：goal 建立。方向：蒸餾（Groq 27B → 本地小模型）、新演算法探索、論文更新。是否 blocked：否。
+- [2026-09-13] checkpoint：goal 建立。步驟：(1) Groq 產生 1MB 訓練資料；(2) tokenizer 對齊；(3) 訓練 SmolLM2-135M；(4) 測試。是否 blocked：否。

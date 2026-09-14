@@ -2426,6 +2426,16 @@
    "bpb": 0.6699,
    "elapsed_s": 494.9,
    "note": "Qwen-3B 1MB K4096/B4096/OV2048: 220/220, 494.9s, 7.60GB. Overlap creates 135 segments -> 2.7x slower than no-ov. Dead at 1MB scale."
+  },
+  {
+   "id": "nvidia-120b-probe",
+   "status": "null",
+   "note": "NVIDIA Build API nemotron-3-super-120b-a12b: logprobs YES, 80% stable, but chat-mode only (no prompt_logprobs/completions). Teacher char accuracy 7% (instruction overhead). Different tokenizer from local models. Distillation blocked by API architecture. User decision: abandon distillation, write paper."
+  },
+  {
+   "id": "distillation-verdict",
+   "status": "dead",
+   "note": "Distillation via free API DEAD: (1) No free API has prompt_logprobs or completions endpoint; (2) Chat format adds instruction overhead -> 7% accuracy; (3) Different tokenizers across providers; (4) Even if we get logprobs, teacher tokenizer != student tokenizer -> cannot map distributions. Root cause: free APIs only expose chat completions, not raw text completions with echo."
   }
  ],
  "done": false,
