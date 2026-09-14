@@ -8,7 +8,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, NullFormatter
+import matplotlib.ticker as ticker
 
 SIZES_KB = [100, 1024, 10240]
 SIZES_LBL = ["100KB", "1MB", "10MB"]
@@ -43,32 +43,33 @@ for name, ts in TIME.items():
     xs = [s for s, t in zip(SIZES_KB, ts) if t is not None]
     ys = _kbs(xs, [t for t in ts if t is not None])
     ax1.loglog(xs, ys, "o-", label=name)
-ax1.set_xlabel("file size (KB, log)")
-ax1.set_ylabel("throughput (KB/s, higher better ^)")
+ax1.set_xlabel("file size")
+ax1.set_ylabel("throughput (KB/s, higher better)")
 ax1.set_title("Throughput ladder [top-right is best]")
 ax1.set_xticks(SIZES_KB)
 ax1.set_xticklabels(SIZES_LBL)
-ax1.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
-ax1.yaxis.set_minor_formatter(FuncFormatter(lambda y, _: f"{y:g}"))
-# x ticks are custom 100KB/1MB/10MB, keep plain; minors off to avoid clutter
-ax1.xaxis.set_minor_formatter(NullFormatter())
-ax1.grid(True, which="both", alpha=0.3)
-ax1.legend(fontsize=8)
+ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}"))
+# log y: let matplotlib handle minor ticks naturally
+ax1.grid(True, which="major", alpha=0.3)
+ax1.grid(True, which="minor", alpha=0.15)
+ax1.legend(fontsize=7)
 
 for name, bs in BPB.items():
     xs = [s for s, b in zip(SIZES_KB, bs) if b is not None]
     ys = [8.0 / b for b in bs if b is not None]
     ax2.semilogx(xs, ys, "s-", label=name)
 ax2.axhline(SOTA, color="red", linestyle=":", label="SOTA 8.52x (full-file)")
-ax2.set_xlabel("file size (KB, log)")
-ax2.set_ylabel("compression ratio x (higher better ^)")
+ax2.set_xlabel("file size")
+ax2.set_ylabel("compression ratio (higher better)")
 ax2.set_title("Ratio vs scale [top-right is best]")
 ax2.set_xticks(SIZES_KB)
 ax2.set_xticklabels(SIZES_LBL)
-ax2.grid(True, which="both", alpha=0.3)
-ax2.legend(fontsize=8)
+ax2.yaxis.set_major_formatter(ticker.FuncFormatter(lambda y, _: f"{y:g}"))
+ax2.grid(True, which="major", alpha=0.3)
+ax2.grid(True, which="minor", alpha=0.15)
+ax2.legend(fontsize=7)
 
-fig.suptitle("Scaling: throughput & ratio vs size (measured, no extrapolation)")
-fig.tight_layout()
-fig.savefig("scale_time_size.png", dpi=110)
+fig.suptitle("Scaling: throughput & ratio vs size (all measured)", fontsize=11)
+fig.tight_layout(rect=[0, 0, 1, 0.95])
+fig.savefig("scale_time_size.png", dpi=130, bbox_inches="tight")
 print("saved scale_time_size.png")

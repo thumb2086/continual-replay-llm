@@ -3,7 +3,7 @@ Score used only to pick the balanced best; y is plain ratio (higher better)."""
 import math, matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter, NullFormatter
+import matplotlib.ticker as ticker
 
 # All 100KB OFF50 points (current 35) + new carpet points
 PTS = [
@@ -60,15 +60,14 @@ adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle="-", color="gray", lw=0.5, 
             expand_points=(1.4,1.6), force_text=0.5, lim=80)
 ax.set_xscale("log")
 ax.set_xlabel("KB/s (faster right, log)")
-ax.set_ylabel("compression ratio x = 8/bpb (higher better ^)")
-ax.set_title("Balance: ratio vs speed (SOTA 8.52x) — top-right is best, size=balanced score")
-ax.grid(True, which="both", alpha=0.3)
+ax.set_ylabel("compression ratio = 8/bpb (higher better)")
+ax.set_title(f"Balance: ratio vs speed (SOTA 8.52x) — top-right is best | best = {best[0]}")
+ax.grid(True, which="major", alpha=0.3)
+ax.grid(True, which="minor", alpha=0.15)
 ax.axhline(SOTA_RATIO, color="red", linestyle="--", lw=1, label="SOTA 8.52x (worse below)")
 ax.axvline(3.25, color="orange", linestyle="--", lw=1, label="NNCP 3.25KB/s (slower left)")
-ax.yaxis.set_major_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
-ax.yaxis.set_minor_formatter(FuncFormatter(lambda y,_: f"{y:g}"))
-ax.xaxis.set_major_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
-ax.xaxis.set_minor_formatter(FuncFormatter(lambda x,_: f"{x:g}"))
+ax.yaxis.set_major_locator(ticker.AutoLocator())
+ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
 ax.legend(fontsize=8, loc="lower left")
 fig.tight_layout()
 fig.savefig("balance_curve.png", dpi=130)
