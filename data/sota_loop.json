@@ -2365,6 +2365,60 @@
    "bpb": 0.7103,
    "elapsed_s": 79.9,
    "note": "1MB Qwen-3B K1024/B2048+gate: 220/220, 12.8KB/s, PEAK 6.57GB. FASTEST 1MB Qwen-3B."
+  },
+  {
+   "id": "qwen7b-k1b2",
+   "status": "banked",
+   "bpb": 0.6216,
+   "elapsed_s": 526.3,
+   "note": "Qwen-7B K1024/B2048: 218/220, 0.6216 bpb, PEAK 15GB (paged, model weights 14GB > 8GB card). Confirms scaling trend: 3B=0.6450 -> 7B=0.6216 (-234e-4). Need 24GB+ card for 7B."
+  },
+  {
+   "id": "groq-27b-proxy",
+   "status": "null",
+   "bpb": 1.16,
+   "note": "Groq Qwen3.8-27B top-5 probe: avg_rank=2.2, approx 1.16 bpb (character-level, short context, loose upper bound). API no logprobs -> no arithmetic coding possible."
+  },
+  {
+   "id": "groq-text-entropy",
+   "status": "null",
+   "bpb": 4.35,
+   "note": "Groq 27B generated text entropy: 4.35 bpb (vs enwik8 5.24 bpb, 17% lower). Confirms larger models produce more predictable text."
+  },
+  {
+   "id": "qwen3b-k4b4",
+   "status": "banked",
+   "bpb": 0.6617,
+   "elapsed_s": 25.7,
+   "note": "Qwen-3B K4096/B4096+gate: 220/220, 25.7s, 7.60GB. New practical crown."
+  },
+  {
+   "id": "qwen3b-k4b4-g52",
+   "status": "banked",
+   "bpb": 0.6616,
+   "elapsed_s": 25.8,
+   "note": "Qwen-3B K4096/B4096 GATE5-2: 220/220, identical. Gate threshold irrelevant for 3B."
+  },
+  {
+   "id": "qwen3b-conf207",
+   "status": "null",
+   "bpb": 0.6653,
+   "elapsed_s": 18.3,
+   "note": "Qwen-3B K2048/B4096 CONF20-7: 218/220, slightly worse than CONF10-3."
+  },
+  {
+   "id": "qwen3b-lam95",
+   "status": "null",
+   "bpb": 0.6672,
+   "elapsed_s": 18.3,
+   "note": "Qwen-3B K2048/B4096 LAM=0.95: 218/220, hurts. Strong model = cache hurts."
+  },
+  {
+   "id": "qwen3b-k4b8",
+   "status": "banked",
+   "bpb": 0.6545,
+   "elapsed_s": 39.6,
+   "note": "Qwen-3B K4096/B8192: 220/220, 9.34GB pages. Best 3B ratio but over 8GB."
   }
  ],
  "done": false,

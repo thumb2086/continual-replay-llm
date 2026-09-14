@@ -396,3 +396,18 @@ Qwen-3B 100 KB + 1 MB matrix (all 220/220). Speed sweep: K1024/B2048+gate fastes
 
 **Two Pareto lines:** Qwen-3B wins ratio (sub-0.7 at 1 MB), Qwen-1.5B wins speed (17-18 KB/s). Both fit 8 GB VRAM. All figures updated (`pareto_all_models.png`, 50 points).
 
+## 41. Groq 27B + Qwen-7B + 3B deep sweep (2026-09-13)
+
+**Groq API benchmark (Qwen3.8-27B):** No logprobs exposed -> no arithmetic coding possible. Top-5 probing: avg rank 2.2, approx 1.16 bpb (character-level, short context, loose upper bound). Groq-generated text entropy: 4.35 bpb (vs enwik8 5.24, -17%) -- larger models ARE more predictable, but API limitations prevent direct use for compression. Distillation requires full probability distributions (logprobs) which Groq does not provide. Conclusion: our local 3B pipeline (0.6450 bpb) already exceeds Groq 27B's "visible capability".
+
+**Qwen-7B (14.5 GB weights):** 0.6216 bpb (K1024/B2048), confirms scaling: 3B=0.6450 -> 7B=0.6216 (-234e-4). But 15 GB PEAK > 8 GB card; needs 24 GB+.
+
+**Qwen-3B deep sweep:**
+- K4096/B4096+gate: **0.6617** (new practical crown, 25.7 s, 7.60 GB)
+- K4096/B4096 GATE5-2: 0.6616 (identical -- gate threshold irrelevant for 3B)
+- CONF20-7: 0.6653 (slightly worse than CONF10-3)
+- LAM=0.95: 0.6672 (hurts -- strong model does not need cache)
+- K4096/B8192: 0.6545 (best 3B ratio, but 9.34 GB exceeds 8 GB)
+
+**Finding:** Gate threshold (5/2 vs 20/7 vs 50/15) barely matters for 3B (0.6616-0.6620 range) because the model is strong enough that blend rows are rarely needed. LAMBDA < 0.99 always hurts. Qwen-3B sweet spot = K4096/B4096+gate (0.6617/25.7 s/7.60 GB).
+

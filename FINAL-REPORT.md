@@ -460,3 +460,19 @@ pyproject.toml 一鍵安裝：pip install -e .，依賴 torch/transformers/numba
 
 **發現：** Qwen-3B 在1MB 上 sub-0.7（0.6940）且 12.8KB/s（B2048 配置）。Qwen-1.5B 更快（17.2KB/s）但比率差 200e-4。兩條 Pareto 線構成「速度 vs 比率」前沿。
 
+
+## 41. Groq 27B + Qwen-7B + 3B 深度調參（2026-09-13）
+
+**Groq API benchmark（Qwen3.8-27B）：** API 不暴露 logprobs，無法做算術編碼。Top-5 探測：avg rank 2.2、approx 1.16 bpb（字符級、短 context、鬆上界）。Groq 生成文本 entropy 4.35 bpb（vs enwik8 5.24，−17%）——更大模型確實更可預測，但 API 限制使其無法直接用於壓縮。蒸餾需要完整機率分佈（logprobs），Groq 不給。結論：本地 3B 管線（0.6450 bpb）已比 Groq 27B 的「可見能力」更強。
+
+**Qwen-7B（14.5GB 權重）：** 0.6216 bpb（K1024/B2048），確認 scaling：3B=0.6450 → 7B=0.6216（−234e-4）。但 15GB PEAK > 8GB 卡，需 24GB+。
+
+**Qwen-3B 深度調參：**
+- K4096/B4096+gate：**0.6617**（新實用冠軍，25.7s，7.60GB）
+- K4096/B4096 GATE5-2：0.6616（一字不差——gate 門檻對 3B 無效）
+- CONF20-7：0.6653（略差於 CONF10-3）
+- LAM=0.95：0.6672（拖累——強模型不需要 cache）
+- K4096/B8192：0.6545（最佳 3B ratio，但 9.34GB 超 8GB）
+
+**發現：** Gate 門檻（5/2 vs 20/7 vs 50/15）對 3B 模型幾乎無差（0.6616-0.6620），因為 3B 夠強，blend 行本就少。LAMBDA < 0.99 一律拖累。Qwen-3B 的甜蜜點 = K4096/B4096+gate（0.6617/25.7s/7.60GB）。
+
