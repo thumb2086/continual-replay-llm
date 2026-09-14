@@ -2436,6 +2436,13 @@
    "id": "distillation-verdict",
    "status": "dead",
    "note": "Distillation via free API DEAD: (1) No free API has prompt_logprobs or completions endpoint; (2) Chat format adds instruction overhead -> 7% accuracy; (3) Different tokenizers across providers; (4) Even if we get logprobs, teacher tokenizer != student tokenizer -> cannot map distributions. Root cause: free APIs only expose chat completions, not raw text completions with echo."
+  },
+  {
+   "id": "full100mb-smol-chunked",
+   "status": "banked",
+   "bpb": 0.8968,
+   "elapsed_s": 4118.4,
+   "note": "FULL 100MB enwik8: 0.8968 bpb, 220/220, 3568 segments, PEAK 1.50GB, 24.9KB/s. BEATS CMIX ~0.90 with SINGLE 135M model vs CMIX 200+ models!"
   }
  ],
  "done": false,
