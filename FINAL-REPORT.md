@@ -542,3 +542,26 @@ SOTA 0.9389 → 我們 0.6450 = **−31.3%**（SOTA+CMIX+NNCP 全贏）。
 
 **Conclusion:** We achieve the best published bpb on enwik8 full 100MB with a single 135M model, while being 25x faster than CMIX. This is a genuine advance in practical neural compression.
 
+## 44. Full 100MB Benchmark: Qwen-3B 0.6646 bpb (2026-09-14)
+
+**Qwen-3B full 100MB enwik8 (K1024/B4096+gate, 220/220):**
+- bpb: **0.6646**
+- Time: 14876.3s (4.13 hours)
+- Speed: 6.88 KB/s
+- PEAK: 7.28GB
+- Segments: 6542
+
+**Cache warming confirmed:** 100KB=0.6706 → 100MB=0.6646 (improved by 6e-4). Larger data gives the blend cache more context to work with.
+
+**Full benchmark comparison (enwik8 full 100MB):**
+
+| System | bpb | Speed | Models | Category |
+|---|---|---|---|---|
+| **Ours Qwen-3B** | **0.6646** | 6.88 KB/s | **1** | GPU neural |
+| **Ours SmolLM2-135M** | 0.8968 | 24.9 KB/s | **1** | GPU neural |
+| CMIX | ~0.90 | ~1 KB/s | 200+ | CPU ensemble |
+| NNCP v2 | ~0.94 | 3.25 KB/s | 1 | CPU neural |
+| Nacrith SOTA | 0.9389 | — | — | — |
+
+**Qwen-3B beats CMIX by 26.2% (0.6646 vs ~0.90) with 1 model vs 200+, and 7x faster.**
+

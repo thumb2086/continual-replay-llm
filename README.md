@@ -2,24 +2,19 @@
 
 > 正體中文版見 [README.zh-Hant.md](README.zh-Hant.md)。交卷論文：[FINAL-REPORT.md](FINAL-REPORT.md)（繁中）· [FINAL-REPORT.en.md](FINAL-REPORT.en.md)（English）。
 
-Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: Qwen2.5-1.5B at **0.6996 bits/byte** on enwik8 (beats SOTA 0.9389 by 25.5%, breaks 0.7 barrier), SmolLM2-135M speed line **2.9 s** (34.5 KB/s), all on a single RTX 3060 Ti 8 GB — with every number measured and every failure kept.
+Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: Qwen2.5-3B at **0.6646 bits/byte** on enwik8 full 100 MB (beats CMIX ~0.90 with 1 model vs 200+, 7x faster), SmolLM2-135M speed line **34.5 KB/s**, all on a single RTX 3060 Ti 8 GB — with every number measured and every failure kept.
 
-## Headline numbers (all measured, 2026-09-13)
+## Headline numbers (all measured, 2026-09-14)
 
 | System | bpb ↓ | Speed | Lossless check |
 |---|---|---|---|
-| **Ours Qwen2.5-1.5B (ratio crown)** | **0.6996*** | 5.6 KB/s (K4096/28K, *paged 11.5 GB) · practical **0.7024** @ 5.6 KB/s (7.74 GB) | 220/220 roundtrip |
-| **Ours v13 chunked (speed)** | 0.9276 | busy box **34.5 KB/s** (ov0/K1024+chunk, 2.9 s, peak 1.50 GB) | 220/220 roundtrip |
-| **Ours Qwen2.5-0.5B** | 0.8391* | practical 0.8442 @ 17.9 KB/s (5.32 GB) | 219/219 roundtrip |
-| Nacrith (SOTA, same-slice H2H) | 1.2248 | 0.25 KB/s (their CPU build) | byte-exact ✓ |
-| NNCP v2 (ref value) | ~0.94 | 3.25 KB/s | — |
-| CMIX (literature) | ~0.9 | ~0.1–1 KB/s | — |
-| PAQ8 (literature) | ~1.0–1.2 | ~1–5 KB/s | — |
-| xz -9 (measured here) | 2.310 | ~4.6 MB/s | — |
-| bzip2 -9 (measured here) | 2.244 | ~21 MB/s | — |
-| gzip -9 (measured here) | 2.831 | ~26 MB/s | — |
-
-Classical codecs are ~10⁶× faster at 2–3× worse ratio — different worlds (see `FINAL-REPORT.md` §8 in spirit). Within the neural (<1.0 bpb) world: best ratio here, second-best speed.
+| **Ours Qwen2.5-3B (full 100 MB)** | **0.6646** | 6.88 KB/s (K1024/B4096+gate, 4.1h, peak 7.28 GB) | 220/220 roundtrip |
+| **Ours Qwen2.5-3B (100 KB)** | **0.6617** | 25.7 KB/s (K4096/B4096+gate, peak 7.60 GB) | 220/220 roundtrip |
+| **Ours SmolLM2-135M (full 100 MB)** | 0.8968 | 24.9 KB/s (chunked, peak 1.50 GB) | 220/220 roundtrip |
+| **Ours SmolLM2-135M (100 KB)** | 0.9276 | 34.5 KB/s (chunked, 2.9 s, peak 1.50 GB) | 220/220 roundtrip |
+| CMIX (literature, 200+ models) | ~0.90 | ~1 KB/s | — |
+| NNCP v2 (ref) | ~0.94 | 3.25 KB/s | — |
+| Nacrith SOTA | 0.9389 | — | — |
 
 ![Pareto: article region, top-right is best (ideal corner empty = tradeoff)](pareto_off50.png)
 ![Pareto: hard region](pareto_off75.png)

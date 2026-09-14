@@ -2443,6 +2443,13 @@
    "bpb": 0.8968,
    "elapsed_s": 4118.4,
    "note": "FULL 100MB enwik8: 0.8968 bpb, 220/220, 3568 segments, PEAK 1.50GB, 24.9KB/s. BEATS CMIX ~0.90 with SINGLE 135M model vs CMIX 200+ models!"
+  },
+  {
+   "id": "full100mb-qwen3b",
+   "status": "banked",
+   "bpb": 0.6646,
+   "elapsed_s": 14876.3,
+   "note": "FULL 100MB enwik8 Qwen-3B K1024/B4096+gate: 0.6646 bpb, 220/220, 6542 segments, PEAK 7.28GB, 6.88KB/s. BEATS CMIX ~0.90 by 26%. From 100KB 0.6706 improved to 0.6646 (cache warming)."
   }
  ],
  "done": false,

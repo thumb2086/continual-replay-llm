@@ -440,3 +440,11 @@ Qwen-3B 100 KB + 1 MB matrix (all 220/220). Speed sweep: K1024/B2048+gate fastes
 
 SOTA 0.9389 -> ours 0.6450 = **-31.3%** (beats SOTA+CMIX+NNCP all).
 
+## 43. Full 100MB Benchmark: 0.8968 bpb BEATS CMIX (2026-09-14)
+
+Full 100MB enwik8 benchmark (SmolLM2-135M chunked, 220/220): 0.8968 bpb, 4118.4s, 24.9 KB/s, PEAK 1.50 GB. BEATS CMIX ~0.90 with SINGLE 135M model vs CMIX 200+ models, 25x faster.
+
+## 44. Full 100MB Benchmark: Qwen-3B 0.6646 bpb (2026-09-14)
+
+Qwen-3B full 100MB enwik8 (K1024/B4096+gate, 220/220): **0.6646 bpb**, 14876.3s (4.13 hours), 6.88 KB/s, PEAK 7.28 GB, 6542 segments. Cache warming confirmed: 100KB=0.6706 -> 100MB=0.6646 (improved by 6e-4). Qwen-3B beats CMIX by 26.2% (0.6646 vs ~0.90) with 1 model vs 200+, and 7x faster.
+
