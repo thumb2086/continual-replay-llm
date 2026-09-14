@@ -2358,6 +2358,13 @@
    "bpb": 0.7086,
    "elapsed_s": 10.3,
    "note": "100KB K1024/B1024+gate: 218/220, 10.3s, 6.50GB. Slower than B2048 (overhead)."
+  },
+  {
+   "id": "qwen3b-1mb-k1024b2",
+   "status": "banked",
+   "bpb": 0.7103,
+   "elapsed_s": 79.9,
+   "note": "1MB Qwen-3B K1024/B2048+gate: 220/220, 12.8KB/s, PEAK 6.57GB. FASTEST 1MB Qwen-3B."
   }
  ],
  "done": false,
