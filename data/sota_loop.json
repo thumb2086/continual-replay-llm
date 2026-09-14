@@ -2419,6 +2419,13 @@
    "bpb": 0.6545,
    "elapsed_s": 39.6,
    "note": "Qwen-3B K4096/B8192: 220/220, 9.34GB pages. Best 3B ratio but over 8GB."
+  },
+  {
+   "id": "qwen3b-1mb-ov2k",
+   "status": "null",
+   "bpb": 0.6699,
+   "elapsed_s": 494.9,
+   "note": "Qwen-3B 1MB K4096/B4096/OV2048: 220/220, 494.9s, 7.60GB. Overlap creates 135 segments -> 2.7x slower than no-ov. Dead at 1MB scale."
   }
  ],
  "done": false,

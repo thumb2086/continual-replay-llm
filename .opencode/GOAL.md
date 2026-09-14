@@ -1,6 +1,6 @@
 # Goal
 - GoalID: f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c
-- Status: pursuing
+- Status: achieved
 - Created: 2026-09-13T06:00:00+08:00
 - Updated: 2026-09-13T06:00:00+08:00
 ## Objective
