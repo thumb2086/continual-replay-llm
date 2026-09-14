@@ -2239,6 +2239,27 @@
    "bpb": 0.7281,
    "elapsed_s": 94.8,
    "note": "1MB K4096/B8192+gate: 220/220, 10.8KB/s, PEAK 6.29GB. Diminishing speed."
+  },
+  {
+   "id": "qwen15b-b4096",
+   "status": "null",
+   "bpb": 0.7435,
+   "elapsed_s": 63.8,
+   "note": "1MB K2048/B4096+gate: 220/220, 16.0KB/s, PEAK 4.38GB. Slower than B8192."
+  },
+  {
+   "id": "qwen15b-b2048",
+   "status": "null",
+   "bpb": 0.7609,
+   "elapsed_s": 70.3,
+   "note": "1MB K2048/B2048+gate: 220/220, 14.6KB/s, PEAK 3.63GB. Too many segments."
+  },
+  {
+   "id": "qwen15b-chunk2k",
+   "status": "null",
+   "bpb": 0.7319,
+   "elapsed_s": 68.7,
+   "note": "B8192 CHUNK2k/1k: same bpb 0.7319, 68.7s slower (smaller chunks = more overhead). CHUNK4096/2048 optimal."
   }
  ],
  "done": false,
