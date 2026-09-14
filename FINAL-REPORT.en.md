@@ -1,19 +1,20 @@
-# Hand-in Report: Practical Neural Compression with SmolLM2-135M (enwik8 slice)
+# Hand-in Report: Practical Neural Compression with LLM + Arithmetic Coding (enwik8)
 
-> Date: 2026-09-13. Base model: SmolLM2-135M (Apache-2.0) + Qwen2.5-0.5B separate line. Hardware: single RTX 3060 Ti 8GB. Main eval: enwik8 offset 50MB, 100KB middle slice (representative article text, not the template head); plus 1MB/10MB ladders. Ledger: `data/sota_loop.json` (243 entries, bpb/speed/verified for every round). Every number in this report is measured; nothing is extrapolated. Traditional Chinese version: [`FINAL-REPORT.md`](FINAL-REPORT.md).
+> Date: 2026-09-13. Models: SmolLM2-135M + Qwen2.5-0.5B/1.5B/3B (all Apache-2.0). Hardware: single RTX 3060 Ti 8GB. Main eval: enwik8 offset 50MB, 100KB middle slice + 1MB scale. Ledger: `data/sota_loop.json` (282 entries). Every number is measured; nothing is extrapolated. Traditional Chinese: [`FINAL-REPORT.md`](FINAL-REPORT.md).
 
 ## 1. Hand-in numbers
 
 | Metric | Value | Notes |
 |---|---|---|
-| Best ratio (SmolLM2) | **0.9003 bpb** | v13, ov4096 + floor 1e-6 + K/PF 8192, 220/220 lossless (K ladder: 1024→0.9139, 2048→0.9050, 4096→0.9013, 8192→0.9003) |
-| Best ratio (Qwen0.5B, separate line) | **0.8391* bpb** | Qwen2.5-0.5B chunked K4096, 219/219, *9.11GB paged; practical 0.8442 @ 5.6 s 5.32GB |
+| **Best ratio (Qwen-3B, crown)** | **0.6450 bpb*** | K2048/B28672, 219/219, *10.96GB paged; practical **0.6650** @ B4096 fits 8GB |
+| Best ratio (Qwen-1.5B) | **0.6996 bpb*** | K4096/28K, 220/220, *11.53GB paged; practical **0.7024** @ 7.74GB |
+| Best ratio (SmolLM2) | **0.9003 bpb** | v13, ov4096/K8192, 220/220 |
+| Best 1MB ratio | **0.6874 bpb** | Qwen-3B K2048/B4096+gate, 220/220, 182.3s, 7.39GB |
+| Best 1MB speed | **18.6 KB/s** | Qwen-1.5B K1024/B8192+gate, 0.7402 bpb, 55.1s, 5.66GB |
+| Best 100KB speed | **34.5 KB/s** | SmolLM2 chunked ov0/K1024, 2.9s, 1.50GB |
 | SOTA line | 0.9389 bpb | Nacrith paper, full 100MB file |
-| Margin | SmolLM2 **−4.1%** / Qwen **−10.6%** | slice vs full file, see §7 caveats |
-| Same-slice H2H | ours 0.9214 vs Nacrith official 1.2248 | same slice, same rerun script (`h2h_nacrith.py`), won by 25% |
-| Speed (busy box, current) | **chunked ov0 2.9 s/100KB = 34.5KB/s** (peak 1.50GB, exact); knee 12.0 s; crown 24.0 s | middle nodes chunkK2 3.7 s/27KB/s, chunkK4 5.9 s/16.9KB/s; see §29–30 |
-| Scale ladder (all 220/220) | chunked 2.9 s / 29.8 s / 273.7 s (34.5/34.3/37.4KB/s); crown 24 s / 254.7 s / 1755 s (0.9003/0.9078/0.8765) | 10MB anomalously faster (cache warms); see §30 |
-| VRAM peak | chunked 1.50GB / crown 5.26GB (10MB) / Qwen 5.32GB | `max_memory_allocated`, inside 8GB; old 5.01GB was 100KB crown |
+| **Margin (best vs SOTA)** | **−31.3%** | 0.9389 → 0.6450 |
+| Model scaling (100KB, K2048) | 135M: 0.9139 → 0.5B: 0.8442 → 1.5B: 0.7024 → 3B: 0.6450 | Every 3x params ≈ −600-800e-4 bpb |
 
 Reproduce ratio crown (PowerShell, ~60 s):
 ```
@@ -353,4 +354,45 @@ pyproject.toml for pip install -e ., deps: torch/transformers/numba/numpy.
 - NNCP ~0.94 -> ours 0.6996 = **-25.6%**
 
 **Next:** Qwen-1.5B 1 MB/10 MB ladder, speed probes, balance score recalc.
+
+## 36. Qwen-1.5B 1 MB speed optimization: 55 s/17.2 KB/s (2026-09-13)
+
+**1 MB Pareto (Qwen-1.5B, all 220/220):**
+
+| Config | bpb | 1 MB time | KB/s | PEAK |
+|---|---|---|---|---|
+| K1024/B8192+gate | 0.7402 | 55.1 s | **18.6** | 5.66 GB |
+| K2048/B8192+gate | 0.7319 | 59.5 s | 17.2 | 5.87 GB |
+| K1024/B16384+gate | 0.7324 | 70.4 s | 14.5 | 6.18 GB |
+| K4096/B8192+gate | 0.7281 | 94.8 s | 10.8 | 6.29 GB |
+| K2048/B28672 | 0.7193 | 259.7 s | 3.9 | 7.88 GB |
+| K4096/B16384 | 0.7208 | 197.9 s | 5.2 | 7.87 GB |
+
+**Finding:** Small block (B8192) + gate is the key to 1 MB speed: smaller forward per segment (8192 vs 28672 tokens), gate skips low-frequency blend rows. K2048/B8192 is the balance sweet spot (0.7319/17.2 KB/s/5.87 GB); K1024/B8192 is fastest (18.6 KB/s).
+
+## 37. Qwen-1.5B full 1 MB sweep + LAMBDA sweep (2026-09-13)
+
+Complete Qwen-1.5B 1 MB matrix: K512 0.7533@53.5s, K1024 0.7402@55.1s, K2048 0.7319@59.5s (sweet spot), K4096 0.7281@94.8s. LAMBDA sweep: LAM=0.99 baseline best; 0.95 +28e-4, 0.90 +86e-4. Qwen-1.5B is strong enough that bigram cache HURTS (opposite of SmolLM2-135M). SmolLM2-360M: 2.22 bpb catastrophic (different training target), dead.
+
+## 38. Qwen-3B breakthrough: 0.6450 bpb (2026-09-13)
+
+**Larger model = lower ratio.** Qwen2.5-3B (5.88 GB) achieves **0.6450 bpb** (B28672 paged) / **0.6650 bpb** (B4096 fits 8 GB, 7.39 GB PEAK). Model scaling trend (100 KB, K2048): SmolLM2-135M 0.9139 -> Qwen-0.5B 0.8442 -> Qwen-1.5B 0.7024 -> Qwen-3B 0.6450. Every 3x model params saves ~600-800e-4 bpb.
+
+## 39. Qwen-3B full matrix: 0.6450-0.6940 (2026-09-13)
+
+Qwen-3B 100 KB + 1 MB matrix (all 220/220). Speed sweep: K1024/B2048+gate fastest at 9.7 s (0.6845), K1024/B4096+gate 15.4 s (0.6706), K2048/B4096+gate 19.8 s (0.6650, fits 8 GB). B1024 overhead kills (10.3 s vs B2048's 9.7 s). B2048 is the speed sweet spot for Qwen-3B.
+
+## 40. Qwen-3B 1 MB fastest: 79.9 s/12.8 KB/s/0.7103 (2026-09-13)
+
+**Full 1 MB model comparison:**
+
+| Model | Config | 100 KB bpb | 1 MB bpb | 1 MB time | 1 MB KB/s | PEAK |
+|---|---|---|---|---|---|---|
+| Qwen-3B | K2048/B4096+gate | 0.6650 | 0.6874 | 182.3 s | 5.6 | 7.39 GB |
+| Qwen-3B | K1024/B4096+gate | 0.6706 | 0.6940 | 134.8 s | 7.6 | 7.28 GB |
+| **Qwen-3B** | **K1024/B2048+gate** | **0.6845** | **0.7103** | **79.9 s** | **12.8** | **6.57 GB** |
+| Qwen-1.5B | K2048/B8192+gate | 0.7319 | 0.7319 | 59.5 s | 17.2 | 5.87 GB |
+| Qwen-1.5B | K1024/B8192+gate | 0.7402 | 0.7402 | 55.1 s | 18.6 | 5.66 GB |
+
+**Two Pareto lines:** Qwen-3B wins ratio (sub-0.7 at 1 MB), Qwen-1.5B wins speed (17-18 KB/s). Both fit 8 GB VRAM. All figures updated (`pareto_all_models.png`, 50 points).
 

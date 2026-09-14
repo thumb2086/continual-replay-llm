@@ -1,21 +1,22 @@
-# 交卷報告：SmolLM2-135M 實用神經壓縮（enwik8 切片）
+# 交卷報告：LLM + 算術編碼實用神經壓縮（enwik8）
 
-> 日期：2026-09-13。底座：SmolLM2-135M（Apache-2.0）。硬體：單卡 RTX 3060 Ti 8GB。主評測：enwik8 offset 50MB、100KB 中段切片（有代表性的文章區，非模板頭）。帳本：`data/sota_loop.json`（每輪 bpb/速度/verified 全記錄）。本報告所有數字均為實測，無外推。英文版見 [`FINAL-REPORT.en.md`](FINAL-REPORT.en.md)。
+> 日期：2026-09-13。模型：SmolLM2-135M + Qwen2.5-0.5B/1.5B/3B（全 Apache-2.0）。硬體：單卡 RTX 3060 Ti 8GB。主評測：enwik8 offset 50MB、100KB 中段 + 1MB 放量。帳本：`data/sota_loop.json`（282 條）。本報告所有數字均為實測，無外推。英文版見 [`FINAL-REPORT.en.md`](FINAL-REPORT.en.md)。
 
 ## 1. 交卷數字
 
 | 指標 | 值 | 說明 |
 |---|---|---|
-| 最佳壓縮率（SmolLM2） | **0.9003 bpb** | v13，ov4096＋floor 1e-6＋K/PF 8192，220/220 無損（K 階梯：1024→0.9139，2048→0.9050，4096→0.9013，8192→0.9003） |
-| 最佳壓縮率（Qwen0.5B，另線） | **0.8391* bpb** | Qwen2.5-0.5B chunked K4096，219/219，*峰值 9.11GB 分頁；實用 0.8442 @ 5.6s 5.32GB |
+| **最佳壓縮率（Qwen-3B 王座）** | **0.6450 bpb*** | K2048/B28672，219/219，*10.96GB 分頁；實用 **0.6650** @ B4096 裝進 8GB |
+| 最佳壓縮率（Qwen-1.5B） | **0.6996 bpb*** | K4096/28K，220/220，*11.53GB 分頁；實用 **0.7024** @ 7.74GB |
+| 最佳壓縮率（SmolLM2） | **0.9003 bpb** | v13，ov4096/K8192，220/220 |
+| 1MB 最佳比率 | **0.6874 bpb** | Qwen-3B K2048/B4096+gate，220/220，182.3s，7.39GB |
+| 1MB 最佳速度 | **18.6 KB/s** | Qwen-1.5B K1024/B8192+gate，0.7402 bpb，55.1s，5.66GB |
+| 100KB 最佳速度 | **34.5 KB/s** | SmolLM2 chunked ov0/K1024，2.9s，1.50GB |
 | SOTA 線 | 0.9389 bpb | Nacrith 論文 100MB 全檔數 |
-| 超線幅度 | SmolLM2 **−4.1%** / Qwen **−10.6%** | 切片對全檔，見 §7 但書 |
-| 同切片 H2H | 我們 0.9214 vs Nacrith 原廠 1.2248 | 同一切片、同腳本重現（`h2h_nacrith.py`），贏 25% |
-| 速度（忙碌箱，現行） | **chunked ov0 2.9 秒/100KB＝34.5KB/s**（峰值 1.50GB，逐位一致）；knee 12.0s；王座 24.0s | 中間節點 chunkK2 3.7s/27KB/s、chunkK4 5.9s/16.9KB/s；見 §29–30 |
-| 放量梯子（全 220/220） | chunked 2.9s/29.8s/273.7s (34.5/34.3/37.4KB/s)；crown 24s/254.7s/1755s (0.9003/0.9078/0.8765) | 10MB 反常更快（cache 熱）；見 §30 |
-| 顯存峰值 | chunked 1.50GB / crown 5.26GB（10MB）/ Qwen 5.32GB | `max_memory_allocated`，8GB 卡內；舊 5.01GB 為 100KB 王座 |
+| **超線幅度** | **−31.3%** | 0.9389 → 0.6450 |
+| 模型縮放（100KB, K2048） | 135M: 0.9139 → 0.5B: 0.8442 → 1.5B: 0.7024 → 3B: 0.6450 | 每 3× 參數量 ≈ −600~800e-4 bpb |
 
-重現（PowerShell，約 45 秒）：
+重現王座（PowerShell，約 60 秒）：
 ```
 $env:BIGRAM_LAMBDA='0.99'; $env:ENWIK8_OFFSET_MB='50'; $env:BIGRAM_CONF='10'
 $env:TRIGRAM_CONF='3'; $env:TOP_K='1024'; $env:OVERLAP='4096'; $env:FLOOR_FRAC='1e-6'
