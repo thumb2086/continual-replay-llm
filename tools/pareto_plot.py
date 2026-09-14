@@ -176,25 +176,29 @@ sy = [8/OFF50[i][2] for i in order]
 ax.plot(sx, sy, "o-", color="steelblue", lw=1, alpha=0.5, label="SmolLM2-135M", zorder=1)
 for lab, x, b in OFF50:
     ax.scatter([x], [8/b], s=40, color="steelblue", edgecolors="black", lw=0.3, zorder=2)
-# Qwen-1.5B
+# Qwen-1.5B: label only extremes + balanced
 order = sorted(range(len(QWEN15B)), key=lambda i: QWEN15B[i][1])
 qx = [QWEN15B[i][1] for i in order]
 qy = [8/QWEN15B[i][2] for i in order]
 ax.plot(qx, qy, "s-", color="darkorange", lw=1.5, label="Qwen-1.5B", zorder=2)
 texts = []
-for lab, x, b in QWEN15B:
+_q_show_idx = {0, len(QWEN15B)-1, 3, 1}  # fastest, slowest, K4k/B8, K2k/B8
+for idx, (lab, x, b) in enumerate(QWEN15B):
     ax.scatter([x], [8/b], s=60, marker="s", color="darkorange", edgecolors="black", lw=0.5, zorder=3)
-    txt = ax.text(x, 8/b, lab, fontsize=5, ha="center", va="bottom", color="darkorange")
-    texts.append(txt)
-# Qwen-3B
+    if idx in _q_show_idx:
+        txt = ax.text(x, 8/b, lab, fontsize=5, ha="center", va="bottom", color="darkorange")
+        texts.append(txt)
+# Qwen-3B: label only extremes + balanced
 order = sorted(range(len(QWEN3B)), key=lambda i: QWEN3B[i][1])
 tx = [QWEN3B[i][1] for i in order]
 ty = [8/QWEN3B[i][2] for i in order]
 ax.plot(tx, ty, "^-", color="crimson", lw=1.5, label="Qwen-3B", zorder=2)
-for lab, x, b in QWEN3B:
+_t_show_idx = {0, len(QWEN3B)-1, 2}  # fastest, slowest, middle
+for idx, (lab, x, b) in enumerate(QWEN3B):
     ax.scatter([x], [8/b], s=60, marker="^", color="crimson", edgecolors="black", lw=0.5, zorder=3)
-    txt = ax.text(x, 8/b, lab, fontsize=5, ha="center", va="bottom", color="crimson")
-    texts.append(txt)
+    if idx in _t_show_idx:
+        txt = ax.text(x, 8/b, lab, fontsize=5, ha="center", va="bottom", color="crimson")
+        texts.append(txt)
 # 1MB diamonds
 for lab, x, b in MB1_SMOLM2 + MB1_QWEN:
     y = 8/b
@@ -203,7 +207,7 @@ for lab, x, b in MB1_SMOLM2 + MB1_QWEN:
     texts.append(txt)
 adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle="-", color="gray", lw=0.4),
             expand_points=(1.5, 2.0), force_text=0.4, force_points=0.3, lim=120)
-ax.set_xlim(1, 70)
+ax.set_xlim(0.3, 70)
 ax.set_ylim(8.5, 13)
 ax.legend(fontsize=8, loc="upper right")
 fig.tight_layout()
