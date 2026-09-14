@@ -360,3 +360,21 @@ pyproject.toml 一鍵安裝：pip install -e .，依賴 torch/transformers/numba
 
 **下一步：** Qwen-1.5B 1MB/10MB 梯子、1MB/s 速度探針、balance score 重算。
 
+
+## 36. Qwen-1.5B 1MB 速度優化：55s/17.2KB/s（2026-09-13）
+
+**1MB Pareto（Qwen-1.5B，全 220/220）：**
+
+| Config | bpb | 1MB時間 | KB/s | PEAK |
+|---|---|---|---|---|
+| K1024/B8192+gate | 0.7402 | 55.1s | **18.6** | 5.66GB |
+| K2048/B8192+gate | 0.7319 | 59.5s | 17.2 | 5.87GB |
+| K1024/B16384+gate | 0.7324 | 70.4s | 14.5 | 6.18GB |
+| K4096/B8192+gate | 0.7281 | 94.8s | 10.8 | 6.29GB |
+| K2048/B28672 | 0.7193 | 259.7s | 3.9 | 7.88GB |
+| K4096/B16384 | 0.7208 | 197.9s | 5.2 | 7.87GB |
+
+**發現：** 小 block（B8192）+ gate 跳 blend 是 1MB 速度密鑰：每 segment forward 更小（8192 vs 28672 tokens），gate 跳過低頻 blend 行。K2048/B8192 是平衡甜蜜點（0.7319/17.2KB/s/5.87GB）；K1024/B8192 最快（18.6KB/s）。
+
+**100KB vs 1MB 速度比：** 小 block 的 ratio drift 很小（0.7319→0.7319，K2048 幾乎零漂移；K1024 從 0.7089→0.7402，+313e-4）——K 越大越穩定。
+

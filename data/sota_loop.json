@@ -2204,6 +2204,41 @@
    "bpb": 0.7087,
    "elapsed_s": 27.0,
    "note": "K8192/B12288: 0.7087, 10GB pages. Diminishing."
+  },
+  {
+   "id": "qwen15b-1mb-k2",
+   "status": "banked",
+   "bpb": 0.7193,
+   "elapsed_s": 259.7,
+   "note": "1MB K2048/B28672: 220/220, 3.9KB/s, PEAK 7.88GB. Ratio drift +170e-4 vs 100KB."
+  },
+  {
+   "id": "qwen15b-1mb-k4",
+   "status": "banked",
+   "bpb": 0.7208,
+   "elapsed_s": 197.9,
+   "note": "1MB K4096/B16384: 220/220, 5.2KB/s, PEAK 7.87GB. K4096 WORSE at 1MB (more segments = less context per segment)."
+  },
+  {
+   "id": "qwen15b-k1b8",
+   "status": "banked",
+   "bpb": 0.7402,
+   "elapsed_s": 55.1,
+   "note": "1MB K1024/B8192+gate: 220/220, 18.6KB/s, PEAK 5.66GB. Fastest sub-0.75."
+  },
+  {
+   "id": "qwen15b-k2b8",
+   "status": "banked",
+   "bpb": 0.7319,
+   "elapsed_s": 59.5,
+   "note": "1MB K2048/B8192+gate: 220/220, 17.2KB/s, PEAK 5.87GB. Sweet spot."
+  },
+  {
+   "id": "qwen15b-k4b8",
+   "status": "banked",
+   "bpb": 0.7281,
+   "elapsed_s": 94.8,
+   "note": "1MB K4096/B8192+gate: 220/220, 10.8KB/s, PEAK 6.29GB. Diminishing speed."
   }
  ],
  "done": false,
