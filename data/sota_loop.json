@@ -2288,6 +2288,34 @@
    "bpb": 0.7405,
    "elapsed_s": 63.9,
    "note": "K2048/B8192 LAM=0.90: +86e-4. Bigram cache hurts more at lower LAM."
+  },
+  {
+   "id": "qwen3b-k2b28",
+   "status": "banked",
+   "bpb": 0.645,
+   "elapsed_s": 263.4,
+   "note": "Qwen-3B K2048/B28672: 219/219, 263s, PEAK 10.96GB pages. SUB-0.65!"
+  },
+  {
+   "id": "qwen3b-k2b16",
+   "status": "banked",
+   "bpb": 0.6486,
+   "elapsed_s": 78.0,
+   "note": "Qwen-3B K2048/B16384: 219/219, 78s, PEAK 9.79GB. Still pages."
+  },
+  {
+   "id": "qwen3b-k2b8",
+   "status": "banked",
+   "bpb": 0.6573,
+   "elapsed_s": 30.0,
+   "note": "Qwen-3B K2048/B8192: 219/219, 30s, PEAK 8.92GB. Still pages."
+  },
+  {
+   "id": "qwen3b-k2b4",
+   "status": "banked",
+   "bpb": 0.665,
+   "elapsed_s": 19.8,
+   "note": "Qwen-3B K2048/B4096: 218/218, 19.8s, PEAK 7.39GB. FITS 8GB! New crown."
   }
  ],
  "done": false,

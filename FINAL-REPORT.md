@@ -399,3 +399,25 @@ pyproject.toml 一鍵安裝：pip install -e .，依賴 torch/transformers/numba
 
 **結論：** Qwen-1.5B 1MB 甜蜜點 = K2048/B8192+gate（0.7319/17.2KB/s/5.87GB）；最速 = K1024/B8192+gate（18.6KB/s）。
 
+
+## 38. Qwen-3B 突破：0.6450 bpb（2026-09-13）
+
+**更大模型 = 更低比率。** Qwen2.5-3B（5.88GB）在 8GB 卡上跑出 **0.6450 bpb**（B28672 paged）/ **0.6650 bpb**（B4096 fits 8GB, 7.39GB PEAK）。
+
+**100KB 矩陣：**
+
+| Config | bpb | Time | PEAK | Note |
+|---|---|---|---|---|
+| K2048/B28672 | **0.6450** | 263.4s | 10.96GB* | SUB-0.65 crown (*paged) |
+| K2048/B16384 | 0.6486 | 78.0s | 9.79GB* | pages |
+| K2048/B8192 | 0.6573 | 30.0s | 8.92GB* | pages |
+| K2048/B4096 | **0.6650** | 19.8s | **7.39GB** | **FITS 8GB** |
+
+**模型尺寸 vs bpb 趨勢（100KB, K2048）：**
+- SmolLM2-135M: 0.9139 (ov4096)
+- Qwen-0.5B: 0.8442 (K2048)
+- Qwen-1.5B: 0.7024 (K2048)
+- Qwen-3B: 0.6450 (K2048)
+
+每 3× 模型量約 −600~800e-4 bpb。外推 Qwen-7B 估 ~0.58 bpb（但需 14GB+ VRAM）。
+
