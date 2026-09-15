@@ -2455,6 +2455,11 @@
    "id": "speed-wall",
    "status": "dead",
    "note": "Speed push closed: torch.compile blocked (no Triton on Windows), ONNX export blocked (DynamicCache not traceable), optimum timeout. 34.5KB/s = 93% theoretical floor for 4-forwards B8192 architecture on 3060Ti WDDM. Further speed needs Linux+Triton or different GPU."
+  },
+  {
+   "id": "wsl-speed-test",
+   "status": "achieved",
+   "note": "WSL 1MB=26.7s(38.4KB/s) vs Windows 59.5s(17.2KB/s) = 2.23x speedup. Root cause: no WDDM scheduling tax. Forward: 2.4s/seg WSL vs 3.8s/seg Windows. torch.compile on WSL: slower (Triton overhead > fusion benefit for 135M). 100MB WSL: I/O issue, not completed. Ledger updated."
   }
  ],
  "done": false,
