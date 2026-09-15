@@ -2450,6 +2450,11 @@
    "bpb": 0.6646,
    "elapsed_s": 14876.3,
    "note": "FULL 100MB enwik8 Qwen-3B K1024/B4096+gate: 0.6646 bpb, 220/220, 6542 segments, PEAK 7.28GB, 6.88KB/s. BEATS CMIX ~0.90 by 26%. From 100KB 0.6706 improved to 0.6646 (cache warming)."
+  },
+  {
+   "id": "speed-wall",
+   "status": "dead",
+   "note": "Speed push closed: torch.compile blocked (no Triton on Windows), ONNX export blocked (DynamicCache not traceable), optimum timeout. 34.5KB/s = 93% theoretical floor for 4-forwards B8192 architecture on 3060Ti WDDM. Further speed needs Linux+Triton or different GPU."
   }
  ],
  "done": false,
