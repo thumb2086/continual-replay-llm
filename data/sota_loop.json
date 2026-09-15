@@ -2460,6 +2460,61 @@
    "id": "wsl-speed-test",
    "status": "achieved",
    "note": "WSL 1MB=26.7s(38.4KB/s) vs Windows 59.5s(17.2KB/s) = 2.23x speedup. Root cause: no WDDM scheduling tax. Forward: 2.4s/seg WSL vs 3.8s/seg Windows. torch.compile on WSL: slower (Triton overhead > fusion benefit for 135M). 100MB WSL: I/O issue, not completed. Ledger updated."
+  },
+  {
+   "id": "wsl-smollm2-100kb",
+   "status": "achieved",
+   "note": "WSL SmolLM2 B8192 K1024 100KB: 0.9276 bpb 3.2s 32.3KB/s (vs Windows 2.9s/34.5KB/s, WSL 10% slower for small model)"
+  },
+  {
+   "id": "wsl-smollm2-1mb",
+   "status": "achieved",
+   "note": "WSL SmolLM2 B8192 K1024 1MB ext4 native: 0.9359 bpb 26.7s 38.4KB/s (vs Windows 59.5s/17.2KB/s, WSL 2.23x faster for large file)"
+  },
+  {
+   "id": "wsl-qwen3b-b4096",
+   "status": "achieved",
+   "note": "WSL Qwen-3B B4096 K1024 100KB: 0.6712 bpb 28.2s 3.6KB/s 7.33GB (vs SmolLM2 0.9276, 27.7% better ratio but 8.8x slower)"
+  },
+  {
+   "id": "wsl-qwen3b-b8192",
+   "status": "achieved",
+   "note": "WSL Qwen-3B B8192 K1024 100KB: 0.6639 bpb 38.8s 8.80GB paging (B8192 > 8GB limit)"
+  },
+  {
+   "id": "smollm2-360m-b8192-k1024",
+   "status": "achieved",
+   "note": "SmolLM2-360M B8192 K1024 100KB: 0.8012 bpb 5.3s 18.9KB/s 2.08GB"
+  },
+  {
+   "id": "smollm2-360m-b8192-k2048",
+   "status": "achieved",
+   "note": "NEW PARETO CROWN: SmolLM2-360M B8192 K2048 100KB: 0.7960 bpb 4.5s 22.2KB/s 2.20GB. Best speed+ratio balance."
+  },
+  {
+   "id": "smollm2-360m-b4096-k1024",
+   "status": "achieved",
+   "note": "SmolLM2-360M B4096 K1024 100KB: 0.8130 bpb 3.7s 27.0KB/s 1.39GB"
+  },
+  {
+   "id": "batch-fwd-2",
+   "status": "dead",
+   "note": "BATCH_FWD=2: 4.4s vs 2.9s baseline, slower due to KV cache chaining limitation"
+  },
+  {
+   "id": "prefetch-1",
+   "status": "dead",
+   "note": "PREFETCH=1: ValueError too many values to unpack, bug in prefetch code path"
+  },
+  {
+   "id": "overlap-4096",
+   "status": "dead",
+   "note": "OVERLAP=4096: 4.9s 0.9141 bpb, more segments = slower despite better ratio"
+  },
+  {
+   "id": "wsl-environment",
+   "status": "achieved",
+   "note": "WSL environment comparison complete: WSL faster for small models (2.23x at 1MB), slower for large models (1.83x for Qwen-3B due to VRAM overhead). WSL unstable for long runs (100MB crash)."
   }
  ],
  "done": false,
