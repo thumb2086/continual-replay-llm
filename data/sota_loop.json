@@ -2555,6 +2555,12 @@
    "id": "bitstream-100kb-self-contained",
    "status": "achieved",
    "note": "CODER-LEVEL 100KB (encoder logits reused): 30791/30791 (100%) SHA-256 match. Per-chunk encode+decode, decoder reuses encoder logits (not self-contained). Proves bitstream+coder+cache consistency for full 100KB. True self-contained needs per-token forward."
+  },
+  {
+   "id": "seg8kb-sweep-fd2935b",
+   "status": "chart",
+   "bpb": 1.1262,
+   "note": "seg codec format v2, 8KB (2595 tokens, enwik8 @50MB), top_k1024/PF2048, K=1/4/8/16/32: all roundtrip=True; bpb_payload 1.1262->1.4741, escapes 2.20%->4.12%, enc 157.8s->3.9s (batched forward at fd2935b). K trades ratio for wall-clock ~T/K. Ratio gap vs v13 (escapes 1.25% @100KB K1024) traced to candidate set + per-count weights; F1/F2 fix written, GPU measurement pending."
   }
  ],
  "done": false,

@@ -58,7 +58,8 @@ FORMAT_VERSION = 2
 
 
 def cfg_dict(args):
-    return dict(top_k=args.top_k, floor_frac=args.floor_frac,
+    return dict(top_k=args.top_k, prefilter=args.prefilter,
+                floor_frac=args.floor_frac,
                 bigram_lambda=args.bigram_lambda, bigram_conf=args.bigram_conf,
                 trigram_conf=args.trigram_conf,
                 use_trigram=not args.no_trigram)
@@ -142,10 +143,15 @@ def main():
     ap.add_argument("--kb", type=int, default=100)
     ap.add_argument("--segments", type=int, default=4)
     ap.add_argument("--top-k", type=int, default=1024)
+    ap.add_argument("--prefilter", type=int, default=2048,
+                    help="candidate width before the score-based top-K (v13: PF>=TOP_K)")
     ap.add_argument("--floor-frac", type=float, default=1e-6)
     ap.add_argument("--bigram-lambda", type=float, default=0.99)
     ap.add_argument("--bigram-conf", type=float, default=10.0)
-    ap.add_argument("--trigram-conf", type=float, default=3.0)
+    ap.add_argument("--trigram-conf", type=float, default=7.0,
+                    help="v13 TRIGRAM_CONF default (was 3.0 here -- a silent "
+                         "mismatch that made the blend weights differ from the "
+                         "reference runs)")
     ap.add_argument("--no-trigram", action="store_true")
     ap.add_argument("--shared-tables", action="store_true",
                     help="Share n-gram tables across segments (legal in lockstep)")

@@ -182,30 +182,96 @@ def uniform_cum_cached(n, cache):
     return c
 
 
-def build_distribution(probs, tables, s, prev, prev2, cfg, uni_cache):
-    """top-K + bigram/trigram blend + 32-bit stage-1 CDF. Mirrors
-    tools/real_compressor.py's math so the numbers stay comparable."""
-    np = _np()
-    stage1_cum_32, _ = _ac32()
-    V = len(probs)
-    top_k = min(int(cfg["top_k"]), V)
-    tk = np.argpartition(probs, -top_k)[-top_k:]
-    tk = tk[np.argsort(-probs[tk])]
+def blend_weights(bi_tot, tri_tot, cfg):
+    """v13's confidence-weighted blend constants (ac32.nb_blend_row call site).
 
-    bi_ctx, bi_tot, tri_ctx, tri_tot = tables.get(s, prev, prev2)
+    v13:
+        _wB = bt/(bt+cB);  _wT = tt/(tt+cT)
+        _wc = 1 - (1-_wT)(1-_wB);  _le = 1 - (1-lam)*_wc
+        _sb = (1-_wT)*_wB/bt          # per-count bigram weight
+        _st = _wT/tt                  # per-count trigram weight
+        score(t) = _le*p_lm[t] + (1-_le)*( _sb*bi_count[t] + _st*tri_count[t] )
+
+    `_sb`/`_st` are the load-bearing part: a context seen once contributes
+    little, one seen 500 times contributes ~1. The earlier version here divided
+    the cache term by `_wc` instead, which gives a token whose row was seen ONCE
+    the same mass as one seen 500 times -- i.e. it throws the confidence
+    weighting away and pushes probability mass onto thin evidence.
+
+    Pure Python so it can be tested without numpy (tools/test_blend_math.py).
+    """
     wB = bi_tot / (bi_tot + cfg["bigram_conf"]) if bi_tot > 0 else 0.0
     wT = tri_tot / (tri_tot + cfg["trigram_conf"]) if tri_tot > 0 else 0.0
     wc = 1.0 - (1.0 - wT) * (1.0 - wB)
     le = 1.0 - (1.0 - cfg["bigram_lambda"]) * wc
+    sb = (1.0 - wT) * wB / bi_tot if bi_tot > 0 else 0.0
+    st = wT / tri_tot if tri_tot > 0 else 0.0
+    return le, sb, st, wc
 
-    p_blend = np.zeros(top_k, dtype=np.float64)
-    for i in range(top_k):
-        t = int(tk[i])
-        pb = bi_ctx.get(t, 0) / bi_tot if bi_tot > 0 else 0.0
-        pt = tri_ctx.get(t, 0) / tri_tot if tri_tot > 0 else 0.0
-        pc = (wB * pb + wT * pt) / wc if wc > 1e-12 else 0.0
-        p_blend[i] = le * float(probs[t]) + (1.0 - le) * pc
 
+def _row_counts(row, cand, cand_list=None):
+    """Sparse row {token: count} -> counts for the tokens in `cand` (float64).
+
+    Dict lookups rather than searchsorted: one lookup per candidate costs a flat
+    ~140us at 2048 candidates whatever the row holds, while sorting the row's
+    keys costs ~665us once a row has 8000 distinct successors -- and this runs
+    at every position of every segment, so the row-size-independent form is the
+    one to keep. Values are identical either way (checked in
+    tools/test_blend_math.py).
+    """
+    np = _np()
+    lst = cand.tolist() if cand_list is None else cand_list
+    if not row:
+        return np.zeros(len(lst), dtype=np.float64)
+    return np.fromiter((row.get(t, 0.0) for t in lst), dtype=np.float64,
+                       count=len(lst))
+
+
+def build_distribution(probs, tables, s, prev, prev2, cfg, uni_cache):
+    """Candidate set -> top-K by blended score -> 32-bit stage-1 CDF.
+
+    Mirrors `nb_blend_row` in ac32.py, which is what produced the 0.9003/0.9139
+    numbers. Two properties matter and both were missing here before:
+
+    F1  the alphabet is NOT the LM's top-K. It is `prefilter ∪ cache-row keys`,
+        then the top-K BY BLENDED SCORE. That is `nb_blend_row` step 4: a token
+        the cache has evidence for is promoted into the alphabet even when the
+        LM ranks it outside top-K, so it costs -log2(p) instead of the full
+        uniform-escape price (~log2(V-K) ~ 15.5 bits).
+    F2  per-count cache weights `_sb`/`_st` (see blend_weights), not normalized
+        by `_wc`.
+    """
+    np = _np()
+    stage1_cum_32, _ = _ac32()
+    V = len(probs)
+    top_k = min(int(cfg["top_k"]), V)
+    # v13 hard constraint: PREFILTER >= TOP_K (else the heap cannot fill).
+    prefilter = int(cfg.get("prefilter") or max(top_k, 2048))
+    prefilter = min(max(prefilter, top_k), V)
+
+    cand = np.argpartition(probs, -prefilter)[-prefilter:]
+    bi_ctx, bi_tot, tri_ctx, tri_tot = tables.get(s, prev, prev2)
+    le, sb, st, _wc = blend_weights(bi_tot, tri_tot, cfg)
+
+    keys = set(bi_ctx)
+    keys.update(tri_ctx)                      # F1: cache-only tokens join in
+    if keys:
+        cand = np.union1d(cand, np.fromiter(keys, dtype=np.int64, count=len(keys)))
+
+    cand_list = cand.tolist()
+    score = le * probs[cand] + (1.0 - le) * (
+        _row_counts(bi_ctx, cand, cand_list) * sb
+        + _row_counts(tri_ctx, cand, cand_list) * st)
+    if len(cand) > top_k:
+        order = np.argpartition(score, -top_k)[-top_k:]
+        order = order[np.argsort(-score[order])]
+    else:
+        order = np.argsort(-score)
+    tk = cand[order]
+    p_blend = score[order]
+
+    # leftover mass (incl. promoted-but-not-selected tokens) goes to escape and
+    # is coded uniformly in stage 2 -- same bookkeeping as v13's esc_vec.
     esc = max(1e-12, 1.0 - float(p_blend.sum()))
     cum_s1 = stage1_cum_32(p_blend, esc, cfg["floor_frac"])
 
