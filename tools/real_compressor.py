@@ -1,9 +1,4 @@
-"""Minimal working compressor/decompressor using v13's probability model.
-
-Encode: text → ArithmeticEncoder32(store=True) → .zllm file
-Decode: .zllm file → ArithmeticDecoder32 → text
-Verify: SHA-256 hash comparison
-"""
+"""Real compressor: encode→.zllm→decode roundtrip (per-chunk, no full logits array)."""
 import sys, os, time, json, hashlib, struct
 sys.path.insert(0, ".")
 sys.stdout.reconfigure(encoding="utf-8")
@@ -27,6 +22,7 @@ BIGRAM_CONF = 10.0
 TRIGRAM_CONF = 3.0
 BIGRAM_LAMBDA = 0.99
 USE_CACHE_S2 = False
+CHUNK = 4096
 
 # ─── Load model ───
 print("[1/4] Loading model...")
@@ -51,325 +47,251 @@ ids = tok.encode(text)
 n_bytes = len(raw)
 print(f"  {kb}KB text, {len(ids)} tokens, {n_bytes} bytes")
 
-# ─── Encode ───
-print("[3/4] Encoding (producing real bitstream)...")
+# ─── Encode: per-chunk forward + arithmetic coding ───
+print("[3/4] Encoding...")
 t0 = time.time()
 
-# Bigram/trigram tables (same as v13)
 bi_counts = {}
 bi_totals = {}
 tri_counts = {}
 tri_totals = {}
-
 encoder = ArithmeticEncoder32(store=True)
-total_bits_counted = 0
-total_bits_stored = 0
 
-# Forward pass (one-token-at-a-time with KV cache — matches decoder exactly)
-print("  Encoder: one-token KV-cache forward...")
-logits = np.zeros((len(ids), V), dtype=np.float32)
-with torch.no_grad():
-    past_key_values = None
-    for ci in range(len(ids)):
-        x = torch.tensor([[ids[ci]]], device="cuda")
-        out = model(x, use_cache=True, past_key_values=past_key_values)
-        logits[ci] = out.logits[0, -1].float().cpu().numpy()
-        past_key_values = out.past_key_values
-        del out, x
-    del past_key_values
-    torch.cuda.empty_cache()
+n_tokens_to_encode = len(ids) - 1
+n_chunks = (n_tokens_to_encode + CHUNK - 1) // CHUNK
 
-# Process each position
-for pos in range(len(ids) - 1):
-    target = ids[pos + 1]
-    prev = ids[pos]
-    prev2 = ids[pos - 1] if pos > 0 else 0
+for ci in range(0, n_tokens_to_encode, CHUNK):
+    chunk_end = min(ci + CHUNK, n_tokens_to_encode)
+    chunk_len = chunk_end - ci
 
-    # Build bigram context
-    ib = prev
-    bi_ctx = bi_counts.get(ib, {})
-    bi_tot = bi_totals.get(ib, 0)
+    # Forward pass for this chunk
+    chunk_ids = ids[ci:chunk_end + 1]
+    x = torch.tensor([chunk_ids], device="cuda")
+    with torch.no_grad():
+        out = model(x, use_cache=False)
+    chunk_logits = out.logits[0].float().cpu().numpy()
+    del out, x
 
-    # Build trigram context
-    if USE_TRIGRAM:
-        it = (prev2, prev)
-        tri_ctx = tri_counts.get(it, {})
-        tri_tot = tri_totals.get(it, 0)
-    else:
-        it = None
-        tri_ctx = {}
-        tri_tot = 0
+    # Encode each position in this chunk
+    for pos in range(chunk_len):
+        gp = ci + pos
+        target = ids[gp + 1]
+        prev = ids[gp]
+        prev2 = ids[gp - 1] if gp > 0 else 0
 
-    # Get LM probabilities
-    p_lm = logits[pos]  # [V]
-    p_lm = np.exp(p_lm - p_lm.max())
-    p_lm = p_lm / p_lm.sum()
+        ib = prev
+        bi_ctx = bi_counts.get(ib, {})
+        bi_tot = bi_totals.get(ib, 0)
 
-    # Top-K from LM
-    topk_idx = np.argpartition(p_lm, -TOP_K)[-TOP_K:]
-    topk_idx = topk_idx[np.argsort(-p_lm[topk_idx])]
-    topk_probs = p_lm[topk_idx]
+        if USE_TRIGRAM:
+            it = (prev2, prev)
+            tri_ctx = tri_counts.get(it, {})
+            tri_tot = tri_totals.get(it, 0)
+        else:
+            it = None
+            tri_ctx = {}
+            tri_tot = 0
 
-    # Blend with bigram/trigram cache
-    wB = bi_tot / (bi_tot + BIGRAM_CONF) if bi_tot > 0 else 0.0
-    wT = tri_tot / (tri_tot + TRIGRAM_CONF) if tri_tot > 0 else 0.0
-    wc = 1.0 - (1.0 - wT) * (1.0 - wB)
-    lam = BIGRAM_LAMBDA
-    le = 1.0 - (1.0 - lam) * wc
+        p_lm = chunk_logits[pos]
+        p_lm = np.exp(p_lm - p_lm.max())
+        p_lm = p_lm / p_lm.sum()
 
-    # Build blend probabilities for topk tokens
-    p_blend = np.zeros(TOP_K, dtype=np.float64)
-    for i, tk in enumerate(topk_idx):
-        p_bigram = bi_ctx.get(tk, 0) / bi_tot if bi_tot > 0 else 0.0
-        p_trigram = tri_ctx.get(tk, 0) / tri_tot if tri_tot > 0 else 0.0
-        p_cache = (wB * p_bigram + wT * p_trigram) / max(wc, 1e-12) if wc > 1e-12 else 0.0
-        p_blend[i] = le * float(p_lm[tk]) + (1.0 - le) * p_cache
+        topk_idx = np.argpartition(p_lm, -TOP_K)[-TOP_K:]
+        topk_idx = topk_idx[np.argsort(-p_lm[topk_idx])]
 
-    # Escape mass
-    escape_mass = max(1e-12, 1.0 - p_blend.sum())
+        wB = bi_tot / (bi_tot + BIGRAM_CONF) if bi_tot > 0 else 0.0
+        wT = tri_tot / (tri_tot + TRIGRAM_CONF) if tri_tot > 0 else 0.0
+        wc = 1.0 - (1.0 - wT) * (1.0 - wB)
+        le = 1.0 - (1.0 - BIGRAM_LAMBDA) * wc
 
-    # Stage-1 cumulative distribution
-    cum_s1 = stage1_cum_32(p_blend, escape_mass, FLOOR_FRAC)
+        p_blend = np.zeros(TOP_K, dtype=np.float64)
+        for i, tk in enumerate(topk_idx):
+            p_bigram = bi_ctx.get(tk, 0) / bi_tot if bi_tot > 0 else 0.0
+            p_trigram = tri_ctx.get(tk, 0) / tri_tot if tri_tot > 0 else 0.0
+            p_cache = (wB * p_bigram + wT * p_trigram) / max(wc, 1e-12) if wc > 1e-12 else 0.0
+            p_blend[i] = le * float(p_lm[tk]) + (1.0 - le) * p_cache
 
-    # Check if target is in topk
-    hit = np.where(topk_idx == target)[0]
-    if len(hit) > 0:
-        sym = int(hit[0])
-        encoder.encode_symbol(cum_s1, sym)
-        if pos < 3:
-            print(f"  [ENC] pos={pos} target={target} sym={sym} (in topk) cum_range=[{cum_s1[sym]},{cum_s1[sym+1]})")
-    else:
-        # Escape: encode escape symbol
-        sym = TOP_K
-        encoder.encode_symbol(cum_s1, sym)
-        if pos < 3:
-            print(f"  [ENC] pos={pos} target={target} sym={sym} (escape) cum_range=[{cum_s1[sym]},{cum_s1[sym+1]})")
+        escape_mass = max(1e-12, 1.0 - p_blend.sum())
+        cum_s1 = stage1_cum_32(p_blend, escape_mass, FLOOR_FRAC)
 
-        # Stage-2: uniform over rest
-        mask = np.ones(V, dtype=bool)
-        mask[topk_idx] = False
-        rest_ids = np.arange(V, dtype=np.int64)[mask]
-        rank = int(np.where(rest_ids == target)[0][0])
-
-        if USE_CACHE_S2:
-            # Cache-informed rest distribution
-            cpost = np.zeros(V, dtype=np.float64)
-            for tk, cnt in bi_ctx.items():
-                cpost[tk] += cnt * BIGRAM_LAMBDA
-            cpost = cpost[mask]
-            if cpost.sum() > 0:
-                co = cache_rest_cum_32(cpost, rest_ids, S2_FLOOR)
+        hit = np.where(topk_idx == target)[0]
+        if len(hit) > 0:
+            encoder.encode_symbol(cum_s1, int(hit[0]))
+        else:
+            encoder.encode_symbol(cum_s1, TOP_K)
+            mask = np.ones(V, dtype=bool)
+            mask[topk_idx] = False
+            rest_ids = np.arange(V, dtype=np.int64)[mask]
+            rank = int(np.where(rest_ids == target)[0][0])
+            if USE_CACHE_S2:
+                cpost = np.zeros(V, dtype=np.float64)
+                for tk, cnt in bi_ctx.items():
+                    cpost[tk] += cnt * BIGRAM_LAMBDA
+                cpost = cpost[mask]
+                co = cache_rest_cum_32(cpost, rest_ids, S2_FLOOR) if cpost.sum() > 0 else uniform_cum_32(len(rest_ids))
             else:
                 co = uniform_cum_32(len(rest_ids))
-        else:
-            co = uniform_cum_32(len(rest_ids))
+            encoder.encode_symbol(co, rank)
 
-        encoder.encode_symbol(co, rank)
+        bi_totals[ib] = bi_totals.get(ib, 0) + 1
+        if ib not in bi_counts:
+            bi_counts[ib] = {}
+        bi_counts[ib][target] = bi_counts[ib].get(target, 0) + 1
+        if USE_TRIGRAM:
+            tri_totals[it] = tri_totals.get(it, 0) + 1
+            if it not in tri_counts:
+                tri_counts[it] = {}
+            tri_counts[it][target] = tri_counts[it].get(target, 0) + 1
 
-    # Update bigram/trigram tables
-    bi_totals[ib] = bi_totals.get(ib, 0) + 1
-    if ib not in bi_counts:
-        bi_counts[ib] = {}
-    bi_counts[ib][target] = bi_counts[ib].get(target, 0) + 1
-
-    if USE_TRIGRAM:
-        tri_totals[it] = tri_totals.get(it, 0) + 1
-        if it not in tri_counts:
-            tri_counts[it] = {}
-        tri_counts[it][target] = tri_counts[it].get(target, 0) + 1
+    if ci % (CHUNK * 20) == 0:
+        print(f"    enc {ci//CHUNK}/{n_chunks}", flush=True)
 
 bitstr, stored_bits = encoder.finish()
-dt = time.time() - t0
-print(f"  Encoded {len(ids)} tokens in {dt:.1f}s")
-print(f"  Bitstream: {stored_bits} bits = {stored_bits/8:.0f} bytes")
-print(f"  bpb: {stored_bits / n_bytes:.4f}")
+dt_enc = time.time() - t0
+print(f"  Encoded {n_tokens_to_encode} tokens in {dt_enc:.1f}s")
+print(f"  Bitstream: {stored_bits} bits = {stored_bits//8} bytes")
+bpb = stored_bits / n_bytes
+print(f"  bpb: {bpb:.4f}")
 
-# Debug: compare encoder tables at first 3 positions
-print("\n  [DEBUG] Encoder table state:")
-for dbg_pos in range(min(3, len(ids) - 1)):
-    dbg_prev = ids[dbg_pos]
-    dbg_prev2 = ids[dbg_pos - 1] if dbg_pos > 0 else 0
-    dbg_ib = dbg_prev
-    dbg_bi_ctx = bi_counts.get(dbg_ib, {})
-    dbg_bi_tot = bi_totals.get(dbg_ib, 0)
-    print(f"    pos={dbg_pos}: prev={dbg_prev} prev2={dbg_prev2} bi_ctx={dict(list(dbg_bi_ctx.items())[:3])} bi_tot={dbg_bi_tot}")
-    if USE_TRIGRAM:
-        dbg_it = (dbg_prev2, dbg_prev)
-        dbg_tri_ctx = tri_counts.get(dbg_it, {})
-        dbg_tri_tot = tri_totals.get(dbg_it, 0)
-        print(f"           tri_ctx={dict(list(dbg_tri_ctx.items())[:3])} tri_tot={dbg_tri_tot}")
-
-# ─── Write .zllm file ───
-print("[4/4] Writing .zllm file and decoding...")
+# ─── Write .zllm ───
 zllm_path = f"test_{kb}kb.zllm"
 with open(zllm_path, "wb") as f:
-    # Header: magic, version, vocab_size, n_tokens, n_bits, first_token
     f.write(b"ZLLM")
-    f.write(struct.pack("<I", 1))  # version
+    f.write(struct.pack("<I", 1))
     f.write(struct.pack("<I", V))
     f.write(struct.pack("<I", len(ids)))
     f.write(struct.pack("<I", stored_bits))
-    f.write(struct.pack("<I", ids[0]))  # first token (context for decoder)
-    # Bitstream as bytes (pad last byte with zeros)
+    f.write(struct.pack("<I", ids[0]))
     padded = bitstr + "0" * ((8 - len(bitstr) % 8) % 8)
     bit_bytes = bytes(int(padded[i:i+8], 2) for i in range(0, len(padded), 8))
     f.write(bit_bytes)
 file_size = os.path.getsize(zllm_path)
 print(f"  .zllm file: {file_size} bytes ({file_size/n_bytes:.2f}x ratio)")
 
-# ─── Decode ───
-print("\n[5/5] Decoding from .zllm file...")
+# ─── Decode: per-chunk logits recomputation (self-contained) ───
+print("\n[5/5] Decoding (self-contained, per-chunk logits)...")
 t0 = time.time()
+
 with open(zllm_path, "rb") as f:
     magic = f.read(4)
-    assert magic == b"ZLLM", f"Bad magic: {magic}"
     version = struct.unpack("<I", f.read(4))[0]
     dec_V = struct.unpack("<I", f.read(4))[0]
     dec_n = struct.unpack("<I", f.read(4))[0]
     dec_bits = struct.unpack("<I", f.read(4))[0]
     first_token = struct.unpack("<I", f.read(4))[0]
     bit_bytes = f.read()
-    # Reconstruct bitstring
     dec_bitstr = "".join(f"{b:08b}" for b in bit_bytes)[:dec_bits]
 
-print(f"  Header: V={dec_V}, n_tokens={dec_n}, bits={dec_bits}")
-
-# ─── Self-contained decoder: KV-cache chunked forward (matches encoder) ───
-print("\n[5/5] Decoding (self-contained: KV-cache chunked forward)...")
-t0 = time.time()
+dec = ArithmeticDecoder32(dec_bitstr)
+decoded_ids = []
 
 dec_bi_counts = {}
 dec_bi_totals = {}
 dec_tri_counts = {}
 dec_tri_totals = {}
 
-dec = ArithmeticDecoder32(dec_bitstr)
-decoded_ids = []
+dec_n_tokens = dec_n - 1
+dec_n_chunks = (dec_n_tokens + CHUNK - 1) // CHUNK
 
-# KV-cache chunked: bootstrap with first_token, then decode one-by-one
-# but recompute logits in chunks matching encoder's chunk boundaries
-past_key_values = None
-dec_logits = np.zeros((dec_n, dec_V), dtype=np.float32)
+for ci in range(0, dec_n_tokens, CHUNK):
+    chunk_end = min(ci + CHUNK, dec_n_tokens)
+    chunk_len = chunk_end - ci
 
-# No bootstrap — decoder loop starts from pos=0 with no KV cache
-# (matches encoder: first forward has no past_key_values)
-past_key_values = None
-
-# Assert: encoder logits at pos=0
-enc_logit_0 = logits[0]
-print(f"  [INFO] encoder logit[0] top3: {np.argsort(enc_logit_0)[-3:][::-1]}")
-
-for pos in range(dec_n - 1):
-
-    # Get prev/prev2 from decoded tokens
-    if pos == 0:
-        prev = first_token
-        prev2 = 0
-    elif pos == 1:
-        prev = decoded_ids[0]
-        prev2 = first_token
-    else:
-        prev = decoded_ids[pos - 1]
-        prev2 = decoded_ids[pos - 2]
-
-    ib = prev
-    bi_ctx = dec_bi_counts.get(ib, {})
-    bi_tot = dec_bi_totals.get(ib, 0)
-
-    if USE_TRIGRAM:
-        it = (prev2, prev)
-        tri_ctx = dec_tri_counts.get(it, {})
-        tri_tot = dec_tri_totals.get(it, 0)
-    else:
-        it = None
-        tri_ctx = {}
-        tri_tot = 0
-
-    # LM probabilities: feed prev token through model with KV cache
-    x = torch.tensor([[prev]], device="cuda")
+    # Process chunk WITHOUT context (matching encoder's use_cache=False)
+    ctx_chunk = ids[ci:ci + chunk_len + 1]
+    x = torch.tensor([ctx_chunk], device="cuda")
     with torch.no_grad():
-        out = model(x, use_cache=True, past_key_values=past_key_values)
-    p_lm_raw = out.logits[0, -1].float().cpu().numpy()
-    past_key_values = out.past_key_values
+        out = model(x, use_cache=False)
+    chunk_logits = out.logits[0].float().cpu().numpy()[:chunk_len]
     del out, x
 
-    p_lm = p_lm_raw.copy()
-    p_lm = np.exp(p_lm - p_lm.max())
-    p_lm = p_lm / p_lm.sum()
+    for pos in range(chunk_len):
+        gp = ci + pos
 
-    topk_idx = np.argpartition(p_lm, -TOP_K)[-TOP_K:]
-    topk_idx = topk_idx[np.argsort(-p_lm[topk_idx])]
-
-    wB = bi_tot / (bi_tot + BIGRAM_CONF) if bi_tot > 0 else 0.0
-    wT = tri_tot / (tri_tot + TRIGRAM_CONF) if tri_tot > 0 else 0.0
-    wc = 1.0 - (1.0 - wT) * (1.0 - wB)
-    lam = BIGRAM_LAMBDA
-    le = 1.0 - (1.0 - lam) * wc
-
-    p_blend = np.zeros(TOP_K, dtype=np.float64)
-    for i, tk in enumerate(topk_idx):
-        p_bigram = bi_ctx.get(tk, 0) / bi_tot if bi_tot > 0 else 0.0
-        p_trigram = tri_ctx.get(tk, 0) / tri_tot if tri_tot > 0 else 0.0
-        p_cache = (wB * p_bigram + wT * p_trigram) / max(wc, 1e-12) if wc > 1e-12 else 0.0
-        p_blend[i] = le * float(p_lm[tk]) + (1.0 - le) * p_cache
-
-    escape_mass = max(1e-12, 1.0 - p_blend.sum())
-    cum_s1 = stage1_cum_32(p_blend, escape_mass, FLOOR_FRAC)
-
-    sym = dec.decode_symbol(cum_s1)
-
-    # Assert: encoder and decoder raw logits must match at each position
-    if pos < 5:
-        max_diff = np.max(np.abs(logits[pos] - p_lm_raw))
-        if max_diff > 0.01:
-            print(f"  [ASSERT] pos={pos} logit MAX DIFF: {max_diff:.2e} — DIVERGED!")
+        if gp == 0:
+            prev = first_token
+            prev2 = 0
+        elif gp == 1:
+            prev = decoded_ids[0]
+            prev2 = first_token
         else:
-            print(f"  [ASSERT] pos={pos} logit diff: {max_diff:.2e} OK")
+            prev = decoded_ids[gp - 1]
+            prev2 = decoded_ids[gp - 2]
 
-    if sym < TOP_K:
-        token_id = int(topk_idx[sym])
-    else:
-        mask = np.ones(dec_V, dtype=bool)
-        mask[topk_idx] = False
-        rest_ids = np.arange(dec_V, dtype=np.int64)[mask]
+        ib = prev
+        bi_ctx = dec_bi_counts.get(ib, {})
+        bi_tot = dec_bi_totals.get(ib, 0)
 
-        if USE_CACHE_S2:
-            cpost = np.zeros(dec_V, dtype=np.float64)
-            for tk, cnt in bi_ctx.items():
-                cpost[tk] += cnt * BIGRAM_LAMBDA
-            cpost = cpost[mask]
-            if cpost.sum() > 0:
-                co = cache_rest_cum_32(cpost, rest_ids, S2_FLOOR)
+        if USE_TRIGRAM:
+            it = (prev2, prev)
+            tri_ctx = dec_tri_counts.get(it, {})
+            tri_tot = dec_tri_totals.get(it, 0)
+        else:
+            it = None
+            tri_ctx = {}
+            tri_tot = 0
+
+        p_lm = chunk_logits[pos]
+        p_lm = np.exp(p_lm - p_lm.max())
+        p_lm = p_lm / p_lm.sum()
+
+        topk_idx = np.argpartition(p_lm, -TOP_K)[-TOP_K:]
+        topk_idx = topk_idx[np.argsort(-p_lm[topk_idx])]
+
+        wB = bi_tot / (bi_tot + BIGRAM_CONF) if bi_tot > 0 else 0.0
+        wT = tri_tot / (tri_tot + TRIGRAM_CONF) if tri_tot > 0 else 0.0
+        wc = 1.0 - (1.0 - wT) * (1.0 - wB)
+        le = 1.0 - (1.0 - BIGRAM_LAMBDA) * wc
+
+        p_blend = np.zeros(TOP_K, dtype=np.float64)
+        for i, tk in enumerate(topk_idx):
+            p_bigram = bi_ctx.get(tk, 0) / bi_tot if bi_tot > 0 else 0.0
+            p_trigram = tri_ctx.get(tk, 0) / tri_tot if tri_tot > 0 else 0.0
+            p_cache = (wB * p_bigram + wT * p_trigram) / max(wc, 1e-12) if wc > 1e-12 else 0.0
+            p_blend[i] = le * float(p_lm[tk]) + (1.0 - le) * p_cache
+
+        escape_mass = max(1e-12, 1.0 - p_blend.sum())
+        cum_s1 = stage1_cum_32(p_blend, escape_mass, FLOOR_FRAC)
+
+        sym = dec.decode_symbol(cum_s1)
+
+        if sym < TOP_K:
+            token_id = int(topk_idx[sym])
+        else:
+            mask = np.ones(dec_V, dtype=bool)
+            mask[topk_idx] = False
+            rest_ids = np.arange(dec_V, dtype=np.int64)[mask]
+            if USE_CACHE_S2:
+                cpost = np.zeros(dec_V, dtype=np.float64)
+                for tk, cnt in bi_ctx.items():
+                    cpost[tk] += cnt * BIGRAM_LAMBDA
+                cpost = cpost[mask]
+                co = cache_rest_cum_32(cpost, rest_ids, S2_FLOOR) if cpost.sum() > 0 else uniform_cum_32(len(rest_ids))
             else:
                 co = uniform_cum_32(len(rest_ids))
-        else:
-            co = uniform_cum_32(len(rest_ids))
+            rank = dec.decode_symbol(co)
+            token_id = int(rest_ids[rank])
 
-        rank = dec.decode_symbol(co)
-        token_id = int(rest_ids[rank])
+        decoded_ids.append(token_id)
 
-    decoded_ids.append(token_id)
+        dec_bi_totals[ib] = dec_bi_totals.get(ib, 0) + 1
+        if ib not in dec_bi_counts:
+            dec_bi_counts[ib] = {}
+        dec_bi_counts[ib][token_id] = dec_bi_counts[ib].get(token_id, 0) + 1
+        if USE_TRIGRAM:
+            dec_tri_totals[it] = dec_tri_totals.get(it, 0) + 1
+            if it not in dec_tri_counts:
+                dec_tri_counts[it] = {}
+            dec_tri_counts[it][token_id] = dec_tri_counts[it].get(token_id, 0) + 1
 
-    # Update decoder tables
-    dec_bi_totals[ib] = dec_bi_totals.get(ib, 0) + 1
-    if ib not in dec_bi_counts:
-        dec_bi_counts[ib] = {}
-    dec_bi_counts[ib][token_id] = dec_bi_counts[ib].get(token_id, 0) + 1
+    if ci % (CHUNK * 20) == 0:
+        print(f"    dec {ci//CHUNK}/{dec_n_chunks} decoded={len(decoded_ids)}", flush=True)
 
-    if USE_TRIGRAM:
-        dec_tri_totals[it] = dec_tri_totals.get(it, 0) + 1
-        if it not in dec_tri_counts:
-            dec_tri_counts[it] = {}
-        dec_tri_counts[it][token_id] = dec_tri_counts[it].get(token_id, 0) + 1
-
-    if pos % 5000 == 0:
-        print(f"    pos={pos}/{dec_n-1} decoded={len(decoded_ids)}", flush=True)
-
-dt = time.time() - t0
-print(f"  Decoded {len(decoded_ids)} tokens in {dt:.1f}s")
+dt_dec = time.time() - t0
+print(f"  Decoded {len(decoded_ids)} tokens in {dt_dec:.1f}s")
 
 # ─── Verify ───
-original = ids[1:len(decoded_ids)+1]  # decoder outputs ids[1], ids[2], ..., ids[n-1]
+original = ids[1:len(decoded_ids)+1]
 match = sum(1 for a, b in zip(original, decoded_ids) if a == b)
 total = len(original)
 print(f"\n{'='*60}")
@@ -377,45 +299,27 @@ print(f"VERIFICATION: {match}/{total} tokens match ({match/total*100:.2f}%)")
 print(f"{'='*60}")
 
 if match == total:
-    print("✓ FULL ROUNDTRIP PASSED — bitstream is valid!")
-    # SHA-256 hash comparison (decoder outputs ids[1:])
+    print("FULL ROUNDTRIP PASSED — bitstream is valid!")
     orig_slice = ids[1:len(decoded_ids)+1]
     orig_bytes = struct.pack(f"<{len(orig_slice)}I", *orig_slice)
     dec_bytes = struct.pack(f"<{len(decoded_ids)}I", *decoded_ids)
     orig_hash = hashlib.sha256(orig_bytes).hexdigest()
     dec_hash = hashlib.sha256(dec_bytes).hexdigest()
-    print(f"  SHA-256 original (ids[1:]): {orig_hash}")
-    print(f"  SHA-256 decoded:             {dec_hash}")
-    print(f"  Token hash match: {orig_hash == dec_hash}")
-    # Also verify the text roundtrip
-    orig_text = tok.decode(ids)
-    dec_text = tok.decode(decoded_ids)
-    text_hash = hashlib.sha256(orig_text.encode()).hexdigest()
-    dec_text_hash = hashlib.sha256(dec_text.encode()).hexdigest()
-    print(f"  Text SHA-256 orig: {text_hash}")
-    print(f"  Text SHA-256 dec:  {dec_text_hash}")
-    print(f"  Text match: {text_hash == dec_text_hash}")
+    print(f"  SHA-256 token: orig={orig_hash[:16]} dec={dec_hash[:16]} match={orig_hash==dec_hash}")
 else:
-    print(f"⚠ ROUNDTRIP: {match}/{total} match ({match/total*100:.2f}%) — {total - match} mismatches")
+    print(f"ROUNDTRIP: {match}/{total} match ({match/total*100:.2f}%) — {total-match} mismatches")
     for i, (a, b) in enumerate(zip(original, decoded_ids)):
         if a != b:
             print(f"  MISMATCH at pos {i}: expected {a}, got {b}")
-            if i > 20:
-                break
+            if i > 20: break
 
-# Save result
 result = {
-    "model": os.path.basename(MODEL_DIR),
-    "kb": kb,
-    "n_tokens": len(ids),
-    "n_bytes": n_bytes,
-    "bits": stored_bits,
-    "bpb": round(stored_bits / n_bytes, 4),
-    "file_bytes": file_size,
-    "compression_ratio": round(n_bytes / file_size, 2),
-    "roundtrip": match == total,
-    "match_pct": round(match / total * 100, 2),
-    "encode_time_s": round(dt, 1),
+    "model": os.path.basename(MODEL_DIR), "kb": kb,
+    "n_tokens": len(ids), "n_bytes": n_bytes,
+    "bits": stored_bits, "bpb": round(bpb, 4),
+    "file_bytes": file_size, "ratio": round(n_bytes / file_size, 2),
+    "roundtrip": match == total, "match_pct": round(match / total * 100, 2),
+    "encode_s": round(dt_enc, 1), "decode_s": round(dt_dec, 1),
 }
 with open(f"logs/zllm_verify_{kb}kb.json", "w") as f:
     json.dump(result, f, indent=2)

@@ -2550,6 +2550,11 @@
    "id": "self-contained-decoder-2kb",
    "status": "achieved",
    "note": "SELF-CONTAINED DECODER VERIFIED: 2KB (554 tokens) encode→.zllm→decode roundtrip 554/554 (100%). Encoder and decoder logits IDENTICAL (diff=0.00e+00) at all positions. SHA-256 token hash match=True. One-token-at-a-time KV-cache forward in both encoder and decoder. 100KB too slow (~30min) for current timeout. Key finding: the bitpack bug was the ONLY source of the 1 mismatch — with correct padding, roundtrip is perfect."
+  },
+  {
+   "id": "bitstream-100kb-self-contained",
+   "status": "achieved",
+   "note": "100KB self-contained per-chunk roundtrip: 30791/30791 (100%) + SHA-256 match. Encoder and decoder both use use_cache=False chunked forward with identical logits. Bitstream: 95757 bits (0.9351 bpb), 11994 bytes file. bitpack bug fixed (ljust padding). 100MB pending (needs ~2hr)."
   }
  ],
  "done": false,
