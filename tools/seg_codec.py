@@ -39,6 +39,7 @@ then codes tokens 1..L-1 in the lockstep loop. `n_tokens` counts all tokens in
 the file, so the archive is self-describing given the model: there is no seed
 token in the header.
 """
+import time
 DUMMY_TOKEN = 0          # fed to segments that already finished (output ignored)
 TOTAL_SYM_MARGIN = 2     # stage-1 alphabet is len(topk)+1 (topk + escape)
 
@@ -70,37 +71,69 @@ class SegTables:
     a lockstep decoder cannot reproduce.)
     """
 
-    def __init__(self, n_segments, use_trigram=True):
+    def __init__(self, n_segments, use_trigram=True, shared=False):
         self.use_trigram = use_trigram
-        self.bi = [dict() for _ in range(n_segments)]
-        self.bt = [dict() for _ in range(n_segments)]
-        self.tri = [dict() for _ in range(n_segments)]
-        self.tt = [dict() for _ in range(n_segments)]
+        self.shared = shared
+        if shared:
+            # Shared tables: one dict for all segments
+            self.bi_s = {}
+            self.bt_s = {}
+            self.tri_s = {}
+            self.tt_s = {}
+        else:
+            self.bi = [dict() for _ in range(n_segments)]
+            self.bt = [dict() for _ in range(n_segments)]
+            self.tri = [dict() for _ in range(n_segments)]
+            self.tt = [dict() for _ in range(n_segments)]
 
     def get(self, s, prev, prev2):
-        bi_ctx = self.bi[s].get(prev, {})
-        bi_tot = self.bt[s].get(prev, 0)
-        if self.use_trigram and prev2 is not None:
-            key = (prev2, prev)
-            tri_ctx = self.tri[s].get(key, {})
-            tri_tot = self.tt[s].get(key, 0)
+        if self.shared:
+            bi_ctx = self.bi_s.get(prev, {})
+            bi_tot = self.bt_s.get(prev, 0)
+            if self.use_trigram and prev2 is not None:
+                key = (prev2, prev)
+                tri_ctx = self.tri_s.get(key, {})
+                tri_tot = self.tt_s.get(key, 0)
+            else:
+                tri_ctx, tri_tot = {}, 0
         else:
-            tri_ctx, tri_tot = {}, 0
+            bi_ctx = self.bi[s].get(prev, {})
+            bi_tot = self.bt[s].get(prev, 0)
+            if self.use_trigram and prev2 is not None:
+                key = (prev2, prev)
+                tri_ctx = self.tri[s].get(key, {})
+                tri_tot = self.tt[s].get(key, 0)
+            else:
+                tri_ctx, tri_tot = {}, 0
         return bi_ctx, bi_tot, tri_ctx, tri_tot
 
     def update(self, s, prev, prev2, token):
-        d = self.bi[s].get(prev)
-        if d is None:
-            d = self.bi[s][prev] = {}
-        d[token] = d.get(token, 0) + 1
-        self.bt[s][prev] = self.bt[s].get(prev, 0) + 1
-        if self.use_trigram and prev2 is not None:
-            key = (prev2, prev)
-            d = self.tri[s].get(key)
+        if self.shared:
+            d = self.bi_s.get(prev)
             if d is None:
-                d = self.tri[s][key] = {}
+                d = self.bi_s[prev] = {}
             d[token] = d.get(token, 0) + 1
-            self.tt[s][key] = self.tt[s].get(key, 0) + 1
+            self.bt_s[prev] = self.bt_s.get(prev, 0) + 1
+            if self.use_trigram and prev2 is not None:
+                key = (prev2, prev)
+                d = self.tri_s.get(key)
+                if d is None:
+                    d = self.tri_s[key] = {}
+                d[token] = d.get(token, 0) + 1
+                self.tt_s[key] = self.tt_s.get(key, 0) + 1
+        else:
+            d = self.bi[s].get(prev)
+            if d is None:
+                d = self.bi[s][prev] = {}
+            d[token] = d.get(token, 0) + 1
+            self.bt[s][prev] = self.bt[s].get(prev, 0) + 1
+            if self.use_trigram and prev2 is not None:
+                key = (prev2, prev)
+                d = self.tri[s].get(key)
+                if d is None:
+                    d = self.tri[s][key] = {}
+                d[token] = d.get(token, 0) + 1
+                self.tt[s][key] = self.tt[s].get(key, 0) + 1
 
 
 class Dist:
@@ -207,9 +240,18 @@ def encode_stream(ids, n_segments, cfg, next_logits, enc, tables,
 
     # 2) lockstep: step i feeds token i, yields the distribution for token i+1.
     maxL = max((L for _, L in plan), default=0)
+    t_fwd_total = 0
+    t_dist_total = 0
+    t_ac_total = 0
     for i in range(0, maxL - 1):
         inp = [int(ids[start + i]) if i < L else DUMMY_TOKEN for (start, L) in plan]
-        probs = next_logits(inp, i)
+        result = next_logits(inp, i)
+        if isinstance(result, tuple):
+            probs, t_fwd = result
+            t_fwd_total += t_fwd
+        else:
+            probs = result
+        t0d = time.time()
         for s, (start, L) in enumerate(plan):
             if i + 1 >= L:
                 continue
@@ -217,7 +259,10 @@ def encode_stream(ids, n_segments, cfg, next_logits, enc, tables,
             prev2 = int(ids[start + i - 1]) if i >= 1 else None
             target = int(ids[start + i + 1])
             dist = make_dist(probs[s], tables, s, prev, prev2, cfg, uni_cache)
+            t1d = time.time()
+            t_dist_total += t1d - t0d
             r = _rank_of(dist.topk, target)
+            t0a = time.time()
             if r >= 0:
                 enc.encode_symbol(dist.cum_s1, r)
             else:
@@ -226,10 +271,13 @@ def encode_stream(ids, n_segments, cfg, next_logits, enc, tables,
                 enc.encode_symbol(cum_rest, _rank_of(rest_ids, target))
                 if stats is not None:
                     stats["escapes"] += 1
+            t_ac_total += time.time() - t0a
             tables.update(s, prev, prev2, target)
             if stats is not None:
                 stats["coded"] += 1
-    return plan
+            t0d = time.time()
+    timings = {"fwd": t_fwd_total, "dist": t_dist_total, "ac": t_ac_total}
+    return plan, timings
 
 
 def decode_stream(n_tokens, n_segments, cfg, next_logits, dec, tables,
@@ -247,10 +295,16 @@ def decode_stream(n_tokens, n_segments, cfg, next_logits, dec, tables,
             stats["uniform"] += 1
 
     maxL = max((L for _, L in plan), default=0)
+    t_fwd_total = 0
     for i in range(0, maxL - 1):
         inp = [buf[s][i] if i < L else DUMMY_TOKEN
                for s, (_, L) in enumerate(plan)]
-        probs = next_logits(inp, i)
+        result = next_logits(inp, i)
+        if isinstance(result, tuple):
+            probs, t_fwd = result
+            t_fwd_total += t_fwd
+        else:
+            probs = result
         for s, (start, L) in enumerate(plan):
             if i + 1 >= L:
                 continue

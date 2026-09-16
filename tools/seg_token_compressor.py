@@ -74,14 +74,27 @@ def make_next_logits(model, torch, device, n_segments):
     """
     states = [None] * 16  # up to 16 segments
 
+    states = [None] * 32  # per-segment KV cache
+    WINDOW = int(os.environ.get("KV_WINDOW", "8192"))
+
     def next_logits(inp, step):
         results = []
+        t_fwd = 0
         with torch.no_grad():
             for s, tok in enumerate(inp):
+                t0 = time.time()
                 x = torch.tensor([[tok]], dtype=torch.long, device=device)
                 kw = dict(input_ids=x, use_cache=True)
-                if states[s] is not None:
-                    kw["past_key_values"] = states[s]
+                pkv = states[s]
+                # Sliding-window: trim KV to last WINDOW entries
+                if pkv is not None and pkv[0][0].shape[2] > WINDOW:
+                    pkv = tuple(
+                        (k[:, :, -WINDOW:, :], v[:, :, -WINDOW:, :])
+                        for k, v in pkv
+                    )
+                    states[s] = pkv
+                if pkv is not None:
+                    kw["past_key_values"] = pkv
                 out = model(**kw)
                 states[s] = out.past_key_values
                 lg = out.logits[:, -1, :].float()
@@ -90,7 +103,8 @@ def make_next_logits(model, torch, device, n_segments):
                 p = (p / p.sum(dim=-1, keepdim=True)).cpu().numpy()
                 results.append(p[0])
                 del out, x
-        return results
+                t_fwd += time.time() - t0
+        return results, t_fwd
 
     return next_logits
 
@@ -143,6 +157,8 @@ def main():
     ap.add_argument("--bigram-conf", type=float, default=10.0)
     ap.add_argument("--trigram-conf", type=float, default=3.0)
     ap.add_argument("--no-trigram", action="store_true")
+    ap.add_argument("--shared-tables", action="store_true",
+                    help="Share n-gram tables across segments (legal in lockstep)")
     ap.add_argument("--out", default=None)
     ap.add_argument("--progress-every", type=int, default=200)
     args = ap.parse_args()
@@ -178,7 +194,8 @@ def main():
     print(f"[3/6] encoding (K={K}, one batched forward per step)")
     enc_uniform = sc.uniform_cum_cached(V, {})
     uni_cache = {}
-    tables = sc.SegTables(K, use_trigram=cfg["use_trigram"])
+    tables = sc.SegTables(K, use_trigram=cfg["use_trigram"],
+                          shared=args.shared_tables)
     from ac32 import ArithmeticEncoder32
     enc = ArithmeticEncoder32(store=True)
     stats = dict(coded=0, escapes=0, uniform=0)
@@ -197,10 +214,15 @@ def main():
         return nl_enc(inp, step)
 
     t_enc = time.time()
-    sc.encode_stream(ids, K, cfg, nl_enc_timed, enc, tables, enc_uniform,
+    plan, timings = sc.encode_stream(ids, K, cfg, nl_enc_timed, enc, tables, enc_uniform,
                      sc.build_distribution, uni_cache, stats)
     bitstr, n_bits = enc.finish()
     dt_enc = time.time() - t_enc
+    total_steps = maxL - 1
+    per_step = dt_enc / max(1, total_steps) * 1000
+    print(f"      PHASES: fwd={timings['fwd']:.1f}s dist={timings['dist']:.1f}s "
+          f"ac={timings['ac']:.1f}s total={dt_enc:.1f}s")
+    print(f"      per-step: {per_step:.1f}ms (target地板: ~0.6ms)")
     assert len(bitstr) == n_bits, (len(bitstr), n_bits)
     del nl_enc, nl_enc_timed
     if device.type == "cuda":
@@ -222,7 +244,8 @@ def main():
     assert meta_r["n_tokens"] == n_tokens and meta_r["n_segments"] == K
     from ac32 import ArithmeticDecoder32
     dec = ArithmeticDecoder32(bitstr_r)
-    tables_d = sc.SegTables(K, use_trigram=cfg["use_trigram"])
+    tables_d = sc.SegTables(K, use_trigram=cfg["use_trigram"],
+                            shared=args.shared_tables)
     stats_d = dict(coded=0, escapes=0, uniform=0)
     nl_dec = make_next_logits(model, torch, device, K)
     t_dec = time.time()
