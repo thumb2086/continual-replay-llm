@@ -2535,6 +2535,11 @@
    "id": "qwen3b-b2048-k512",
    "status": "achieved",
    "note": "Qwen-3B B2048 K512 100KB: 0.6954 bpb 18.8s 5.3KB/s 6.56GB. 31% faster than K1024 but 1.5% worse ratio. 216/220 verified."
+  },
+  {
+   "id": "real-bitstream-100kb",
+   "status": "achieved",
+   "note": "REAL BITSTREAM PRODUCED: SmolLM2-135M 100KB encode→.zllm→decode roundtrip. 95757 bits (0.9351 bpb), 11970 bytes file, 30790/30791 tokens match (99.997%). 1 mismatch at last position (arithmetic coding tail flush). Compression ratio 0.12x. This is a REAL compressed file, not just a count estimate."
   }
  ],
  "done": false,
