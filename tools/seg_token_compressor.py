@@ -74,37 +74,27 @@ def make_next_logits(model, torch, device, n_segments):
     """
     states = [None] * 16  # up to 16 segments
 
-    states = [None] * 32  # per-segment KV cache
+    cache = None
     WINDOW = int(os.environ.get("KV_WINDOW", "8192"))
 
     def next_logits(inp, step):
-        results = []
-        t_fwd = 0
-        with torch.no_grad():
-            for s, tok in enumerate(inp):
-                t0 = time.time()
-                x = torch.tensor([[tok]], dtype=torch.long, device=device)
-                kw = dict(input_ids=x, use_cache=True)
-                pkv = states[s]
-                # Sliding-window: trim KV to last WINDOW entries
-                if pkv is not None and pkv[0][0].shape[2] > WINDOW:
-                    pkv = tuple(
-                        (k[:, :, -WINDOW:, :], v[:, :, -WINDOW:, :])
-                        for k, v in pkv
-                    )
-                    states[s] = pkv
-                if pkv is not None:
-                    kw["past_key_values"] = pkv
-                out = model(**kw)
-                states[s] = out.past_key_values
-                lg = out.logits[:, -1, :].float()
-                lg = lg - lg.max(dim=-1, keepdim=True).values
-                p = torch.exp(lg)
-                p = (p / p.sum(dim=-1, keepdim=True)).cpu().numpy()
-                results.append(p[0])
-                del out, x
-                t_fwd += time.time() - t0
-        return results, t_fwd
+        nonlocal cache
+        t0 = time.time()
+        with torch.inference_mode():
+            x = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(1)  # [K,1]
+            kw = dict(input_ids=x, use_cache=True)
+            if cache is not None:
+                kw["past_key_values"] = cache
+            out = model(**kw)
+            cache = out.past_key_values
+            if cache[0][0].shape[2] > WINDOW:
+                cache = tuple((k[:, :, -WINDOW:, :], v[:, :, -WINDOW:, :])
+                              for k, v in cache)
+            lg = out.logits[:, -1, :].float()
+            lg = lg - lg.max(dim=-1, keepdim=True).values
+            p = torch.exp(lg)
+            p = (p / p.sum(dim=-1, keepdim=True)).cpu().numpy()
+        return [p[s] for s in range(len(inp))], time.time() - t0
 
     return next_logits
 
