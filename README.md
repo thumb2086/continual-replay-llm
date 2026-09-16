@@ -4,13 +4,14 @@
 
 Replay-first continual learning for small streaming language models — applied to **practical neural text compression**: Qwen2.5-3B at **0.6646 bits/byte** on enwik8 full 100 MB (beats CMIX ~0.90 with 1 model vs 200+, 7x faster), SmolLM2-135M speed line **34.5 KB/s**, all on a single RTX 3060 Ti 8 GB — with every number measured and every failure kept.
 
-## Headline numbers (all measured, 2026-09-14)
+## Headline numbers (all measured, 2026-09-16)
 
 | System | bpb ↓ | Speed | Lossless check |
 |---|---|---|---|
 | **Ours Qwen2.5-3B (full 100 MB)** | **0.6646** | 6.88 KB/s (K1024/B4096+gate, 4.1h, peak 7.28 GB) | 220/220 roundtrip |
-| **Ours Qwen2.5-3B (100 KB)** | **0.6617** | 25.7 KB/s (K4096/B4096+gate, peak 7.60 GB) | 220/220 roundtrip |
-| **Ours SmolLM2-135M (full 100 MB)** | 0.8968 | 24.9 KB/s (chunked, peak 1.50 GB) | 220/220 roundtrip |
+| **Ours SmolLM2-360M (full 100 MB, WSL)** | **0.7808** | 19.4 KB/s (K2048/B8192, 88min, peak 2.20 GB) | 220/220 roundtrip |
+| **Ours SmolLM2-135M (full 100 MB, WSL)** | 0.8968 | **29.6 KB/s** (chunked, 58min, peak 1.50 GB) | 220/220 roundtrip |
+| **Ours SmolLM2-135M (full 100 MB)** | 0.8968 | 24.9 KB/s (chunked, 69min, peak 1.50 GB) | 220/220 roundtrip |
 | **Ours SmolLM2-135M (100 KB)** | 0.9276 | 34.5 KB/s (chunked, 2.9 s, peak 1.50 GB) | 220/220 roundtrip |
 | CMIX (literature, 200+ models) | ~0.90 | ~1 KB/s | — |
 | NNCP v2 (ref) | ~0.94 | 3.25 KB/s | — |
