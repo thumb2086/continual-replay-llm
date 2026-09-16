@@ -188,6 +188,58 @@ def main():
             check(f"bt={bt:5d} tt={tt:3d}  alphabet mass <= 1 (escape >= 0)",
                   tot <= 1.0 + 1e-9, f"mass={tot:.6f}  esc={1 - tot:.2e}")
 
+    # ---- constant parity with the recorded reference RUNS -----------------
+    # Not with v13's code defaults: those say what the source contains, not what
+    # produced the numbers. 85 of the recorded runs in data/ used tc3.0, and
+    # v13's own default (7.0) appears in no reference run -- an earlier version
+    # of this check "corrected" the codec from 3.0 to 7.0 on the strength of the
+    # code default alone, i.e. in the wrong direction. Anchor to the runs.
+    print()
+    print("-- constant parity: codec defaults vs the recorded v13 runs in data/ --")
+    import glob
+    import re
+
+    drv_txt = io.open(os.path.join(os.path.dirname(HERE), "tools",
+                                   "seg_token_compressor.py"),
+                      encoding="utf-8").read()
+    drv = {}
+    arg_re = (r'add_argument\("--([a-z0-9-]+)"'
+              r'(?:,\s*type=\w+)?,\s*default=("[^"]*"|[^,\n)]+)')
+    for m in re.finditer(arg_re, drv_txt):
+        drv[m.group(1).replace("-", "_")] = m.group(2).strip().strip('"')
+
+    ref_glob = os.path.join(os.path.dirname(HERE), "data",
+                            "smollm2_ensemble_v13*pf2048*tri1*bc10.0_tc3.0*"
+                            "k1024*_kb100.json")
+    refs = sorted(glob.glob(ref_glob))
+    if not refs:
+        print("  [skip] no recorded v13 reference run in data/ (expected "
+              "pf2048 / k1024 / tc3.0 / kb100)")
+    else:
+        name = os.path.basename(refs[0])
+        print(f"  anchoring to: {name}")
+        for dk, rx in (("bigram_lambda", r"lam([0-9.]+)"),
+                       ("bigram_conf", r"bc([0-9.]+)"),
+                       ("trigram_conf", r"tc([0-9.]+)"),
+                       ("prefilter", r"pf([0-9]+)"),
+                       ("top_k", r"_k([0-9]+)_"),
+                       ("floor_frac", r"_f([0-9.e-]+)_")):
+            m = re.search(rx, name)
+            if not m or dk not in drv:
+                print(f"  [skip] {dk}: not parsed")
+                continue
+            want, got = m.group(1), drv[dk]
+            try:
+                same = abs(float(want) - float(got)) < 1e-12
+            except ValueError:
+                same = want == got
+            check(f"{dk}: codec default {got} == reference run {want}", same)
+        print("  [note] v13's code default for TRIGRAM_CONF is 7.0, but no "
+              "recorded reference run uses it (the two tc7.0 files are v5-era "
+              "and worse bpb) -- the codec's 3.0 is the operating point.")
+        print("  [note] the 0.9003 / 27-escape run was pf8192 k8192 tc10.0; "
+              "switching the codec to that operating point is a separate test.")
+
     print()
     print("=" * 78)
     print(f"RESULT: {'ALL PASS' if not FAILS else 'FAILURES: ' + ', '.join(FAILS)}")

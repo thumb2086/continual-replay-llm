@@ -148,10 +148,12 @@ def main():
     ap.add_argument("--floor-frac", type=float, default=1e-6)
     ap.add_argument("--bigram-lambda", type=float, default=0.99)
     ap.add_argument("--bigram-conf", type=float, default=10.0)
-    ap.add_argument("--trigram-conf", type=float, default=7.0,
-                    help="v13 TRIGRAM_CONF default (was 3.0 here -- a silent "
-                         "mismatch that made the blend weights differ from the "
-                         "reference runs)")
+    ap.add_argument("--trigram-conf", type=float, default=3.0,
+                    help="3.0 matches the recorded v13 reference runs "
+                         "(tc3.0 in 85 of data/*.json, incl. the 0.9139 / 377-"
+                         "escape 100KB runs; the 0.9003 run used tc10.0 with "
+                         "pf8192/k8192). v13's own code default is 7.0, which "
+                         "no reference run used -- do not 'align' to it.")
     ap.add_argument("--no-trigram", action="store_true")
     ap.add_argument("--shared-tables", action="store_true",
                     help="Share n-gram tables across segments (legal in lockstep)")
