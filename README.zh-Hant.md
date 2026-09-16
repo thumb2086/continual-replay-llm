@@ -2,13 +2,14 @@
 
 Replay-first 的小串流語言模型持續學習——用在**實用神經文本壓縮**：Qwen2.5-3B 在 enwik8 全檔 100MB 上 **0.6646 bits/byte**（1 個模型贏 CMIX 200+ 模型 26%，快 7 倍），SmolLM2-135M 速度線 **34.5KB/s**，全在單卡 RTX 3060 Ti 8GB 上——每個數字都是實測，每次失敗都留著。英文版見 [`README.md`](README.md)。
 
-## 頭條數字（全實測，2026-09-14）
+## 頭條數字（全實測，2026-09-16）
 
 | 系統 | bpb ↓ | 速度 | 無損檢查 |
 |---|---|---|---|
 | **我們 Qwen2.5-3B（全檔 100MB）** | **0.6646** | 6.88 KB/s（K1024/B4096+gate，4.1h，峰值 7.28GB） | 220/220 roundtrip |
-| **我們 Qwen2.5-3B（100KB）** | **0.6617** | 25.7 KB/s（K4096/B4096+gate，峰值 7.60GB） | 220/220 roundtrip |
-| **我們 SmolLM2-135M（全檔 100MB）** | 0.8968 | 24.9 KB/s（chunked，峰值 1.50GB） | 220/220 roundtrip |
+| **我們 SmolLM2-360M（全檔 100MB，WSL）** | **0.7808** | 19.4 KB/s（K2048/B8192，88min，峰值 2.20GB） | 220/220 roundtrip |
+| **我們 SmolLM2-135M（全檔 100MB，WSL）** | 0.8968 | **29.6 KB/s**（chunked，58min，峰值 1.50GB） | 220/220 roundtrip |
+| **我們 SmolLM2-135M（全檔 100MB）** | 0.8968 | 24.9 KB/s（chunked，69min，峰值 1.50GB） | 220/220 roundtrip |
 | **我們 SmolLM2-135M（100KB）** | 0.9276 | 34.5 KB/s（chunked，2.9 秒，峰值 1.50GB） | 220/220 roundtrip |
 | CMIX（文獻，200+ 模型） | ~0.90 | ~1 KB/s | — |
 | NNCP v2（參考） | ~0.94 | 3.25 KB/s | — |
