@@ -2540,6 +2540,11 @@
    "id": "real-bitstream-100kb",
    "status": "achieved",
    "note": "REAL BITSTREAM PRODUCED: SmolLM2-135M 100KB encode→.zllm→decode roundtrip. 95757 bits (0.9351 bpb), 11970 bytes file, 30790/30791 tokens match (99.997%). 1 mismatch at last position (arithmetic coding tail flush). Compression ratio 0.12x. This is a REAL compressed file, not just a count estimate."
+  },
+  {
+   "id": "bitstream-fix-100",
+   "status": "achieved",
+   "note": "BITPACK FIX: ljust padding fixed last-byte bit shift. 100KB roundtrip: 30791/30791 tokens (100%), SHA-256 hash match=True. 95757 bits (0.9351 bpb), 11994 bytes file. This is a REAL compressed file with verified lossless roundtrip."
   }
  ],
  "done": false,

@@ -208,8 +208,9 @@ with open(zllm_path, "wb") as f:
     f.write(struct.pack("<I", len(ids)))
     f.write(struct.pack("<I", stored_bits))
     f.write(struct.pack("<I", ids[0]))  # first token (context for decoder)
-    # Bitstream as bytes
-    bit_bytes = bytes(int(bitstr[i:i+8], 2) for i in range(0, len(bitstr), 8))
+    # Bitstream as bytes (pad last byte with zeros)
+    padded = bitstr + "0" * ((8 - len(bitstr) % 8) % 8)
+    bit_bytes = bytes(int(padded[i:i+8], 2) for i in range(0, len(padded), 8))
     f.write(bit_bytes)
 file_size = os.path.getsize(zllm_path)
 print(f"  .zllm file: {file_size} bytes ({file_size/n_bytes:.2f}x ratio)")
@@ -371,6 +372,23 @@ print(f"{'='*60}")
 
 if match == total:
     print("✓ FULL ROUNDTRIP PASSED — bitstream is valid!")
+    # SHA-256 hash comparison (decoder outputs ids[1:])
+    orig_slice = ids[1:len(decoded_ids)+1]
+    orig_bytes = struct.pack(f"<{len(orig_slice)}I", *orig_slice)
+    dec_bytes = struct.pack(f"<{len(decoded_ids)}I", *decoded_ids)
+    orig_hash = hashlib.sha256(orig_bytes).hexdigest()
+    dec_hash = hashlib.sha256(dec_bytes).hexdigest()
+    print(f"  SHA-256 original (ids[1:]): {orig_hash}")
+    print(f"  SHA-256 decoded:             {dec_hash}")
+    print(f"  Token hash match: {orig_hash == dec_hash}")
+    # Also verify the text roundtrip
+    orig_text = tok.decode(ids)
+    dec_text = tok.decode(decoded_ids)
+    text_hash = hashlib.sha256(orig_text.encode()).hexdigest()
+    dec_text_hash = hashlib.sha256(dec_text.encode()).hexdigest()
+    print(f"  Text SHA-256 orig: {text_hash}")
+    print(f"  Text SHA-256 dec:  {dec_text_hash}")
+    print(f"  Text match: {text_hash == dec_text_hash}")
 else:
     print(f"⚠ ROUNDTRIP: {match}/{total} match ({match/total*100:.2f}%) — {total - match} mismatches")
     for i, (a, b) in enumerate(zip(original, decoded_ids)):
