@@ -82,15 +82,15 @@ def make_next_logits(model, torch, device, n_segments):
         nonlocal cache
         t0 = time.time()
         with torch.inference_mode():
-            x = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(1)  # [K,1]
+            x = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(1)
+            # Reset cache at chunk boundaries (every WINDOW steps)
+            if step % WINDOW == 0:
+                cache = None
             kw = dict(input_ids=x, use_cache=True)
             if cache is not None:
                 kw["past_key_values"] = cache
             out = model(**kw)
             cache = out.past_key_values
-            if cache[0][0].shape[2] > WINDOW:
-                cache = tuple((k[:, :, -WINDOW:, :], v[:, :, -WINDOW:, :])
-                              for k, v in cache)
             lg = out.logits[:, -1, :].float()
             lg = lg - lg.max(dim=-1, keepdim=True).values
             p = torch.exp(lg)
