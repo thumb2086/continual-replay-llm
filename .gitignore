@@ -16,3 +16,6 @@ third_party/nacrith/
 third_party/conversion/
 *.bak
 ort-smollm2/
+
+.env
+.trt_cache/

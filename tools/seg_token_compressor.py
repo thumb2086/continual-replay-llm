@@ -72,25 +72,25 @@ def make_next_logits(model, torch, device, n_segments):
     `step`. The KV cache grows by one position per row per step, so position i of
     every segment is forwarded with position_ids == i -- identical on both sides.
     """
-    state = {"past": None}
+    states = [None] * 16  # up to 16 segments
 
     def next_logits(inp, step):
-        x = torch.tensor([inp], dtype=torch.long, device=device)
-        pos = torch.full((len(inp), 1), step, dtype=torch.long, device=device)
-        kw = dict(input_ids=x, use_cache=True, position_ids=pos)
-        if state["past"] is not None:
-            kw["past_key_values"] = state["past"]
-        try:
-            out = model(cache_position=torch.arange(step, step + 1, device=device),
-                        **kw)
-        except TypeError:                     # older transformers
-            out = model(**kw)
-        state["past"] = out.past_key_values
-        lg = out.logits[:, -1, :].float()
-        lg = lg - lg.max(dim=-1, keepdim=True).values
-        p = torch.exp(lg)
-        p = (p / p.sum(dim=-1, keepdim=True)).cpu().numpy()
-        return [p[s] for s in range(len(inp))]
+        results = []
+        with torch.no_grad():
+            for s, tok in enumerate(inp):
+                x = torch.tensor([[tok]], dtype=torch.long, device=device)
+                kw = dict(input_ids=x, use_cache=True)
+                if states[s] is not None:
+                    kw["past_key_values"] = states[s]
+                out = model(**kw)
+                states[s] = out.past_key_values
+                lg = out.logits[:, -1, :].float()
+                lg = lg - lg.max(dim=-1, keepdim=True).values
+                p = torch.exp(lg)
+                p = (p / p.sum(dim=-1, keepdim=True)).cpu().numpy()
+                results.append(p[0])
+                del out, x
+        return results
 
     return next_logits
 
