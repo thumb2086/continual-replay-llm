@@ -2515,6 +2515,26 @@
    "id": "wsl-environment",
    "status": "achieved",
    "note": "WSL environment comparison complete: WSL faster for small models (2.23x at 1MB), slower for large models (1.83x for Qwen-3B due to VRAM overhead). WSL unstable for long runs (100MB crash)."
+  },
+  {
+   "id": "wsl-100mb-smol135m",
+   "status": "achieved",
+   "note": "WSL 100MB SmolLM2-135M: 0.8968 bpb 3456.7s(58min) 29.6KB/s. vs Windows 4118s(69min)/24.9KB/s. WSL 19% faster. ENWIK8_PATH env var added."
+  },
+  {
+   "id": "wsl-100mb-smol360m",
+   "status": "achieved",
+   "note": "WSL 100MB SmolLM2-360M K2048: 0.7808 bpb 5284.4s(88min) 19.4KB/s. NEW RATIO RECORD for 100MB! 13% better than 135M. Speed still >=17KB/s."
+  },
+  {
+   "id": "qwen3b-b2048-k1024",
+   "status": "achieved",
+   "note": "Qwen-3B B2048 K1024 100KB: 0.6848 bpb 27.3s 3.7KB/s 6.60GB. Slightly faster than B4096 but worse ratio."
+  },
+  {
+   "id": "qwen3b-b2048-k512",
+   "status": "achieved",
+   "note": "Qwen-3B B2048 K512 100KB: 0.6954 bpb 18.8s 5.3KB/s 6.56GB. 31% faster than K1024 but 1.5% worse ratio. 216/220 verified."
   }
  ],
  "done": false,

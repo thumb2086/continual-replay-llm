@@ -104,7 +104,7 @@ ORT_MODEL_DIR = os.environ.get("ORT_MODEL_DIR", "./ort-smollm2")
 CHUNK_PRE = int(os.environ.get("CHUNK_PRE", "0"))  # v13-chunk: exact chunked prefill (tokens/fwd-chunk, causal-identical); 0 = off. With CHUNK_HEAD for big-V models.
 CHUNK_HEAD = int(os.environ.get("CHUNK_HEAD", "0"))  # v13-chunk: exact chunked lm_head+topk (rows/chunk); full [T,V] logits never materialize. 0 = off.
 SPARSE_BLK = int(os.environ.get("SPARSE_BLK", "0"))  # v13-chunk: sparse blk rows (pi/pv only, expand per blend row into scratch); needs gather+gputopk+ov0, refused under proc/numdrv. 0 = off (dense).
-_SPARSE_EFF = 1 if (SPARSE_BLK and GATHER_PI and USE_GPU_TOPK and not USE_PROC_LOOP and OVERLAP == 0) else 0
+_SPARSE_EFF = 1 if (SPARSE_BLK and GATHER_PI and USE_GPU_TOPK and not USE_PROC_LOOP) else 0
 # (v10-validated: bf=2 still pages at 11.22GB -- trunk activations, not
 # logits, dominate. Slicing only removed the logits tip. Default stays 1;
 # the win is peak 6.62 -> ~5.8GB headroom, not batch.)
@@ -1061,7 +1061,7 @@ def main():
 
     print("\n[2/4] Loading enwik8 sample...")
     _off_mb = int(os.environ.get("ENWIK8_OFFSET_MB", "50"))
-    with open("./data/cloud/enwik8", "rb") as f:
+    with open(os.environ.get("ENWIK8_PATH", "./data/cloud/enwik8"), "rb") as f:
         f.seek(_off_mb * 1024 * 1024)
         raw = f.read(int(os.environ.get("ENWIK8_KB", "100")) * 1024)
     print(f"  Offset: {_off_mb}MB")
@@ -1629,7 +1629,7 @@ def main():
                     del _out, _xin, _xin2
                 else:
                     if (CHUNK_PRE > 0 and CHUNK_HEAD > 0 and not CHAIN
-                            and OVERLAP == 0 and not USE_ORT
+                            and not USE_ORT
                             and BATCH_SEGS <= 1 and not GRAPH_FULL
                             and GATHER_PI and USE_GPU_TOPK
                             and _have_lg is None and not _skip):
