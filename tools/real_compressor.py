@@ -42,7 +42,7 @@ print(f"  Model: {MODEL_DIR}, V={V}, loaded in {time.time()-t0:.1f}s")
 print("[2/4] Loading enwik8...")
 enwik8_path = os.environ.get("ENWIK8_PATH", "./data/cloud/enwik8")
 offset_mb = int(os.environ.get("ENWIK8_OFFSET_MB", "50"))
-kb = int(os.environ.get("ENWIK8_KB", "100"))  # default 100KB
+kb = int(os.environ.get("ENWIK8_KB", "100"))
 with open(enwik8_path, "rb") as f:
     f.seek(offset_mb * 1024 * 1024)
     raw = f.read(kb * 1024)
@@ -65,17 +65,19 @@ encoder = ArithmeticEncoder32(store=True)
 total_bits_counted = 0
 total_bits_stored = 0
 
-# Forward pass (chunked to avoid OOM)
-CHUNK = 4096
+# Forward pass (one-token-at-a-time with KV cache — matches decoder exactly)
+print("  Encoder: one-token KV-cache forward...")
 logits = np.zeros((len(ids), V), dtype=np.float32)
 with torch.no_grad():
-    for ci in range(0, len(ids), CHUNK):
-        chunk_ids = ids[ci:ci + CHUNK]
-        x = torch.tensor([chunk_ids], device="cuda")
-        out = model(x, use_cache=False)
-        logits[ci:ci + len(chunk_ids)] = out.logits[0].float().cpu().numpy()
+    past_key_values = None
+    for ci in range(len(ids)):
+        x = torch.tensor([[ids[ci]]], device="cuda")
+        out = model(x, use_cache=True, past_key_values=past_key_values)
+        logits[ci] = out.logits[0, -1].float().cpu().numpy()
+        past_key_values = out.past_key_values
         del out, x
-        torch.cuda.empty_cache()
+    del past_key_values
+    torch.cuda.empty_cache()
 
 # Process each position
 for pos in range(len(ids) - 1):
@@ -232,7 +234,10 @@ with open(zllm_path, "rb") as f:
 
 print(f"  Header: V={dec_V}, n_tokens={dec_n}, bits={dec_bits}")
 
-# Decode with fresh tables
+# ─── Self-contained decoder: KV-cache chunked forward (matches encoder) ───
+print("\n[5/5] Decoding (self-contained: KV-cache chunked forward)...")
+t0 = time.time()
+
 dec_bi_counts = {}
 dec_bi_totals = {}
 dec_tri_counts = {}
@@ -241,8 +246,22 @@ dec_tri_totals = {}
 dec = ArithmeticDecoder32(dec_bitstr)
 decoded_ids = []
 
+# KV-cache chunked: bootstrap with first_token, then decode one-by-one
+# but recompute logits in chunks matching encoder's chunk boundaries
+past_key_values = None
+dec_logits = np.zeros((dec_n, dec_V), dtype=np.float32)
+
+# No bootstrap — decoder loop starts from pos=0 with no KV cache
+# (matches encoder: first forward has no past_key_values)
+past_key_values = None
+
+# Assert: encoder logits at pos=0
+enc_logit_0 = logits[0]
+print(f"  [INFO] encoder logit[0] top3: {np.argsort(enc_logit_0)[-3:][::-1]}")
+
 for pos in range(dec_n - 1):
-    # Rebuild same probability table as encoder
+
+    # Get prev/prev2 from decoded tokens
     if pos == 0:
         prev = first_token
         prev2 = 0
@@ -266,14 +285,20 @@ for pos in range(dec_n - 1):
         tri_ctx = {}
         tri_tot = 0
 
-    # Same LM probabilities (from original forward pass)
-    p_lm = logits[pos]
+    # LM probabilities: feed prev token through model with KV cache
+    x = torch.tensor([[prev]], device="cuda")
+    with torch.no_grad():
+        out = model(x, use_cache=True, past_key_values=past_key_values)
+    p_lm_raw = out.logits[0, -1].float().cpu().numpy()
+    past_key_values = out.past_key_values
+    del out, x
+
+    p_lm = p_lm_raw.copy()
     p_lm = np.exp(p_lm - p_lm.max())
     p_lm = p_lm / p_lm.sum()
 
     topk_idx = np.argpartition(p_lm, -TOP_K)[-TOP_K:]
     topk_idx = topk_idx[np.argsort(-p_lm[topk_idx])]
-    topk_probs = p_lm[topk_idx]
 
     wB = bi_tot / (bi_tot + BIGRAM_CONF) if bi_tot > 0 else 0.0
     wT = tri_tot / (tri_tot + TRIGRAM_CONF) if tri_tot > 0 else 0.0
@@ -293,15 +318,17 @@ for pos in range(dec_n - 1):
 
     sym = dec.decode_symbol(cum_s1)
 
-    if pos < 3:
-        print(f"  [DEC] pos={pos} sym={sym} decoded_token={topk_idx[sym] if sym < TOP_K else 'escape'} target={ids[pos+1]}")
+    # Assert: encoder and decoder raw logits must match at each position
+    if pos < 5:
+        max_diff = np.max(np.abs(logits[pos] - p_lm_raw))
+        if max_diff > 0.01:
+            print(f"  [ASSERT] pos={pos} logit MAX DIFF: {max_diff:.2e} — DIVERGED!")
+        else:
+            print(f"  [ASSERT] pos={pos} logit diff: {max_diff:.2e} OK")
 
     if sym < TOP_K:
         token_id = int(topk_idx[sym])
-        if pos < 10:
-            print(f"  [DEC] pos={pos} stage1={sym} -> token={token_id} target={ids[pos+1]} {'OK' if token_id==ids[pos+1] else 'MISMATCH'}")
     else:
-        # Escape: decode stage-2
         mask = np.ones(dec_V, dtype=bool)
         mask[topk_idx] = False
         rest_ids = np.arange(dec_V, dtype=np.int64)[mask]
@@ -320,12 +347,10 @@ for pos in range(dec_n - 1):
 
         rank = dec.decode_symbol(co)
         token_id = int(rest_ids[rank])
-        if pos < 10:
-            print(f"  [DEC] pos={pos} escape rank={rank} -> token={token_id} target={ids[pos+1]} {'OK' if token_id==ids[pos+1] else 'MISMATCH'}")
 
     decoded_ids.append(token_id)
 
-    # Update decoder tables (same as encoder)
+    # Update decoder tables
     dec_bi_totals[ib] = dec_bi_totals.get(ib, 0) + 1
     if ib not in dec_bi_counts:
         dec_bi_counts[ib] = {}
@@ -337,30 +362,11 @@ for pos in range(dec_n - 1):
             dec_tri_counts[it] = {}
         dec_tri_counts[it][token_id] = dec_tri_counts[it].get(token_id, 0) + 1
 
+    if pos % 5000 == 0:
+        print(f"    pos={pos}/{dec_n-1} decoded={len(decoded_ids)}", flush=True)
+
 dt = time.time() - t0
 print(f"  Decoded {len(decoded_ids)} tokens in {dt:.1f}s")
-
-# Debug: compare decoder tables at first 3 positions
-print("\n  [DEBUG] Decoder table state:")
-for dbg_pos in range(min(3, len(decoded_ids))):
-    if dbg_pos == 0:
-        dbg_prev = first_token
-        dbg_prev2 = 0
-    elif dbg_pos == 1:
-        dbg_prev = decoded_ids[0]
-        dbg_prev2 = first_token
-    else:
-        dbg_prev = decoded_ids[dbg_pos - 1]
-        dbg_prev2 = decoded_ids[dbg_pos - 2]
-    dbg_ib = dbg_prev
-    dbg_bi_ctx = dec_bi_counts.get(dbg_ib, {})
-    dbg_bi_tot = dec_bi_totals.get(dbg_ib, 0)
-    print(f"    pos={dbg_pos}: prev={dbg_prev} prev2={dbg_prev2} bi_ctx={dict(list(dbg_bi_ctx.items())[:3])} bi_tot={dbg_bi_tot}")
-    if USE_TRIGRAM:
-        dbg_it = (dbg_prev2, dbg_prev)
-        dbg_tri_ctx = dec_tri_counts.get(dbg_it, {})
-        dbg_tri_tot = dec_tri_totals.get(dbg_it, 0)
-        print(f"           tri_ctx={dict(list(dbg_tri_ctx.items())[:3])} tri_tot={dbg_tri_tot}")
 
 # ─── Verify ───
 original = ids[1:len(decoded_ids)+1]  # decoder outputs ids[1], ids[2], ..., ids[n-1]
