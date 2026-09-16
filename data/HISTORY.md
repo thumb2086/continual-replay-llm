@@ -26,6 +26,7 @@ from decoded tokens. Labeling corrected in the ledger
 | 3 | `self-contained-decoder-2kb` | same config, per-token KV-cache forward on **both** sides, 2KB | 554/554 (100%), logits diff `0.00e+00`, SHA-256 match | true self-contained ✓ (2KB only) |
 | 4 | `bitstream-100kb-self-contained` | run 2 re-run / re-labelled | 30791/30791, SHA-256 match, 95757 bits, 11994 B | coder-level only |
 | 5 | `seg8kb-sweep-fd2935b` | `tools/seg_token_compressor.py` (format v2), SmolLM2-135M, enwik8 @50MB, 8KB, K = 1/4/8/16/32 | all roundtrip=True; bpb_payload 1.1262 → 1.4741, escapes 2.20% → 4.12%, encode 157.8 s → 3.9 s | speed OK, ratio open |
+| 6 | `seg-vs-v13-8kb-k1` | same slice, F1/F2 codec (K=1) against v13 counted at TOP_K=1024 / PF=2048 / tc3.0 | codec 1.1245 bpb, 56 escapes, decodable `.zllm`; v13 1.1323 bpb, 56 escapes, counted only | ratio parity reached; 64-bit gap unexplained |
 
 ## What run 2/4 actually prove — and don't
 
@@ -114,6 +115,39 @@ K = 32, a 40× swing. Every row roundtripped.
   evidence for but the LM ranked outside top-K could never be coded directly.
   Fixed (F1: prefilter ∪ cache-row keys, then top-K by blended score; F2: v13's
   per-count weights `_sb`/`_st`). Not yet measured on the GPU.
+
+## Run 6 in detail — and what it does *not* show
+
+Numbers reported from the user's machine (the v13 side is a counted run: it
+writes no decodable file, so it cannot be re-verified here; the codec side
+roundtripped). Both bit counts are exact arithmetic-coder counts
+(`nb_encode_count_32` in `ac32.py` is the coder's own accounting, not an
+entropy estimate), and bpb = bits / 8192 on both sides.
+
+| side | escapes | bpb | decodable |
+|---|---|---|---|
+| v13 (counted) | 56 | 1.1323 | ✗ (no artifact) |
+| codec K=1 | 56 | 1.1245 | ✓ `.zllm` |
+
+**Established.** The F1/F2 port put the codec's candidate set and weights on
+v13's math: escape counts agree exactly (56 vs 56) on identical input.
+
+**Not established, and previously mis-stated here.** (a) F1/F2's own effect at
+this slice length is small, not decisive: the same codec measured 57 escapes
+and 1.1262 bpb *before* the fix (run 5), i.e. −1 escape and −14 bits. (b) The
+remaining 0.0078 bpb (64 bits, 0.025 bits/position) is **unexplained**, and it
+is not evidence that the codec's distribution beats v13's — after a faithful
+port the two distributions should agree, and equal escape counts mean the
+alphabet differences are not showing up as escapes. Candidates, each a cheap
+rerun: v13's blend gate (`BLEND_BT_MIN=5` / `BLEND_TT_MIN=2`, which the codec
+deliberately does not implement) and `USE_FP16_XFER=1` (v13 quantises the whole
+probability row to fp16 before blending; the driver stays fp32).
+
+**Why 8KB cannot answer the ratio question.** Both sides escape ~2.16% here
+because the cache only has 2 595 tokens to learn from; escapes at this length
+are dominated by "target has no cache evidence at all", which no distribution
+change can fix. v13's 1.22% figures come from 100 KB (≈30 791 tokens, 12×
+deeper cache). The like-for-like measurement is the 100 KB run, not this one.
 
 ## Next step and its scaling limit
 
