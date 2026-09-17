@@ -33,7 +33,13 @@ Results land in data/seg_verify_{K}seg_{kb}kb.json.
 
 EXPECTED COST: one forward per token per pass, two passes (encode + decode), so
 K=1 at 100KB is (~30 min x 2). K=4 should be several times faster if the batch
-of 4 actually amortises; measure it.
+of 4 actually amortises; measure it. `--overlap O` adds one BATCHED prefill of O
+tokens per (kv_window - O) tokens, which is under 1% of the per-token loop.
+
+CONTEXT BUDGET: SmolLM2-135M was trained to 8192 positions, so a chunk cannot
+exceed that, and every extra history token has to be bought with a prefill.
+`--overlap 0` (the default) gives a chunk's first token ~no context;
+`--overlap 4096` reproduces v13's reference regime (min 4096, mean ~6144).
 
 SCALING NOTE (100MB): KV cache for the 135M model is ~23 KB/token, and every
 segment holds its own cache, so total cache ~= 23 KB x tokens-per-segment.
@@ -65,32 +71,118 @@ def cfg_dict(args):
                 use_trigram=not args.no_trigram)
 
 
+# ── chunk schedule (pure; tested without torch) ───────────────────────
+def chunk_schedule(step, window, overlap):
+    """Bookkeeping for the token at index `step` of a segment (or a batch row).
+
+    Returns `(reset, lo, hi)`: `reset` starts a fresh KV cache (a new chunk), and
+    `[lo, hi)` is the slice of already-known tokens to feed in ONE batched
+    forward to warm that fresh cache (empty when there is nothing to warm).
+
+    The model was trained to 8192 positions, so a position id is a budget: a
+    chunk may hold at most `window` tokens, of which `overlap` are re-fed
+    history and `stride = window - overlap` are new. With `overlap` history
+    tokens the earliest token of a chunk still sees `overlap` tokens of context
+    instead of ~0, which is what v13's OVERLAP buys it (`BLOCK_NEW` new tokens
+    per 8192-token block) and what this codec had been leaving on the floor.
+
+    Beware the trap this replaces: trimming the cache to the last `window`
+    entries looks like a sliding window but is not one. The model derives the new
+    token's position from the cache length, so once the cache is full EVERY new
+    token gets position == window -- all recent tokens collapse onto one position
+    and the relative geometry the attention depends on is destroyed. Resetting is
+    honest about it: positions restart, and only the prefill carries history.
+    """
+    stride = window - overlap
+    if stride <= 0:
+        raise ValueError(f"overlap {overlap} must be < window {window}")
+    if step % stride:
+        return False, 0, 0
+    if step == 0 or overlap <= 0:
+        return True, 0, 0
+    return True, max(0, step - overlap), step
+
+
+def position_of(step, window, overlap):
+    """Position id the token at `step` is forwarded with (chunk-local).
+
+    Chunk 0 uses real positions; later chunks restart at 0 after their prefill,
+    so the largest id any token ever gets is `window - 1` -- inside the trained
+    range. `tools/test_chunk_schedule.py` asserts exactly that.
+    """
+    stride = window - overlap
+    c0 = (step // stride) * stride
+    return step if c0 == 0 else overlap + (step - c0)
+
+
+def prefill_offsets(step, lo, hi, n_kept):
+    """Map a prefill window [lo, hi) onto a rolling buffer of the last `n_kept`.
+
+    The history buffer is a `deque(maxlen=window)`, so it holds tokens
+    `[step - n_kept + 1, step]` -- the token AT `step` is already in it, at index
+    `n_kept - 1`, and index 0 is not token 0. Off-by-one here is not a crash and
+    not a lost-mirror either (both sides share the bug), it is a silently
+    different context: the first version of this included the CURRENT token in
+    the prefill, so that token was fed twice -- once at position `overlap - 1`
+    and again at `overlap` -- and the oldest history token was dropped. Hence a
+    pure function with its own test.
+    """
+    last = n_kept - 1                     # absolute index of the token at `step`
+    return max(0, last - (step - lo)), last - (step - hi)
+
+
 # ── model plumbing ───────────────────────────────────────────────────
-def make_next_logits(model, torch, device, n_segments):
+def make_next_logits(model, torch, device, n_segments, window=None, overlap=None):
     """Returns next_logits(inp_tokens, step) -> [n_segments][V] probabilities.
 
     One batched forward per step: row s receives segment s's token at index
-    `step`. The KV cache grows by one position per row per step, so position i of
-    every segment is forwarded with position_ids == i -- identical on both sides.
+    `step`. Positions are chunk-local (see chunk_schedule), and encoder and
+    decoder run the same schedule over the same tokens, so the two sides stay
+    identical by construction.
     """
-    states = [None] * 16  # up to 16 segments
+    from collections import deque
+
+    window = int(window if window is not None
+                 else os.environ.get("KV_WINDOW", "8192"))
+    overlap = int(overlap if overlap is not None
+                  else os.environ.get("KV_OVERLAP", "0"))
+    assert 0 <= overlap < window, (overlap, window)
 
     cache = None
-    WINDOW = int(os.environ.get("KV_WINDOW", "8192"))
+    # Only the last `window` tokens can ever be re-fed, so bound the buffer:
+    # keeping every token fed would be ~36 bytes x the whole file.
+    hist = [deque(maxlen=window) for _ in range(n_segments)]
 
     def next_logits(inp, step):
         nonlocal cache
         t0 = time.time()
+        reset, lo, hi = chunk_schedule(step, window, overlap)
+        for s in range(len(inp)):
+            hist[s].append(int(inp[s]))
         with torch.inference_mode():
-            x = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(1)  # [K,1]
+            if reset:
+                cache = None
+                if hi > lo:
+                    # Warm the fresh cache with the last `overlap` KNOWN tokens
+                    # in one batched forward. This is the only place history
+                    # crosses a chunk boundary, and both sides already hold
+                    # those tokens (the decoder decoded them), so the mirror
+                    # holds. Cost is O(overlap) work per `stride` tokens -- one
+                    # batched prefill, not `overlap` per-token steps.
+                    rows = []
+                    for s in range(len(inp)):
+                        d = hist[s]
+                        rlo, rhi = prefill_offsets(step, lo, hi, len(d))
+                        rows.append(list(d)[rlo:rhi])
+                    past = torch.tensor(rows, dtype=torch.long, device=device)
+                    out = model(input_ids=past, use_cache=True)
+                    cache = out.past_key_values
+            x = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(1)
             kw = dict(input_ids=x, use_cache=True)
             if cache is not None:
                 kw["past_key_values"] = cache
             out = model(**kw)
             cache = out.past_key_values
-            if cache[0][0].shape[2] > WINDOW:
-                cache = tuple((k[:, :, -WINDOW:, :], v[:, :, -WINDOW:, :])
-                              for k, v in cache)
             lg = out.logits[:, -1, :].float()
             lg = lg - lg.max(dim=-1, keepdim=True).values
             p = torch.exp(lg)
@@ -145,6 +237,17 @@ def main():
     ap.add_argument("--top-k", type=int, default=1024)
     ap.add_argument("--prefilter", type=int, default=2048,
                     help="candidate width before the score-based top-K (v13: PF>=TOP_K)")
+    ap.add_argument("--kv-window", type=int, default=8192,
+                    help="position budget per chunk (= the model's trained "
+                         "context; SmolLM2-135M: 8192)")
+    ap.add_argument("--overlap", type=int, default=0,
+                    help="history tokens re-fed (one batched prefill) at each "
+                         "chunk boundary; chunk stride = kv_window - overlap. "
+                         "0 = the fallback behaviour (min context ~1 token). "
+                         "v13's reference runs used 4096 (min context 4096). "
+                         "Raising it costs almost no wall clock -- the prefill is "
+                         "batched, not per-token -- so it is a ratio knob, not a "
+                         "speed knob.")
     ap.add_argument("--floor-frac", type=float, default=1e-6)
     ap.add_argument("--bigram-lambda", type=float, default=0.99)
     ap.add_argument("--bigram-conf", type=float, default=10.0)
@@ -185,6 +288,8 @@ def main():
     ids = tok.encode(text)
     n_tokens = len(ids)
     plan = sc.seg_plan(n_tokens, K)
+    print(f"      kv_window={args.kv_window} overlap={args.overlap} "
+          f"(stride={args.kv_window - args.overlap})")
     print(f"      {len(raw)} bytes -> {n_tokens} tokens; segments: "
           f"{[L for _, L in plan]}")
 
@@ -198,7 +303,8 @@ def main():
     enc = ArithmeticEncoder32(store=True)
     stats = dict(coded=0, escapes=0, uniform=0)
 
-    nl_enc = make_next_logits(model, torch, device, K)
+    nl_enc = make_next_logits(model, torch, device, K,
+                               window=args.kv_window, overlap=args.overlap)
     maxL = max(L for _, L in plan)
     ticks = {"n": 0}
 
@@ -245,7 +351,8 @@ def main():
     tables_d = sc.SegTables(K, use_trigram=cfg["use_trigram"],
                             shared=args.shared_tables)
     stats_d = dict(coded=0, escapes=0, uniform=0)
-    nl_dec = make_next_logits(model, torch, device, K)
+    nl_dec = make_next_logits(model, torch, device, K,
+                               window=args.kv_window, overlap=args.overlap)
     t_dec = time.time()
     rec = sc.decode_stream(n_tokens, K, cfg, nl_dec, dec, tables_d,
                            sc.uniform_cum_cached(V, {}), sc.build_distribution,
@@ -277,6 +384,7 @@ def main():
 
     result = dict(kind="seg-per-token", model=meta["model"], segments=K,
                   kb=args.kb, offset_mb=args.offset_mb, n_bytes=len(raw),
+                  kv_window=args.kv_window, overlap=args.overlap,
                   n_tokens=n_tokens, n_bits=n_bits, file_bytes=file_bytes,
                   bpb_payload=round(bpb_payload, 4), bpb_file=round(bpb_file, 4),
                   encode_s=round(dt_enc, 1), decode_s=round(dt_dec, 1),
