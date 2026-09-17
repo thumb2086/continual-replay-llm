@@ -29,6 +29,9 @@ from decoded tokens. Labeling corrected in the ledger
 | 6 | `seg-vs-v13-8kb-k1` | same slice, F1/F2 codec (K=1) against v13 counted at TOP_K=1024 / PF=2048 / tc3.0 | codec 1.1245 bpb, 56 escapes, decodable `.zllm`; v13 1.1323 bpb, 56 escapes, counted only | ratio parity reached; 64-bit gap unexplained |
 | 7 | `seg-vs-v13-100kb-k1` | same slice (100 KB, offset 50 MB), codec K=1 `--overlap 0` vs v13 counted at TOP_K=1024 / PF=2048 / tc3.0 / OVERLAP=4096 | codec **94400 bits** / 0.9219 bpb / 383 escapes / roundtrip ✓; v13 **93588 bits** / 0.9139 bpb / 377 escapes / counted only | **812-bit gap = context deficit, fixable** |
 | 8 | `seg-overlap-ab-100kb-k1` | same 100 KB slice, `--overlap` 0 / 4096 / 6144 (all K=1), vs v13 counted | escapes 383 / 372 / 376 (v13: 377); bpb **0.9219 / 0.9089 / 0.9092** (v13: 0.9139); all roundtrip ✓ | context deficit closed; codec now **below** v13 |
+| 9 | `seg-ov7680-oombug` | codec `--overlap 7680` (prefill OOM fix) | 0.9094 bpb, ~375 escapes | OOM fix works; ≥6144 buys nothing |
+| 10 | `v13-gate-fp16-off` | v13 counted, `BLEND_BT_MIN=0 BLEND_TT_MIN=0 USE_FP16_XFER=0`, 100 KB | 0.9141 bpb, 380 escapes (baseline: 0.9139 / 377) | gate + fp16 are worth ~nothing; not the gap |
+| 11 | `seg-k8192-100kb-k1` | codec `--overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0` | **0.8998** bpb | console only, no artifact — see run 12 |
 
 ## What run 2/4 actually prove — and don't
 
@@ -244,6 +247,81 @@ holding. Two fixes: prefills now go through the model's backbone
 (`model.model`) so no logits are ever built, and they are sliced
 (`--prefill-chunk`, default 2 048) with the previous cache released first.
 Expected to put 7680/8191 back in reach; not yet measured on the GPU.
+
+## Run 9–11 — and the counting-convention correction that closes the gap
+
+| test | bpb | escapes | artifact |
+|---|---|---|---|
+| (a) codec `--overlap 7680` | 0.9094 | ~375 | none (driver bug, run 12) |
+| (b) v13 `gate=0 fp16=0` | 0.9141 | 380 | counted only |
+| (c) codec `--overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0` | **0.8998** | — | none (driver bug, run 12) |
+
+(a) confirms the prefill-OOM fix and confirms that more overlap stops paying past
+~4096. (b) rules out v13's blend gate and its fp16 probability transfer as an
+explanation for anything: turning both off makes v13 marginally *worse*
+(0.9139 → 0.9141, 377 → 380 escapes), i.e. those two cost the codec nothing
+because they cost v13 nothing.
+
+### The residual is a counting convention, not the distribution
+
+Attributing the codec's advantage to "the distribution builder (F1/F2)" cannot be
+right: F1 and F2 are now implemented in *both* — that was the point of the port —
+and the gap survives every change to the shared math while tracking the escape
+count (517 bits at 377 escapes, 51 bits at 27). 517/377 = 1.37 bits per escape;
+51/27 = 1.9. A difference that scales with escape count points at the escape path.
+
+It is `nb_encode_count_32`'s accounting. v13 codes stage 1 in one call, then
+appends each escape's stage-2 symbol in its OWN call:
+
+    n1 = nb_encode_count_32(C, sym_arr)              # one coder, one finish
+    for ... in esc_infos:
+        n2_total += nb_encode_count_32(co_row, [rank])   # a fresh coder + finish
+
+`nb_encode_count_32` "returns total incl. finish bits", so v13's `total_bits`
+pays one arithmetic-coder termination per escape event, while a real
+single-stream coder codes that symbol as a continuation. The codec writes one
+stream, so the two numbers are different quantities. Measured with ac32's own
+kernel (`tools/audit_count_overhead.py`, escape mass 0.001–0.3, ranks across the
+rest set): **1.5 bits per split call** (range 1–2).
+
+| run | v13 counted | v13 single-stream equivalent | codec (one stream) |
+|---|---|---|---|
+| 100 KB, K=1024, ov4096 | 93 588 (0.9139) | ≈93 022 (0.9084) *(derived: −566)* | 93 071 (0.9089) |
+| 100 KB, K=8192, ov4096, tc10 | 92 201 (0.9003) | ≈92 161 (0.9000) *(derived: −40)* | ≈92 140 (0.8998) *(derived: 0.8998 × 102 400)* |
+
+Predicted inflation 377 × 1.5 = 566 vs 517 observed; 27 × 1.5 = 40 vs 51
+observed. Both within the measured spread of the overhead. So at matched context
+the codec and v13 agree to within ~20–50 bits (≤0.0005 bpb) — the tie-order noise
+level `nb_blend_row`'s own docstring cites — and **both operating points are
+sub-0.90 as single streams**. The codec's advantage over the *counted* numbers is
+the convention, not better math; the codec's real advantage is that 0.8998 comes
+out of a file that decodes.
+
+### Driver bug (mine, fixed)
+
+`del nl_enc, nl_enc_timed` (after the encode pass, to free the encode-side model
+state) followed by `nl_enc.prefill_note` in the result dict that is built after
+decode: UnboundLocalError *after* a full encode and decode had succeeded, with no
+artifact written — which is why (a) and (c) above have no JSON. The note is now
+captured as a plain string before the `del`. `tools/test_driver_static.py` scans
+the driver for del-then-use in source order and is verified to flag the original
+line; it also pins the CLI defaults the measured runs depend on.
+
+### Next blocker, measured: the distribution builder
+
+Per position, single core, `sc.build_distribution` (sandbox, numpy+numba):
+
+| alphabet | 300-key row | 2000-key row | 100 MB (27 M positions) |
+|---|---|---|---|
+| `top_k=1024 pf=2048` | 0.635 ms | 1.065 ms | 4.8–8.0 h |
+| `top_k=8192 pf=8192` | 2.230 ms | 2.769 ms | 16.7–20.8 h |
+| `top_k=8192 pf=16384` | 4.434 ms | 4.446 ms | 33.3 h |
+
+The GPU side at 100 MB is ~180/K hours (K=100 → 1.8 h), so at the operating point
+that now produces 0.8998 the *Python* distribution builder is the bottleneck for
+the 100 MB goal, by an order of magnitude, and it is the one cost `K` does not
+divide. The K segments are independent in lockstep, so it is parallelisable
+across processes — but that is a change to propose, not to land silently.
 
 ## Next step and its scaling limit
 

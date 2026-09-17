@@ -363,7 +363,12 @@ def main():
     nl_enc = make_next_logits(model, torch, device, K,
                                window=args.kv_window, overlap=args.overlap,
                                prefill_chunk=args.prefill_chunk)
-    print(f"      prefill: {nl_enc.prefill_note}")
+    # Capture the note as a plain string: `nl_enc` is deleted below to free the
+    # model-side state, and the result dict is written long after that. Reading
+    # `nl_enc.prefill_note` there raised UnboundLocalError AFTER a full
+    # encode+decode had already succeeded.
+    prefill_note = nl_enc.prefill_note
+    print(f"      prefill: {prefill_note}")
     maxL = max(L for _, L in plan)
     ticks = {"n": 0}
 
@@ -445,7 +450,7 @@ def main():
     result = dict(kind="seg-per-token", model=meta["model"], segments=K,
                   kb=args.kb, offset_mb=args.offset_mb, n_bytes=len(raw),
                   kv_window=args.kv_window, overlap=args.overlap,
-                  prefill=("backbone" if "backbone" in nl_enc.prefill_note
+                  prefill=("backbone" if "backbone" in prefill_note
                            else "split"),
                   n_tokens=n_tokens, n_bits=n_bits, file_bytes=file_bytes,
                   bpb_payload=round(bpb_payload, 4), bpb_file=round(bpb_file, 4),
