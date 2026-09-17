@@ -2609,6 +2609,12 @@
    "status": "banked",
    "bpb": 0.8998,
    "note": "CLOSING STATE (2026-09-17). Ratio closed: self-contained codec 0.8998 payload / 0.9269 file, escapes 29, verified lossless (tokens/SHA-256/bytes); vs v13's single-stream-corrected 0.9000/92161 bits -> tie-order noise. Speed closed with the reason recorded correctly: the gap is STRUCTURAL (decoder must be one token at a time: 30791 forwards vs v13's ~4 block forwards, 0.14 vs 34.5 KB/s; v13 can batch only because its decoder reads source tokens). NOT a hardware limit: block forward = 53.6 us/token vs loop 21900 us/token -> loop is 409x slower per token while doing LESS attention work; per-row cost is 36x its 0.40 ms/row bandwidth floor, i.e. overhead. Closing rests on the repo's own prior verdict (FINAL-REPORT §14: 1.4 s/segment vs 0.15 s of components => 10x scheduling, not work). Recorded as per-step overhead with undetermined mixture, environment suspected. 100MB not run: 27M x (7.6/K + 14.3) ms = 164h..108h per pass, K capped ~38. Report: FINAL-REPORT.md §49. Probe unit bug (us printed as ms) fixed."
+  },
+  {
+   "id": "seg-perstep-attribution",
+   "status": "banked",
+   "bpb": 0.8998,
+   "note": "PER-STEP ATTRIBUTION, corrected (2026-09-17). probe C at L=0, K=4 (no cache, no attention): 39.8 ms/step = 9.95 ms/row = 66x the 0.60 ms per-call weight floor. Corrections: (1) 9.95 is the ms/row column, not the step; 16.5x was per-row over per-call, honest ratio is 66x. (2) '21.9-9.95=12 cache traffic' mixes K=1 per-step with K=4 per-row; same-K subtraction (54.8-39.8) gives 15.0 ms/step for all cache-related work, of which KV bandwidth is 1.26 ms = 8%. (3) fit at L~6145: f~10.9 ms/step + 11.0 ms/row; at L=0 per-row is still ~7.2 ms/row => ~65% of the per-row cost exists with no cache and no attention. So the wall is this box's per-call/per-kernel overhead, not attention throughput or bandwidth. D/E's 1.11x does NOT price the graph: a bulk forward is compute-bound, so the ~40 ms host floor is only ~9% of 439 ms, and 1.11x is exactly 'the floor removed'. Open item: eager vs graph on the [4,1] no-cache step (static mask, so the 4.57.6 in-place-mask blocker does not apply) -- 39.8 -> 2-5 ms would make StaticCache + static mask worth it (100MB 164 h -> ~15 h/pass); staying ~35 ms turns the close into proof."
   }
  ],
  "done": false,

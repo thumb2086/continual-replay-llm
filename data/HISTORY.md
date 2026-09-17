@@ -555,9 +555,39 @@ the code. Same shape, same conclusion, same remedy: a quiet box or a new card.
 Recorded as "per-step overhead, mixture and magnitude undetermined, environment
 suspected" — not as a hardware limit.
 
-Cheapest re-open, if ever wanted: `tools/probe_forward_cost.py` section C at
-`L=0` (no cache, so only 270 MB of weights = 0.6 ms of real work). A reading far
-above 0.6 ms would be direct proof of pure per-step overhead.
+Cheapest re-open: `tools/probe_forward_cost.py` section C at `L=0` (no cache, so
+only 270 MB of weights = 0.6 ms of real work). **That measurement is now in:**
+
+    C, L=0, K=4 (no cache, no attention) : 39.8 ms/step (9.95 ms/row) = 66x floor
+    driver, L~6145, K=4 (fwd)            : 54.8 ms/step (13.7 ms/row) = 29x floor
+    driver, L~6145, K=1                  : 21.9 ms/step               = 24x floor
+
+Three corrections to how that table was first read:
+(1) 9.95 is the `ms/row` column (the step is 39.8 ms); dividing it by the per-CALL
+    0.60 ms floor gives 16.5x -- per-row over per-call. The honest ratio is 39.8/0.60
+    = 66x (or 9.95/0.15 = 66x), i.e. 4x worse than first reported, not better.
+(2) "21.9 - 9.95 = 12 ms of cache traffic" mixes a K=1 per-step with a K=4 per-row
+    (the fixed cost is divided by 4 there). Same-K subtraction: 54.8 - 39.8 = 15.0
+    ms/step for ALL cache-related work at L~6145, of which KV bandwidth is 1.26 ms
+    (8%). The qualitative point stands (cache traffic is not the cost); the split
+    is 39.8 base / 15.0 cache-related.
+(3) Like-for-like fit at L~6145: f ~ 10.9 ms/step + 11.0 ms/row. Feeding L=0 into
+    it leaves (39.8-10.9)/4 ~ 7.2 ms/row -- ~65% of the per-row cost is present with
+    no cache and no attention at all. That is the direct proof that the cost is not
+    attention.
+
+D/E caveat, for the record: a bulk forward is compute-bound ([1,8192] = 439 ms of
+real FLOPs at 5.3 TFLOPS), so a per-call host floor of ~40 ms is only ~9% of it --
+and the measured 1.11x is exactly "remove the whole ~40 ms floor". So D/E never
+priced the graph for the loop's regime (0.6 ms of work under 39.8 ms of overhead);
+it priced it for the regime that has nothing to save. The graph question stays open.
+
+The one experiment that would close it (1 minute, ~20 lines): eager vs graph on the
+[4, 1] no-cache step. L=0 has a static mask, so the 4.57.6 in-place-mask blocker
+does not apply. 39.8 -> 2-5 ms means host/launch is the wall and the StaticCache +
+static-mask work is worth it (100 MB per pass: 164 h -> ~15 h); staying ~35 ms means
+the box's per-kernel GPU time is the wall, and the close becomes proof rather than
+inference.
 
 **100 MB: not run.** 27 M positions x (7.6/K + 14.3) ms = 164 h (K=1) to 108 h
 (K=100) per pass, with K capped near 38 by ~180 MB of KV per 8192-context

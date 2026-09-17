@@ -199,9 +199,11 @@ def main():
             print(f"  {K:>4}  FAILED {name}: {exc}"[:110] + f"  {hint}")
             torch.cuda.empty_cache()
     if base:
-        print(f"  -> slope from K={base[0]} to K={args.k_max}: "
-              f"read the ms/row column; if it is ~flat the cost is per-step "
-              f"(dispatch), if it grows the cost is per-row (cache traffic)")
+        print(f"  -> slope from K={base[0]} to K={args.k_max}: read the ms/row "
+              f"column; if it is ~flat the cost is per-step, if it grows the cost "
+              f"is per-row. (Section C's L=0 row gives the per-row cost with NO "
+              f"cache at all -- compare it against this row's ms/row to see how "
+              f"much of the per-row cost attention is actually responsible for.)")
 
     if not args.skip_l_sweep:
         print()
