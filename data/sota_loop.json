@@ -2597,6 +2597,12 @@
    "status": "chart",
    "bpb": 0.9145,
    "note": "P0 phases K=1 ov4096 K8192 tc10: fwd=674.5s (94.0%), dist=41.0s (5.7%), ac=0.2s, outside next_logits=2.3s. P1 K=4 --shared-tables: encode 718->500s (1.44x), decode 502s, bpb 0.8998->0.9145 (+0.0054 vs K=1 ov4096's 0.9091), escapes 29->31, per-step 23.3->64.9ms, dist 41->74.5s (2.4ms/position vs 1.3ms). PREDICTION MISS: I said ~3-4x for +0.003-0.012 bpb. Fit t=a+bK gives a~11ms fixed + b~11ms/row against a ~2.3ms memory-bound floor -> 24x above floor, so the cost is per-CALL not per-token; K amortises a per-call cost, and with b~=a it only halves per-token cost instead of quartering it. K is NOT a viable speed lever until per-row overhead is fixed, and the floor proves that overhead is not arithmetic -> strongest argument for StaticCache+CUDA graph (P2). New: driver --profile-fwd splits prep/warm/fwd/transfer; tools/wsl_cuda_graph_probe.py tests Graph+StaticCache at K=1/4 with same-token cache alignment for correctness."
+  },
+  {
+   "id": "seg-fwd-split-2",
+   "status": "chart",
+   "bpb": null,
+   "note": "--profile-fwd on K=4: prep 0.12ms, transfer 0.33ms, norm 0.33ms, all negligible; ~51 of 52 ms/step is inside model(**kw). StaticCache 12-15%. CUDA graph blocked by transformers 4.57.6 in-place mask. DECISIONS: (1) GPU top-K is DEAD -- the readback is 0.33 of 52 ms, worth ~0.3ms; do not touch build_distribution's contract for it. (2) 100MB is not viable at ANY K: fit t = 7.6ms + 14.3ms*K gives 27M*(7.6/K + 14.3)ms = 164h (K=1), 122h (K=4), 109h (K=30), 108h (K=100) PER PASS; K is also memory-capped at ~38 by 180MB of KV per 8192-token segment. (3) Do not upgrade transformers for a 12-15% cache win. The 14.3ms/row is 36x the 0.40ms/row memory-bound floor, so the per-row cost is the only thing on the critical path. New: tools/probe_forward_cost.py = profiler kernel table + K slope + cache-length sweep + CPU-submit vs wall + graph-vs-eager on a fixed shape (prices the graph without the mask work) + a 8192-token block forward reference."
   }
  ],
  "done": false,

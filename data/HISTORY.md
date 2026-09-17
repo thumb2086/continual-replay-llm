@@ -34,6 +34,7 @@ from decoded tokens. Labeling corrected in the ledger
 | 11 | `seg-k8192-100kb-k1` | codec `--overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0` | **0.8998** bpb | console only, no artifact — see run 12 |
 | 12 | `seg-100kb-ratio-final` | the same three configurations with the driver fixed, artifacts written | ov0 / ov4096 / ov4096+K8192: **0.9219 / 0.9091 / 0.8998** bpb, escapes 383 / 374 / 29, all roundtrip ✓ | **ratio line closed: sub-0.90, verified lossless** |
 | 13 | `seg-speed-p0-p1` | P0: phase split of the K=1 run. P1: K=4 with `--shared-tables` | P0: fwd 674.5 s (94%), dist 41.0 s (5.7%), ac 0.2 s. P1: encode 718→500 s, bpb 0.8998→**0.9145**, escapes 29→31 | K=4 is a **bad trade** at present; see below |
+| 14 | `seg-fwd-split-2` | `--profile-fwd` on the K=4 run; StaticCache trial | prep 0.12 ms, transfer 0.33 ms, norm 0.33 ms — all negligible; 52 ms/step is inside `model(**kw)`. StaticCache worth 12–15 %; CUDA graph blocked (transformers 4.57.6 writes the mask in place) | **GPU top-K killed**; 100 MB not viable at any K; see below |
 
 ## What run 2/4 actually prove — and don't
 
@@ -455,6 +456,72 @@ StaticCache+graph, and graph-without-readback — and it verifies correctness by
 driving the graph and the eager reference through the SAME tokens so their caches
 hold identical contents before any comparison (comparing numbers from unrelated
 runs would pass a wrong graph).
+
+## Run 14 — the per-row cost is the whole problem, and K cannot fix it
+
+`--profile-fwd` resolves the 94 % "forward" into parts, and the answer is that the
+parts are all innocent:
+
+| sub-phase | ms/step (K=4) |
+|---|---|
+| prep (input tensor build) | 0.12 |
+| warm (prefill) | ~0 |
+| **inside `model(**kw)`** | **~51** |
+| transfer + normalise (`.cpu()` etc.) | 0.33 + 0.33 |
+
+So the D2H readback is 0.33 ms of 52 ms: **the GPU top-K idea is dead** and should
+not be pursued (it would save ~0.3 ms while complicating `build_distribution`'s
+contract). StaticCache is worth 12–15 %, and CUDA graph capture fails because
+transformers 4.57.6 writes into the mask in place.
+
+### Why neither "upgrade transformers" nor "go to 100 MB" is on the critical path
+
+Fit the two 100 KB points (K=1: 21.9 ms/step, K=4: 64.9 ms/step):
+
+    per-step = 7.6 ms fixed + 14.3 ms PER ROW
+
+100 MB is ~27 M positions, so the *total* is 27 M x (7.6/K + 14.3) ms:
+
+| K | ms/step | steps | per pass | encode + decode |
+|---|---|---|---|---|
+| 1 | 21.9 | 27.0 M | 164 h | 328 h |
+| 4 | 64.9 | 6.8 M | 122 h | 243 h |
+| 30 | 437.6 | 0.9 M | 109 h | 219 h |
+| 100 | 1440.9 | 0.3 M | 108 h | 216 h |
+
+**More K does not help**: it approaches the asymptote 27 M x 14.3 ms = 108 h, and
+K cannot exceed ~38 anyway — each 8192-context segment holds ~180 MB of KV cache
+on an 8 GB card.
+
+And 14.3 ms per single-token row is not work. One row must read its segment's KV
+cache — 180 MB at 448 GB/s = **0.40 ms/row** — plus trivial arithmetic. The
+measured cost is **36x the memory-bound floor**. StaticCache's 12–15 % moves 164 h
+to ~144 h, which changes nothing.
+
+So the one number that decides whether 100 MB is an overnight job or a
+two-week job is the per-row cost, and it is currently 36x above what the hardware
+requires. Everything else — the transformers version, the mask, K, the artifact
+format — is downstream of it.
+
+### What was written for this
+
+`tools/probe_forward_cost.py`: one run (~3 min) that answers it instead of
+ranking hypotheses by taste.
+
+* a `torch.profiler` kernel table at the real loop shape (K=4, L=window), sorted
+  by CUDA time and by self-CPU time — the decisive part, because it names the
+  ops rather than guessing;
+* the per-row slope over K = 1..16, and cost vs cache length 0 → 8192 (is the
+  per-row cost O(seq)? then it is cache traffic or mask construction, not
+  dispatch);
+* CPU-submit time vs wall time (CPU-bound or GPU-bound?);
+* eager vs CUDA-graph on a fixed shape with no cache — this bounds what a graph
+  is worth **without** the graph-safe mask work, i.e. it prices the prize before
+  anyone patches mask machinery or bumps a major dependency;
+* one 8192-token block forward for reference: the same model called in bulk
+  instead of one token at a time. Not usable for coding — encoder and decoder
+  must run the same arithmetic or the mirror breaks — but it is the size of what
+  per-token mirroring costs.
 
 ## Next step and its scaling limit
 
