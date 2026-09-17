@@ -2591,6 +2591,12 @@
    "status": "banked",
    "bpb": 0.8998,
    "note": "100KB verified lossless, artifacts written: ov0 0.9219/383esc; ov4096 0.9091/374esc; ov4096+top_k8192+pf8192+tc10 0.8998/29esc (file bpb 0.9269), encode 718.0s. v13 counted same slice 0.9139/377; same operating point 0.9003/27. Corrected for the per-escape finish in v13's counting, the two agree to ~20-50 bits (tie-order noise) -> the codec has reached parity with the reference math and is the only side whose 0.8998 is decodable. RATIO LINE CLOSED; work moves to speed. Durability: artifacts now carry top_k/prefilter/tc + kv_window/overlap/shared_tables + phase timings, filename carries a fingerprint (3 configs had overwritten one filename). SegTables docstring corrected: shared tables ARE lockstep-legal (mirror-tested K=2/4/8, sabotage controls fire, sharing changes coded size 2106->1806 bits), which is what makes K>1 cheap in ratio."
+  },
+  {
+   "id": "seg-speed-p0-p1",
+   "status": "chart",
+   "bpb": 0.9145,
+   "note": "P0 phases K=1 ov4096 K8192 tc10: fwd=674.5s (94.0%), dist=41.0s (5.7%), ac=0.2s, outside next_logits=2.3s. P1 K=4 --shared-tables: encode 718->500s (1.44x), decode 502s, bpb 0.8998->0.9145 (+0.0054 vs K=1 ov4096's 0.9091), escapes 29->31, per-step 23.3->64.9ms, dist 41->74.5s (2.4ms/position vs 1.3ms). PREDICTION MISS: I said ~3-4x for +0.003-0.012 bpb. Fit t=a+bK gives a~11ms fixed + b~11ms/row against a ~2.3ms memory-bound floor -> 24x above floor, so the cost is per-CALL not per-token; K amortises a per-call cost, and with b~=a it only halves per-token cost instead of quartering it. K is NOT a viable speed lever until per-row overhead is fixed, and the floor proves that overhead is not arithmetic -> strongest argument for StaticCache+CUDA graph (P2). New: driver --profile-fwd splits prep/warm/fwd/transfer; tools/wsl_cuda_graph_probe.py tests Graph+StaticCache at K=1/4 with same-token cache alignment for correctness."
   }
  ],
  "done": false,

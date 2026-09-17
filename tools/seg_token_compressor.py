@@ -154,7 +154,7 @@ def split_prefill(lo, hi, chunk):
 
 # ── model plumbing ───────────────────────────────────────────────────
 def make_next_logits(model, torch, device, n_segments, window=None, overlap=None,
-                     prefill_chunk=None):
+                     prefill_chunk=None, profile=None):
     """Returns next_logits(inp_tokens, step) -> [n_segments][V] probabilities.
 
     One batched forward per step: row s receives segment s's token at index
@@ -205,12 +205,25 @@ def make_next_logits(model, torch, device, n_segments, window=None, overlap=None
             o = None                   # release activations before the next slice
         return cache
 
+    # Sub-phase accounting for `next_logits`. The driver's `PHASES` line reports
+    # ONE number for the whole call, which silently bundles three different
+    # costs: the forward, the [K, V] D2H transfer, and the GPU-side normalise.
+    # They need different fixes (CUDA graph / GPU top-K / nothing), so when
+    # profiling is on we synchronise between them and report separately.
+    # NOTE: `fwd=674.5s (94%)` at K=1 was measured this way -- one number, no
+    # split -- so "94% is forward" really means "94% is forward + transfer +
+    # normalise", and that is what this instrumentation exists to separate.
+    phases = dict(prep=0.0, warm=0.0, fwd=0.0, post=0.0, n=0, warm_n=0,
+                  bytes_out=0)
+
     def next_logits(inp, step):
         nonlocal cache
-        t0 = time.time()
+        t0 = time.perf_counter()
         reset, lo, hi = chunk_schedule(step, window, overlap)
         for s in range(len(inp)):
             hist[s].append(int(inp[s]))
+        x = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(1)
+        t_prep = time.perf_counter()
         with torch.inference_mode():
             if reset:
                 # Drop the outgoing cache BEFORE allocating the new one: the
@@ -226,19 +239,32 @@ def make_next_logits(model, torch, device, n_segments, window=None, overlap=None
                         rows.append(list(d)[rlo:rhi])
                     past = torch.tensor(rows, dtype=torch.long, device=device)
                     cache = _warm(past)
-            x = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(1)
+                    phases["warm_n"] += 1
+            t_warm = time.perf_counter()
             kw = dict(input_ids=x, use_cache=True)
             if cache is not None:
                 kw["past_key_values"] = cache
             out = model(**kw)
-            cache = out.past_key_values
+            if profile is not None and device.type == "cuda":
+                torch.cuda.synchronize()      # attribute the forward honestly
+            t_fwd = time.perf_counter()
             lg = out.logits[:, -1, :].float()
             lg = lg - lg.max(dim=-1, keepdim=True).values
             p = torch.exp(lg)
             p = (p / p.sum(dim=-1, keepdim=True)).cpu().numpy()
+            t_post = time.perf_counter()
+            cache = out.past_key_values
             out = None
-        return [p[s] for s in range(len(inp))], time.time() - t0
+        if profile is not None:
+            phases["prep"] += t_prep - t0
+            phases["warm"] += t_warm - t_prep
+            phases["fwd"] += t_fwd - t_warm
+            phases["post"] += t_post - t_fwd
+            phases["n"] += 1
+            phases["bytes_out"] += p.nbytes
+        return [p[s] for s in range(len(inp))], t_post - t0
 
+    next_logits.phases = phases
     next_logits.prefill_note = prefill_note
     return next_logits
 
@@ -299,6 +325,10 @@ def main():
                          "Raising it costs almost no wall clock -- the prefill is "
                          "batched, not per-token -- so it is a ratio knob, not a "
                          "speed knob.")
+    ap.add_argument("--profile-fwd", action="store_true",
+                    help="split the `fwd` phase into prep/forward/transfer so "
+                         "the next optimisation targets the real cost; adds a "
+                         "cuda synchronise per step (diagnostic only)")
     ap.add_argument("--prefill-chunk", type=int, default=2048,
                     help="slice a prefill into pieces of at most this many "
                          "tokens. Memory, not correctness: the prefill's [L,V] "
@@ -370,9 +400,10 @@ def main():
     enc = ArithmeticEncoder32(store=True)
     stats = dict(coded=0, escapes=0, uniform=0)
 
+    prof = {} if args.profile_fwd else None
     nl_enc = make_next_logits(model, torch, device, K,
                                window=args.kv_window, overlap=args.overlap,
-                               prefill_chunk=args.prefill_chunk)
+                               prefill_chunk=args.prefill_chunk, profile=prof)
     # Capture the note as a plain string: `nl_enc` is deleted below to free the
     # model-side state, and the result dict is written long after that. Reading
     # `nl_enc.prefill_note` there raised UnboundLocalError AFTER a full
@@ -400,6 +431,11 @@ def main():
     per_step = dt_enc / max(1, total_steps) * 1000
     print(f"      PHASES: fwd={timings['fwd']:.1f}s dist={timings['dist']:.1f}s "
           f"ac={timings['ac']:.1f}s total={dt_enc:.1f}s")
+    # The phase dicts are plain dicts, so they survive the `del` below; the
+    # printers themselves have to wait until decode exists (this is exactly the
+    # class of mistake tools/test_driver_static.py exists to catch -- its first
+    # version flagged nl_dec and prefilter_frac in this very block).
+    enc_phases = nl_enc.phases
     print(f"      per-step: {per_step:.1f}ms (target地板: ~0.6ms)")
     assert len(bitstr) == n_bits, (len(bitstr), n_bits)
     del nl_enc, nl_enc_timed
@@ -425,9 +461,10 @@ def main():
     tables_d = sc.SegTables(K, use_trigram=cfg["use_trigram"],
                             shared=args.shared_tables)
     stats_d = dict(coded=0, escapes=0, uniform=0)
+    prof_dec = {} if args.profile_fwd else None
     nl_dec = make_next_logits(model, torch, device, K,
                                window=args.kv_window, overlap=args.overlap,
-                               prefill_chunk=args.prefill_chunk)
+                               prefill_chunk=args.prefill_chunk, profile=prof_dec)
     t_dec = time.time()
     rec = sc.decode_stream(n_tokens, K, cfg, nl_dec, dec, tables_d,
                            sc.uniform_cum_cached(V, {}), sc.build_distribution,
@@ -436,6 +473,33 @@ def main():
     print(f"      decoded {len(rec)} tokens in {dt_dec:.1f}s")
 
     # ---- verify -----------------------------------------------------
+    if args.profile_fwd:
+        prefilter_frac = min(1.0, args.prefilter / max(1, V))
+        for tag, ph, total in (("encode", enc_phases, dt_enc),
+                               ("decode", nl_dec.phases, dt_dec)):
+            n = max(1, ph["n"])
+            sub = ph["prep"] + ph["warm"] + ph["fwd"] + ph["post"]
+            print(f"      FWD SPLIT[{tag}] n={n} steps, prefill calls="
+                  f"{ph['warm_n']}  ms/step: prep={ph['prep'] / n * 1e3:.2f} "
+                  f"warm={ph['warm'] / n * 1e3:.2f} fwd={ph['fwd'] / n * 1e3:.2f} "
+                  f"transfer+norm={ph['post'] / n * 1e3:.2f}  (these four ARE "
+                  f"the {sub / total * 100:.1f}% of {tag} that is forward)")
+        # What the codec spends OUTSIDE next_logits: distribution building and
+        # the coder. (An earlier version printed fwd minus its own components,
+        # which is identically zero -- no information at all.)
+        print(f"      FWD SPLIT[encode] outside next_logits: "
+              f"dist={timings['dist'] / dt_enc * 100:.1f}% "
+              f"ac={timings['ac'] / dt_enc * 100:.1f}%")
+        for tag, ph, total in (("encode", enc_phases, dt_enc),
+                               ("decode", nl_dec.phases, dt_dec)):
+            n = max(1, ph["n"])
+            mb = ph["bytes_out"] / n / 2**20
+            mb = ph["bytes_out"] / n / 2**20
+            print(f"      FWD SPLIT[{tag}] D2H payload={mb:.2f} MB/step "
+                  f"({ph['bytes_out'] / 2**30:.2f} GB total; a GPU top-K of "
+                  f"{args.prefilter} would send {mb * prefilter_frac:.2f} "
+                  f"MB/step, {1 / prefilter_frac:.0f}x less)")
+
     print("[5/6] verification")
     tokens_ok = (rec == ids)
     h_orig = hashlib.sha256(struct.pack(f"<{len(ids)}I", *ids)).hexdigest()

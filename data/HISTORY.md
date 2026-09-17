@@ -33,6 +33,7 @@ from decoded tokens. Labeling corrected in the ledger
 | 10 | `v13-gate-fp16-off` | v13 counted, `BLEND_BT_MIN=0 BLEND_TT_MIN=0 USE_FP16_XFER=0`, 100 KB | 0.9141 bpb, 380 escapes (baseline: 0.9139 / 377) | gate + fp16 are worth ~nothing; not the gap |
 | 11 | `seg-k8192-100kb-k1` | codec `--overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0` | **0.8998** bpb | console only, no artifact — see run 12 |
 | 12 | `seg-100kb-ratio-final` | the same three configurations with the driver fixed, artifacts written | ov0 / ov4096 / ov4096+K8192: **0.9219 / 0.9091 / 0.8998** bpb, escapes 383 / 374 / 29, all roundtrip ✓ | **ratio line closed: sub-0.90, verified lossless** |
+| 13 | `seg-speed-p0-p1` | P0: phase split of the K=1 run. P1: K=4 with `--shared-tables` | P0: fwd 674.5 s (94%), dist 41.0 s (5.7%), ac 0.2 s. P1: encode 718→500 s, bpb 0.8998→**0.9145**, escapes 29→31 | K=4 is a **bad trade** at present; see below |
 
 ## What run 2/4 actually prove — and don't
 
@@ -383,6 +384,77 @@ synchronisation; `dist` is `build_distribution`; `ac` is the coder. Nothing else
 in the loop is timed. That line, from any 100 KB run, says whether the next step
 is CUDA graphs/StaticCache (fwd dominates), a faster distribution builder (dist
 dominates), or neither.
+
+## Run 13 — speed: where the time is, and why K did not pay
+
+### P0: the `fwd` phase is 94 % of encode
+
+| phase | seconds | share |
+|---|---|---|
+| fwd (forward + logits normalise + D2H + input prep) | 674.5 | 94.0 % |
+| dist (`build_distribution`) | 41.0 | 5.7 % |
+| ac (coder) | 0.2 | 0.03 % |
+| outside `next_logits` (codec bookkeeping) | 2.3 | 0.3 % |
+
+So `dist` is **not** the 100 KB bottleneck (it is 5.7 %; it only becomes the
+bottleneck at 100 MB, where it does not divide by K). The forward path is. Note
+that `fwd` is one number covering four different costs — a forward, a GPU-side
+normalise, a `[K, V]` device-to-host copy, and tensor construction — and they
+need different fixes. `--profile-fwd` now synchronises between them and prints
+the split, because "94 % is forward" is not yet actionable.
+
+### P1: K=4 with shared tables bought 1.44x and cost 0.0054 bpb
+
+| run | bpb | escapes | encode s | decode s |
+|---|---|---|---|---|
+| K=1, ov4096, K8192, tc10 | 0.8998 | 29 | 718.0 | 722.7 |
+| K=4, ov4096, K8192, tc10, shared | **0.9145** | 31 | 500.0 | 502.0 |
+
+**This contradicts the prediction made here** ("~3-4x faster for +0.003-0.012
+bpb"). The prediction came from the 8 KB sweep, where K=32 cost 48 ms/step
+against K=1's 60.8 ms/step and looked nearly free in batch size. That was an
+older build (before the chunk reset and the prefill) and, more importantly, the
+inference was wrong: per-STEP cost is not batch-independent.
+
+Fitting the two 100 KB points (`t = a + b·K`): 21.9 ms/step at K=1 and 54.8 at
+K=4 gives **a ≈ 11 ms fixed + b ≈ 11 ms per row**. The memory-bound floor for one
+K=4 step at full context is ~2.3 ms (270 MB of weights + 754 MB of KV reads at
+448 GB/s), so the step runs ~24x above what the arithmetic costs. **That gap is
+the whole story: the cost is per-call, not per-token.** Caching implications:
+
+* K's entire benefit is amortising a per-call cost across rows. With b ≈ a, K
+  halves the per-token cost at K=4 instead of quartering it — which is exactly
+  the 1.44x observed against a theoretical 4x.
+* K is therefore **not a viable speed lever while per-row cost is real**, since
+  it pays a ratio cost (shorter per-segment context, +0.0054 bpb here, and the
+  +0.015 reported with `--overlap 0`) for a fraction of the speedup.
+* Conversely, the per-row cost cannot be arithmetic (the floor says so), so it
+  must be dispatch/launch/bookkeeping — which is what a StaticCache + CUDA graph
+  removes. P1's own numbers are therefore the strongest argument for P2, not an
+  argument against it.
+
+### P2 instrumented, and a probe written for it
+
+`tools/seg_token_compressor.py --profile-fwd` splits the `fwd` phase into
+prep / warm(prefill) / forward / transfer+normalise, and reports the D2H payload
+per step together with what a GPU top-K would send instead (a `[K, V]` fp32 row
+is 0.19 MB/step at K=1, 0.75 MB at K=4; a PREFILTER=8192 top-K is 6x smaller).
+
+`tools/wsl_cuda_graph_probe.py` is the feasibility test, since CUDA graph capture
+has two real constraints here:
+
+1. **a graph cannot contain the `.cpu()` readback**, and this loop does one every
+   step — so a graph can only cover the forward, and the probe's configuration 4
+   (graph without readback) is the lower bound that says how much is left.
+2. **the codec resets its cache and re-warms it with a variable-length prefill**,
+   which one static graph cannot express; prefills stay eager (they are <1 % of
+   wall clock, so this costs nothing).
+
+The probe measures, at K=1 and K=4: eager+DynamicCache (today), eager+StaticCache,
+StaticCache+graph, and graph-without-readback — and it verifies correctness by
+driving the graph and the eager reference through the SAME tokens so their caches
+hold identical contents before any comparison (comparing numbers from unrelated
+runs would pass a wrong graph).
 
 ## Next step and its scaling limit
 
