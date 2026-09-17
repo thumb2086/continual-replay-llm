@@ -273,14 +273,25 @@ def main():
                 o = model(input_ids=x, use_cache=False)
                 _ = o.logits.float()
         b_ms = ms(blk, 5)
-        print(f"  block forward [1, {L}]: {b_ms:.1f} ms = "
-              f"{b_ms / L * 1e3:.4f} ms/token; the loop's single-token path "
-              f"costs {21.9:.2f} ms/token (K=1, measured in the driver)")
-        print(f"  -> the same model, called in bulk instead of one token at a "
-              f"time, is {21.9 / (b_ms / L * 1e3):.0f}x cheaper per token.")
-        print("     (Not directly usable for coding: encoder and decoder must")
-        print("      run the SAME arithmetic or the mirror breaks. Recorded as")
-        print("      the size of what per-token mirroring costs.)")
+        us_per_tok = b_ms / L * 1e3            # us/token (NOT ms -- see below)
+        loop_ms = 21.9                         # driver K=1, 100 KB
+        print(f"  block forward [1, {L}]: {b_ms:.1f} ms for {L} tokens = "
+              f"{us_per_tok:.2f} us/token (= {us_per_tok / 1e3:.4f} ms/token)")
+        print(f"  the loop's single-token path costs {loop_ms:.2f} ms/token "
+              f"(K=1, measured in the driver)")
+        print(f"  -> the loop is {loop_ms * 1e3 / us_per_tok:.0f}x SLOWER per "
+              f"token than the model in bulk.")
+        print("     UNIT NOTE: the first version of this printout divided ms by")
+        print("     tokens and multiplied by 1e3, which yields MICROseconds, yet")
+        print("     labelled it ms/token -- a 1000x error that made the bulk")
+        print("     forward look 2.4x SLOWER than the loop instead of 400x")
+        print("     faster. The bulk path does strictly more per-token work")
+        print("     (quadratic O(L^2) attention, no cache); the loop does O(L)")
+        print("     attention plus 270 MB of weight reads, whose bandwidth floor")
+        print("     is ~0.9 ms/token. Use the floor, not this row, to judge the")
+        print("     loop.")
+        print("     (The bulk path is not usable for coding: encoder and decoder")
+        print("      must run the SAME arithmetic or the mirror breaks.)")
         del x
         gc.collect(); torch.cuda.empty_cache()
     except Exception as exc:

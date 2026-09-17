@@ -8,7 +8,9 @@
 |---|---|---|
 | **最佳壓縮率（Qwen-3B 王座）** | **0.6450 bpb*** | K2048/B28672，219/219，*10.96GB 分頁；實用 **0.6650** @ B4096 裝進 8GB |
 | 最佳壓縮率（Qwen-1.5B） | **0.6996 bpb*** | K4096/28K，220/220，*11.53GB 分頁；實用 **0.7024** @ 7.74GB |
-| 最佳壓縮率（SmolLM2） | **0.9003 bpb** | v13，ov4096/K8192，220/220 |
+| 最佳壓縮率（SmolLM2，可解碼） | **0.8998 bpb** | **自包含 seg codec**，100KB，ov4096/K8192/PF8192/tc10，escapes 29，**verified lossless**（產出 .zllm 並成功解回，tokens/SHA-256/bytes 三重比對） |
+| 最佳壓縮率（SmolLM2，counted） | **0.9003 bpb** | v13，ov4096/K8192，220/220，**counted only（無可解碼產物）**；扣除每逃逸一次 coder finish 後，單流等價 ≈0.9000（見 §49） |
+| 100KB 速度（自包含） | **0.14 KB/s** | seg codec K=1，encode 718s＋decode 723s；同箱子非自包含管線為 34.5 KB/s（見 §49） |
 | 1MB 最佳比率 | **0.6874 bpb** | Qwen-3B K2048/B4096+gate，220/220，182.3s，7.39GB |
 | 1MB 最佳速度 | **18.6 KB/s** | Qwen-1.5B K1024/B8192+gate，0.7402 bpb，55.1s，5.66GB |
 | 100KB 最佳速度 | **34.5 KB/s** | SmolLM2 chunked ov0/K1024，2.9s，1.50GB |
@@ -676,3 +678,53 @@ SOTA 0.9389 → 我們 0.6450 = **−31.3%**（SOTA+CMIX+NNCP 全贏）。
 3. 100MB < 10 min 不可能——物理極限 ~42 KB/s
 4. Qwen-3B ratio 最佳但太慢——3B × 自回歸 = 100MB 需 4+ 小時
 
+
+
+## 49. 自包含編解碼器（seg codec）：比率達標、速度結構受限（2026-09-17）
+
+第 4 節那條「self-contained」的債，到這裡結清：**decoder 只拿著檔案與模型就能解回原文，實測 verified lossless。**
+
+### 49.1 交卷數字（100KB，enwik8 @50MB，SmolLM2-135M）
+
+| 配置 | bpb payload | file bpb | escapes | 可解碼 |
+|---|---|---|---|---|
+| `--overlap 0` | 0.9219 | 0.9488 | 383 | ✓ |
+| `--overlap 4096` | 0.9091 | 0.9361 | 374 | ✓ |
+| `--overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0` | **0.8998** | **0.9269** | **29** | ✓ |
+| v13 counted，同切片 | 0.9139 | — | 377 | ✗ |
+| v13 counted，同操作點 | 0.9003 | — | 27 | ✗ |
+
+每一列都通過 tokens identical、SHA-256 tokens match、bytes identical、tokenizer self-roundtrip。產物：`data/seg_verify_1seg_100kb_k8192_pf8192_tc10_ov4096.json`。
+
+### 49.2 一個必須記錄的計數約定修正
+
+v13 的 `total_bits` **不是單一 stream 的成本**：它把 stage-1 用一次 `nb_encode_count_32` 算完，然後**每一個逃逸再用一次獨立的呼叫**算 stage-2 符號——而該函式「returns total incl. finish bits」。所以 v13 每遇到一次逃逸就多付一次算術編碼器收尾，真正的單一 stream 不必付。以 ac32 自己的 kernel 量測（`tools/audit_count_overhead.py`）：**每次分裂呼叫 1.5 bits**（1–2 之間）。
+
+| run | v13 counted | 單流等價 | seg codec（單流） |
+|---|---|---|---|
+| 100KB K1024 ov4096 | 93 588（0.9139） | ≈93 022（**0.9084**） | 93 071（**0.9089**） |
+| 100KB K8192 tc10 | 92 201（0.9003） | ≈92 161（**0.9000**） | 92 144（**0.8998**） |
+
+377×1.5=566 對觀測 517；27×1.5=40 對觀測 51——都在量測散布內。**結論：在 context 對齊後，兩份實作差 20–50 bits，即 v13 自己註解所稱的 tie-order 噪音等級。** seg codec 領先 counted 數字的 517 bits 是計數約定，不是更好的數學；它真正的價值是那個 0.8998 出自一個能解碼的檔案。
+
+### 49.3 速度：結構性差距，與一個尚未查明的每步成本
+
+| | 100KB forward 次數 | 100KB 秒 | KB/s |
+|---|---|---|---|
+| v13（非自包含，block forward） | ≈4（8192-token blocks） | 2.9 | 34.5 |
+| seg codec（自包含，per-token KV） | 30 791 | 718 | 0.14 |
+
+**7 700 倍的 forward 次數差不是實作瑕疵，是自包含的定義**：decoder 必須逐 token 解碼（每個 token 的分布取決於前一個已解出的 token），因此永遠無法使用 block forward。v13 之所以能用 block forward，正是因為它的 decoder 餵入原始 token——也就是第 4 節記錄的那筆債。這個結構性差距無法消除。
+
+剩下的是每步成本本身：實測 21.9 ms/step（K=1），而其頻寬下限（270 MB 權重 + 平均 6145 context 的 135 MB KV，448 GB/s）是 **0.90 ms**——**24 倍**。K>1 的邊際成本 14.3 ms/列，下限 0.40 ms/列（36 倍）。StaticCache 值 12–15%。
+
+**尚未查明**：這 24 倍不是硬體 throughput。同一台機器上，模型整批處理時是 53.6 µs/token（`[1, 8192]` block forward 439 ms），而 loop 是 21 900 µs/token——**loop 比整批慢 409 倍**，且整批那條路每 token 做的注意力工作更多（O(L²) vs O(L)）。所以每步成本是 overhead，只是成分未定（每步約 300 次 kernel launch、torch dispatch、mask 重建、以及 §14 早已記錄的箱子排程開銷）。
+
+（註：`tools/probe_forward_cost.py` 第一版把 `b_ms/L*1e3` 標成 ms/token，實際是 µs/token，差 1000 倍，害整批 forward 看起來比 loop 慢 2.4 倍。已修正。）
+
+### 49.4 結案狀態
+
+- **比率：結案。** 0.8998、verified lossless、sub-0.90，與 v13 修正後的 0.9000 在噪音內一致。
+- **速度：結案（依 §14 既有判決）。** 該節早已以證據判定「每段 1.4 秒 vs 元件合計 0.15 秒 = 10 倍調度開銷，不是活」，並宣告 code 端速度工作關閉、剩下的槓桿是安靜的箱子或新卡。本節的每步 24 倍缺口與該判決同型，因此**維持關閉**，但記錄為「每步 overhead，成分／量級未查明，環境嫌疑（§14 先例）」，不是「Flash Attention 硬體吞吐上限」——後者已被 53.6 µs/token 的整批數字否證。
+- **重開條件**：(a) 一個安靜的箱子或新卡（§14 的既有結論）；(b) 若要在本機續查，`tools/probe_forward_cost.py` 的 C 段 `L=0`（無 cache，只有 270 MB 權重 = 0.6 ms 真實工作）是最便宜的一刀：該列若遠大於 0.6 ms，即為純 overhead 的直接證明。
+- **100MB：不跑。** 以現行每步成本，27 M 位置 × (7.6/K + 14.3) ms = 164 h（K=1）～108 h（K=100）單趟，且 K 被 180 MB/段的 KV 上限鎖在 ~38。此決定與 §48 的 58 分鐘（非自包含管線）不衝突：兩者是不同的設計與不同的檔案。

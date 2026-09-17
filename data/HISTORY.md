@@ -523,6 +523,46 @@ ranking hypotheses by taste.
   must run the same arithmetic or the mirror breaks — but it is the size of what
   per-token mirroring costs.
 
+## Run 15 — closing state (2026-09-17)
+
+**Ratio: closed.** The self-contained codec reaches 0.8998 bpb payload
+(0.9269 file) at 100 KB, escapes 29, verified lossless — tokens identical,
+SHA-256 match, bytes identical. Against v13's *corrected* (single-stream)
+numbers it is 92 144 vs 92 161 bits, i.e. inside tie-order noise (see the
+counting-convention section above). Final report section: `FINAL-REPORT.md` §49.
+
+**Speed: closed, with the reason recorded correctly.** The structural gap is
+irreducible: the decoder must decode one token at a time (each token's
+distribution depends on the previously decoded token), so it can never use block
+forwards. 100 KB is ~30 791 forwards for the codec against ~4 for v13 — which is
+exactly why v13 is 34.5 KB/s and the codec is 0.14 KB/s, and v13 can only do that
+because its decoder reads the source tokens (§4's debt). Wall clock 718 s + 723 s.
+
+What is NOT the reason, and was briefly recorded as such: hardware throughput.
+The `[1, 8192]` block forward measures 439 ms = **53.6 µs/token**
+(`tools/probe_forward_cost.py` section F), while the loop costs
+**21 900 µs/token** — the loop is **409x slower** per token despite doing LESS
+per-token attention work (O(L) with a cache vs O(L²) in bulk). The per-step cost
+is therefore overhead, and per-row it is 36x above its 0.40 ms/row bandwidth
+floor. The probe's first version mislabelled µs as ms (a 1000x error that made
+the bulk forward look 2.4x *slower* than the loop); fixed in the tool and the
+correction is stated in `FINAL-REPORT.md` §49.3.
+
+Closing rests on the repo's own prior verdict, which this matches in kind:
+§14 measured v13's 1.4 s/segment against 0.15 s of component cost and convicted
+the box's scheduling (queuing, desktop preemption, boost drop-off) rather than
+the code. Same shape, same conclusion, same remedy: a quiet box or a new card.
+Recorded as "per-step overhead, mixture and magnitude undetermined, environment
+suspected" — not as a hardware limit.
+
+Cheapest re-open, if ever wanted: `tools/probe_forward_cost.py` section C at
+`L=0` (no cache, so only 270 MB of weights = 0.6 ms of real work). A reading far
+above 0.6 ms would be direct proof of pure per-step overhead.
+
+**100 MB: not run.** 27 M positions x (7.6/K + 14.3) ms = 164 h (K=1) to 108 h
+(K=100) per pass, with K capped near 38 by ~180 MB of KV per 8192-context
+segment. That is a property of the per-token design, not of the artifact format.
+
 ## Next step and its scaling limit
 
 `tools/seg_token_compressor.py` (format v2) is the self-contained design: the

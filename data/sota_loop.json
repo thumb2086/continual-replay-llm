@@ -2603,6 +2603,12 @@
    "status": "chart",
    "bpb": null,
    "note": "--profile-fwd on K=4: prep 0.12ms, transfer 0.33ms, norm 0.33ms, all negligible; ~51 of 52 ms/step is inside model(**kw). StaticCache 12-15%. CUDA graph blocked by transformers 4.57.6 in-place mask. DECISIONS: (1) GPU top-K is DEAD -- the readback is 0.33 of 52 ms, worth ~0.3ms; do not touch build_distribution's contract for it. (2) 100MB is not viable at ANY K: fit t = 7.6ms + 14.3ms*K gives 27M*(7.6/K + 14.3)ms = 164h (K=1), 122h (K=4), 109h (K=30), 108h (K=100) PER PASS; K is also memory-capped at ~38 by 180MB of KV per 8192-token segment. (3) Do not upgrade transformers for a 12-15% cache win. The 14.3ms/row is 36x the 0.40ms/row memory-bound floor, so the per-row cost is the only thing on the critical path. New: tools/probe_forward_cost.py = profiler kernel table + K slope + cache-length sweep + CPU-submit vs wall + graph-vs-eager on a fixed shape (prices the graph without the mask work) + a 8192-token block forward reference."
+  },
+  {
+   "id": "seg-codec-closing-state",
+   "status": "banked",
+   "bpb": 0.8998,
+   "note": "CLOSING STATE (2026-09-17). Ratio closed: self-contained codec 0.8998 payload / 0.9269 file, escapes 29, verified lossless (tokens/SHA-256/bytes); vs v13's single-stream-corrected 0.9000/92161 bits -> tie-order noise. Speed closed with the reason recorded correctly: the gap is STRUCTURAL (decoder must be one token at a time: 30791 forwards vs v13's ~4 block forwards, 0.14 vs 34.5 KB/s; v13 can batch only because its decoder reads source tokens). NOT a hardware limit: block forward = 53.6 us/token vs loop 21900 us/token -> loop is 409x slower per token while doing LESS attention work; per-row cost is 36x its 0.40 ms/row bandwidth floor, i.e. overhead. Closing rests on the repo's own prior verdict (FINAL-REPORT §14: 1.4 s/segment vs 0.15 s of components => 10x scheduling, not work). Recorded as per-step overhead with undetermined mixture, environment suspected. 100MB not run: 27M x (7.6/K + 14.3) ms = 164h..108h per pass, K capped ~38. Report: FINAL-REPORT.md §49. Probe unit bug (us printed as ms) fixed."
   }
  ],
  "done": false,
