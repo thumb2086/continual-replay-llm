@@ -2561,6 +2561,18 @@
    "status": "chart",
    "bpb": 1.1262,
    "note": "seg codec format v2, 8KB (2595 tokens, enwik8 @50MB), top_k1024/PF2048, K=1/4/8/16/32: all roundtrip=True; bpb_payload 1.1262->1.4741, escapes 2.20%->4.12%, enc 157.8s->3.9s (batched forward at fd2935b). K trades ratio for wall-clock ~T/K. Ratio gap vs v13 (escapes 1.25% @100KB K1024) traced to candidate set + per-count weights; F1/F2 fix written, GPU measurement pending."
+  },
+  {
+   "id": "seg-vs-v13-8kb-k1",
+   "status": "chart",
+   "bpb": 1.1245,
+   "note": "8KB K=1, F1/F2 codec vs v13 counted (TOP_K1024/PF2048/tc3.0), user-reported: codec 1.1245 bpb / 56 escapes / decodable .zllm; v13 1.1323 bpb / 56 escapes / counted-only (no artifact). Escape parity confirms the F1/F2 port. F1/F2's own effect at 8KB is small (pre-fix 57 escapes / 1.1262 bpb). The 64-bit gap vs v13 is unexplained; candidates: v13 blend gate (BLEND_BT_MIN/TT_MIN) and USE_FP16_XFER=1. 8KB cannot answer the ratio question (cache too shallow) -- 100KB K=1 is the like-for-like test."
+  },
+  {
+   "id": "seg-vs-v13-100kb-k1",
+   "status": "chart",
+   "bpb": 0.9219,
+   "note": "100KB K=1, codec (--overlap 0) 94400 bits / 0.9219 bpb / 383 escapes / roundtrip tokens_identical=True vs v13 counted 93588 bits / 0.9139 / 377 esc (TOP_K1024/PF2048/tc3.0/OVERLAP=4096). Gap is 812 bits, NOT 64 (64 was the 8KB figure). Cause: context deficit -- v13's OVERLAP=4096 gives 4097-8192 tokens of context per coded token (mean 6144.5); codec --overlap 0 gives 1-8192 (mean 4096.5). Fix implemented (--overlap O with a batched prefill, ~free in wall clock); 4096 reproduces v13's context exactly. Not yet measured."
   }
  ],
  "done": false,

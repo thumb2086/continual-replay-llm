@@ -26,6 +26,8 @@ from decoded tokens. Labeling corrected in the ledger
 | 3 | `self-contained-decoder-2kb` | same config, per-token KV-cache forward on **both** sides, 2KB | 554/554 (100%), logits diff `0.00e+00`, SHA-256 match | true self-contained ✓ (2KB only) |
 | 4 | `bitstream-100kb-self-contained` | run 2 re-run / re-labelled | 30791/30791, SHA-256 match, 95757 bits, 11994 B | coder-level only |
 | 5 | `seg8kb-sweep-fd2935b` | `tools/seg_token_compressor.py` (format v2), SmolLM2-135M, enwik8 @50MB, 8KB, K = 1/4/8/16/32 | all roundtrip=True; bpb_payload 1.1262 → 1.4741, escapes 2.20% → 4.12%, encode 157.8 s → 3.9 s | speed OK, ratio open |
+| 6 | `seg-vs-v13-8kb-k1` | same slice, F1/F2 codec (K=1) against v13 counted at TOP_K=1024 / PF=2048 / tc3.0 | codec 1.1245 bpb, 56 escapes, decodable `.zllm`; v13 1.1323 bpb, 56 escapes, counted only | ratio parity reached; 64-bit gap unexplained |
+| 7 | `seg-vs-v13-100kb-k1` | same slice (100 KB, offset 50 MB), codec K=1 `--overlap 0` vs v13 counted at TOP_K=1024 / PF=2048 / tc3.0 / OVERLAP=4096 | codec **94400 bits** / 0.9219 bpb / 383 escapes / roundtrip ✓; v13 **93588 bits** / 0.9139 bpb / 377 escapes / counted only | **812-bit gap = context deficit, fixable** |
 
 ## What run 2/4 actually prove — and don't
 
@@ -114,6 +116,84 @@ K = 32, a 40× swing. Every row roundtripped.
   evidence for but the LM ranked outside top-K could never be coded directly.
   Fixed (F1: prefilter ∪ cache-row keys, then top-K by blended score; F2: v13's
   per-count weights `_sb`/`_st`). Not yet measured on the GPU.
+
+## Run 6 in detail — and what it does *not* show
+
+Numbers reported from the user's machine (the v13 side is a counted run: it
+writes no decodable file, so it cannot be re-verified here; the codec side
+roundtripped). Both bit counts are exact arithmetic-coder counts
+(`nb_encode_count_32` in `ac32.py` is the coder's own accounting, not an
+entropy estimate), and bpb = bits / 8192 on both sides.
+
+| side | escapes | bpb | decodable |
+|---|---|---|---|
+| v13 (counted) | 56 | 1.1323 | ✗ (no artifact) |
+| codec K=1 | 56 | 1.1245 | ✓ `.zllm` |
+
+**Established.** The F1/F2 port put the codec's candidate set and weights on
+v13's math: escape counts agree exactly (56 vs 56) on identical input.
+
+**Not established, and previously mis-stated here.** (a) F1/F2's own effect at
+this slice length is small, not decisive: the same codec measured 57 escapes
+and 1.1262 bpb *before* the fix (run 5), i.e. −1 escape and −14 bits. (b) The
+0.0078 bpb was called unexplained here; run 7 identifies it as the context
+deficit (v13 feeds OVERLAP=4096 of history, the codec fed none), and the fp16 /
+blend-gate candidates listed here were not needed to explain it.
+
+**Why 8KB cannot answer the ratio question.** Both sides escape ~2.16% here
+because the cache only has 2 595 tokens to learn from; escapes at this length
+are dominated by "target has no cache evidence at all", which no distribution
+change can fix. v13's 1.22% figures come from 100 KB (≈30 791 tokens, 12×
+deeper cache). The like-for-like measurement is the 100 KB run, not this one.
+
+## Run 7 — the 100 KB comparison, and where the 812 bits go
+
+`data/seg_verify_1seg_100kb.json` (codec, roundtrip `tokens_identical=True`) vs
+`data/smollm2_ensemble_v11_off50_..._k1024_ov4096_..._kb100.json` (v13, counted
+only, no artifact). Both are exact coder counts, both divide by 102 400 bytes.
+
+| side | bits | bpb | escapes |
+|---|---|---|---|
+| v13 counted | 93 588 | 0.9139 | 377 |
+| codec K=1 | 94 400 | 0.9219 | 383 |
+
+**The gap is 812 bits (0.0079 bpb), not 64.** 64 bits is the *8 KB* figure
+(0.0078 bpb × 8192 B) carried over by mistake; the per-byte gap is about the
+same, so the absolute gap scales with the file. That matters: a constant
+per-position bias produces a gap proportional to length, which is what we see.
+
+**Cause: the codec's tokens see LESS context than v13's, not a different kind of
+context.** `BLOCK_TOKENS=8192` and the reference run used `OVERLAP=4096`, so
+v13 feeds `_tail(4096) + _new(4096)` per block: every coded token sees 4097–8192
+tokens of context (mean 6144.5). The codec's reset-every-8192 (`--overlap 0`)
+restarts from an empty cache, so its tokens see 1–8192 (mean 4096.5, min 1).
+812 bits over the 22 600 tokens past the first chunk is 0.036 bits/token, which
+is the right size for losing ~2000 tokens of mean context. So the codec is the
+deficient side here and the deficit is addressable.
+
+**Correction to "each token sees the full 8192 context".** True of positions
+inside the model's window, false of this loop: with `--overlap 0` the token at
+chunk offset j sees j+1 tokens. Note also that the reset is a *correctness* fix,
+not a precaution: the previous sliding-trim code looked like a sliding window but
+the model derives each position from the cache length, so once the cache filled,
+every new token got position 8192 while the stored entries kept their own --
+recent tokens collapsed onto one position and the relative geometry was gone.
+That never fired at 8 KB (2 595 tokens < 8192), which is why it survived the 8 KB
+sweep. A true sliding window needs the stored K re-based (RoPE-rotated) per step;
+resetting is the honest version.
+
+**Fix implemented, not yet measured.** `tools/seg_token_compressor.py` now takes
+`--overlap O`: a chunk is `O` re-fed history + `kv_window - O` new tokens, and
+the history is re-fed as ONE batched prefill. `--overlap 4096` reproduces v13's
+context distribution exactly (min 4097, mean 6144.5); `--overlap 7680` gives
+min 7681, mean 7936.5. The prefill is batched, so it costs one forward per
+`kv_window - O` tokens rather than one per history token -- under 1% of the
+per-token loop, i.e. this is a ratio knob that is nearly free in wall clock.
+`tools/test_chunk_schedule.py` pins the position budget (max position ≤
+`kv_window - 1`), the boundary/prefill arithmetic, and the rolling-buffer index
+mapping (which caught a real off-by-one that included the current token in the
+prefill). Default remains `--overlap 0`, so the measured runs above stay
+reproducible.
 
 ## Next step and its scaling limit
 
