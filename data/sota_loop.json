@@ -2585,6 +2585,12 @@
    "status": "banked",
    "bpb": 0.8998,
    "note": "100KB K=1, codec --overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0: 0.8998 bpb (console only, no artifact: driver del-then-use bug killed the JSON write AFTER encode+decode). Matched v13 counted 0.9003 (pf8192 k8192 tc10 ov4096). Counting correction: v13's total_bits pays one arithmetic-coder finish per escape call (~1.5 bits measured, tools/audit_count_overhead.py); corrected v13 = 0.9000 vs codec 0.8998 -> parity within tie-order noise, both sub-0.90 as single streams. Also: v13 gate=0/fp16=0 = 0.9141/380esc -> those are worth ~nothing; ov7680 = 0.9094 -> past ~4096 more overlap buys nothing. Next blocker for 100MB: build_distribution at 2.2-2.8 ms/position (17-21 h for 27M positions, single core) vs GPU ~180/K hours."
+  },
+  {
+   "id": "seg-100kb-ratio-final",
+   "status": "banked",
+   "bpb": 0.8998,
+   "note": "100KB verified lossless, artifacts written: ov0 0.9219/383esc; ov4096 0.9091/374esc; ov4096+top_k8192+pf8192+tc10 0.8998/29esc (file bpb 0.9269), encode 718.0s. v13 counted same slice 0.9139/377; same operating point 0.9003/27. Corrected for the per-escape finish in v13's counting, the two agree to ~20-50 bits (tie-order noise) -> the codec has reached parity with the reference math and is the only side whose 0.8998 is decodable. RATIO LINE CLOSED; work moves to speed. Durability: artifacts now carry top_k/prefilter/tc + kv_window/overlap/shared_tables + phase timings, filename carries a fingerprint (3 configs had overwritten one filename). SegTables docstring corrected: shared tables ARE lockstep-legal (mirror-tested K=2/4/8, sabotage controls fire, sharing changes coded size 2106->1806 bits), which is what makes K>1 cheap in ratio."
   }
  ],
  "done": false,

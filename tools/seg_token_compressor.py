@@ -324,6 +324,16 @@ def main():
     cfg = cfg_dict(args)
     K = args.segments
 
+    # Alphabet/blend constants belong in the artifact NAME: three different runs
+    # (top_k 1024 vs 8192, trigram-conf 3.0 vs 10.0) have already overwritten one
+    # filename, and the JSON could not tell them apart afterwards. Defined here,
+    # before the first use in the output paths, following the naming convention
+    # the v13 runs in data/ already use.
+    fingerprint = (f"k{args.top_k}_pf{args.prefilter}_tc{args.trigram_conf:g}"
+                   f"_ov{args.overlap}"
+                   f"{'_sh' if args.shared_tables else ''}"
+                   f"{'_nt' if args.no_trigram else ''}")
+
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -396,7 +406,7 @@ def main():
     if device.type == "cuda":
         torch.cuda.empty_cache()
 
-    zpath = args.out or f"test_{args.kb}kb_{K}seg.zllm"
+    zpath = args.out or f"test_{args.kb}kb_{K}seg_{fingerprint}.zllm"
     meta = dict(format_version=FORMAT_VERSION, model=os.path.basename(args.model),
                 V=V, n_tokens=n_tokens, n_bits=n_bits, n_segments=K,
                 n_bytes=len(raw), offset_mb=args.offset_mb, kb=args.kb,
@@ -452,6 +462,19 @@ def main():
                   kv_window=args.kv_window, overlap=args.overlap,
                   prefill=("backbone" if "backbone" in prefill_note
                            else "split"),
+                  top_k=args.top_k, prefilter=args.prefilter,
+                  floor_frac=args.floor_frac,
+                  bigram_lambda=args.bigram_lambda,
+                  bigram_conf=args.bigram_conf,
+                  trigram_conf=args.trigram_conf,
+                  use_trigram=not args.no_trigram,
+                  shared_tables=bool(args.shared_tables),
+                  fingerprint=fingerprint,
+                  phases=dict(fwd=round(timings["fwd"], 1),
+                              dist=round(timings["dist"], 1),
+                              ac=round(timings["ac"], 1),
+                              encode_total=round(dt_enc, 1),
+                              decode_total=round(dt_dec, 1)),
                   n_tokens=n_tokens, n_bits=n_bits, file_bytes=file_bytes,
                   bpb_payload=round(bpb_payload, 4), bpb_file=round(bpb_file, 4),
                   encode_s=round(dt_enc, 1), decode_s=round(dt_dec, 1),
@@ -462,7 +485,7 @@ def main():
                   tokenizer_self_roundtrip=bool(tok_roundtrip_ok),
                   escapes=stats["escapes"], coded=stats["coded"],
                   uniform_coded=stats["uniform"], selftest="tools/test_seg_codec_mirror.py")
-    out_json = f"data/seg_verify_{K}seg_{args.kb}kb.json"
+    out_json = f"data/seg_verify_{K}seg_{args.kb}kb_{fingerprint}.json"
     os.makedirs("data", exist_ok=True)
     with open(out_json, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
