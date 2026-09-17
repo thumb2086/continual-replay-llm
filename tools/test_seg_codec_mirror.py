@@ -182,7 +182,8 @@ def uniform_V_cum(uni_cache):
 
 
 def roundtrip(ids, n_segments, next_logits=None, dec_next_logits=None,
-              dec_segments=None, corrupt_bit=None, cfg=None, make_dist=None):
+              dec_segments=None, corrupt_bit=None, cfg=None, make_dist=None,
+              shared_tables=False):
     """Encode with `next_logits`; decode with `dec_next_logits` (defaults to the
     same model) and `dec_segments` (defaults to the same plan). The knobs exist
     so the negative controls below can break exactly ONE side."""
@@ -195,7 +196,7 @@ def roundtrip(ids, n_segments, next_logits=None, dec_next_logits=None,
     enc = StandInEncoder()
     uni_cache = {}
     ucum = uniform_V_cum(uni_cache)
-    t_enc = sc.SegTables(n_segments)
+    t_enc = sc.SegTables(n_segments, shared=shared_tables)
     stats_enc = dict(coded=0, escapes=0, uniform=0)
     enc_ret = sc.encode_stream(ids, n_segments, cfg, next_logits, enc, t_enc,
                                ucum, make_dist, uni_cache, stats_enc)
@@ -209,7 +210,7 @@ def roundtrip(ids, n_segments, next_logits=None, dec_next_logits=None,
 
     dec = StandInDecoder(bitstr)
     uni_cache_dec = {}
-    t_dec = sc.SegTables(dec_segments)
+    t_dec = sc.SegTables(dec_segments, shared=shared_tables)
     stats_dec = dict(coded=0, escapes=0, uniform=0)
     err = None
     try:
@@ -310,6 +311,19 @@ def real_dist_section():
           f"({tally['promo_ids']} promoted ids over {tally['calls']} calls; "
           f"{tally['promo_events'] - base4} of them under the degenerate LM)")
 
+    # Sharing must change the outcome when it matters. With the REAL builder
+    # the F1 promotion set depends on which cache keys exist, so a shared table
+    # changes the alphabet itself -- if these two agreed bit-for-bit, nothing
+    # would actually be shared and the K-speed lever would be a placebo.
+    sep = roundtrip(ids4, 3, next_logits=degenerate_next_logits, cfg=REAL_CFG,
+                    make_dist=real_make_dist)
+    shr = roundtrip(ids4, 3, next_logits=degenerate_next_logits, cfg=REAL_CFG,
+                    make_dist=real_make_dist, shared_tables=True)
+    ok &= (sep["ok"] and shr["ok"] and sep["bits"] != shr["bits"])
+    print(f"  K=3 n=240 degenerate LM: separate={sep['bits']} bits, "
+          f"shared={shr['bits']} bits -> sharing is not a placebo: "
+          f"{sep['bits'] != shr['bits']}")
+
     # non-vacuity: sabotage ONE side on the real path -> must be caught
     r3 = roundtrip(ids2, 4, cfg=REAL_CFG, make_dist=real_make_dist,
                    dec_next_logits=fake_next_logits_sabotaged)
@@ -345,6 +359,37 @@ def main():
     print(f"  K=7 n=300 coded enc={r['stats_enc']['coded']} dec={r['stats_dec']['coded']}"
           f"  escapes enc={r['stats_enc']['escapes']} dec={r['stats_dec']['escapes']}"
           f"  equal={same}  roundtrip={r['ok']}")
+
+    print()
+    print("  -- shared n-gram tables across segments (the K-speed lever) --")
+    # Sharing one table across segments is what makes K > 1 cheap in RATIO:
+    # without it each segment learns n-grams from only its own tokens, so the
+    # evidence thins as K grows. It must still mirror exactly, and it does:
+    # both loops walk s = 0..K-1 at each position, so by the time segment s's
+    # distribution is built at position i, segments 0..s-1 have already pushed
+    # their token at position i into the shared table on BOTH sides.
+    for n_seg, n_tok in ((2, 41), (4, 200), (8, 300)):
+        ids_s = [rng.randrange(V) for _ in range(n_tok)]
+        r_s = roundtrip(ids_s, n_seg, shared_tables=True)
+        all_ok &= r_s["ok"]
+        print(f"  K={n_seg} n={n_tok:<4d} shared tables: roundtrip={r_s['ok']} "
+              f"bits={r_s['bits']} escapes={r_s['stats']['escapes']}")
+    # the mirror must still be able to FAIL with shared tables on, or the
+    # cases above prove nothing about the table path
+    ids_s = [rng.randrange(V) for _ in range(200)]
+    rs_ok = roundtrip(ids_s, 4, shared_tables=True)
+    rs_bad = roundtrip(ids_s, 4, shared_tables=True,
+                       dec_next_logits=fake_next_logits_sabotaged)
+    rs_plan = roundtrip(ids_s, 3, shared_tables=True, dec_segments=4)
+    all_ok &= rs_ok["ok"] and not rs_bad["ok"] and not rs_plan["ok"]
+    print(f"  controls with sharing on: clean={rs_ok['ok']}  "
+          f"perturbed-model caught={not rs_bad['ok']}  "
+          f"wrong-plan caught={not rs_plan['ok']}")
+    # Whether sharing CHANGES the coded size is checked in the real-builder
+    # section below, not here: the stand-in builder has no F1 promotion, so at
+    # V=64 with counts of 1-2 the blend shifts scores by <0.01 and the alphabet
+    # comes out the same either way (measured: 1816 vs 1816 bits). Asserting it
+    # here would fail for a reason that says nothing about the code.
 
     print()
     print("  -- negative controls: each must break the mirror --")

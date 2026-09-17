@@ -32,6 +32,7 @@ from decoded tokens. Labeling corrected in the ledger
 | 9 | `seg-ov7680-oombug` | codec `--overlap 7680` (prefill OOM fix) | 0.9094 bpb, ~375 escapes | OOM fix works; ≥6144 buys nothing |
 | 10 | `v13-gate-fp16-off` | v13 counted, `BLEND_BT_MIN=0 BLEND_TT_MIN=0 USE_FP16_XFER=0`, 100 KB | 0.9141 bpb, 380 escapes (baseline: 0.9139 / 377) | gate + fp16 are worth ~nothing; not the gap |
 | 11 | `seg-k8192-100kb-k1` | codec `--overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0` | **0.8998** bpb | console only, no artifact — see run 12 |
+| 12 | `seg-100kb-ratio-final` | the same three configurations with the driver fixed, artifacts written | ov0 / ov4096 / ov4096+K8192: **0.9219 / 0.9091 / 0.8998** bpb, escapes 383 / 374 / 29, all roundtrip ✓ | **ratio line closed: sub-0.90, verified lossless** |
 
 ## What run 2/4 actually prove — and don't
 
@@ -322,6 +323,66 @@ that now produces 0.8998 the *Python* distribution builder is the bottleneck for
 the 100 MB goal, by an order of magnitude, and it is the one cost `K` does not
 divide. The K segments are independent in lockstep, so it is parallelisable
 across processes — but that is a change to propose, not to land silently.
+
+## Run 12 — ratio line closed
+
+Final 100 KB numbers, every row verified lossless (tokens identical, SHA-256
+match, bytes identical), and now written to artifacts instead of the console:
+
+| config | bpb payload | bpb file | escapes | encode s |
+|---|---|---|---|---|
+| `--overlap 0` | 0.9219 | 0.9488 | 383 | 696.2 |
+| `--overlap 4096` | 0.9091 | 0.9361 | 374 | — |
+| `--overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0` | **0.8998** | 0.9269 | **29** | 718.0 |
+| v13 counted (same slice) | 0.9139 | — | 377 | — |
+| v13 counted, same operating point (pf8192 k8192 tc10) | 0.9003 | — | 27 | — |
+
+Escapes fell 93 % (374 → 29) at the wide alphabet. Against v13's *corrected*
+(single-stream) numbers the two implementations agree to ~20–50 bits, i.e. the
+tie-order noise `nb_blend_row`'s own docstring cites — so the codec has reached
+parity with the reference math, and it is the only side whose 0.8998 comes out of
+a decodable file. **The ratio question is answered; work moves to speed.**
+
+Two durability fixes came out of this, both aimed at the 100 MB run:
+
+* Artifacts now carry the alphabet/blend constants, `kv_window`, `overlap`,
+  `shared_tables` and the phase timings, and the filename carries a fingerprint
+  (`..._k8192_pf8192_tc10_ov4096.json`). Three different configurations had
+  already overwritten one filename and the JSON could not tell them apart.
+* `SegTables`' docstring claimed sharing across segments "a lockstep decoder
+  cannot reproduce". That is false, and it mattered because sharing is what
+  makes K > 1 cheap in ratio: both loops walk `s = 0..K-1` per position, so the
+  shared table sees identical updates in identical order on both sides. Now
+  stated correctly and pinned by tests: K = 2/4/8 round-trip with sharing on,
+  the sabotage controls still fire, and sharing demonstrably changes the coded
+  size (2106 → 1806 bits on the degenerate-LM case), so it is neither a no-op
+  nor a placebo.
+
+### Speed: what is known, and the first thing to measure
+
+`--overlap 4096` at 100 KB costs 718 s encode + 723 s decode ≈ 24 min for 100 KB
+(`0.07 KB/s`), against the stated goal that "compressing 100 KB takes an hour is
+not practical".
+
+The cheapest large lever needs no new code. The per-token loop is dominated by
+per-STEP cost, not per-token work: at 8 KB the same code path cost 60.8 ms/step
+at K=1 and 48 ms/step at K=32 (i.e. 1.5 ms/token), and the batched forward is
+nearly free in batch size. At 100 KB, K=4 gives ~7 700 tokens per segment, which
+with `--overlap 4096` still yields contexts of 4097–7698 (mean ≈3 970 against
+K=1's ≈5 990), and `--shared-tables` removes the n-gram thinning that made K
+expensive at 8 KB. Expect ~3–4× wall clock for a small bpb cost; K=2 is the
+conservative version (mean context ≈5 990, i.e. nearly K=1).
+
+Before optimising further, one number decides where the 23.3 ms/step actually
+goes. The driver already prints it:
+
+    PHASES: fwd=... dist=... ac=... total=...
+
+`fwd` is wall time inside `next_logits` and therefore includes the `.cpu()`
+synchronisation; `dist` is `build_distribution`; `ac` is the coder. Nothing else
+in the loop is timed. That line, from any 100 KB run, says whether the next step
+is CUDA graphs/StaticCache (fwd dominates), a faster distribution builder (dist
+dominates), or neither.
 
 ## Next step and its scaling limit
 

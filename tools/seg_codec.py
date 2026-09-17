@@ -63,12 +63,26 @@ def seg_plan(n_tokens, n_segments):
 
 
 class SegTables:
-    """Per-segment bigram/trigram counts.
+    """N-gram (bigram/trigram) counts, per segment or shared across segments.
 
-    Segments are coded independently, so each keeps its own tables; the decoder
-    rebuilds segment s's tables from segment s's own tokens. (Sharing one table
-    across segments would make a segment depend on other segments' tokens, which
-    a lockstep decoder cannot reproduce.)
+    Per-segment tables are the safe default: segment s's counts come only from
+    segment s's own tokens.
+
+    `shared=True` is legal in lockstep, despite what an earlier version of this
+    docstring claimed ("a lockstep decoder cannot reproduce it" -- it can). Both
+    loops walk `s = 0..K-1` at every position, so by the time segment s's
+    distribution is built at position i, segments 0..s-1 have already pushed
+    their token at position i into the shared table, on the encoder and the
+    decoder alike. Mirror-safety therefore does not depend on the segments being
+    independent -- only on the ORDER being the same, which is what lockstep
+    gives. `tools/test_seg_codec_mirror.py` round-trips K=2/4/8 with sharing on
+    and keeps the sabotage controls in place, and shows sharing changes the
+    coded size (2106 -> 1806 bits on its degenerate-LM case), so it is neither
+    a no-op nor a placebo.
+
+    This matters for cost: without sharing, each segment learns n-grams from
+    only its own tokens, so the evidence thins as K grows -- exactly the ratio
+    cost that makes K > 1 expensive at short slices.
     """
 
     def __init__(self, n_segments, use_trigram=True, shared=False):
