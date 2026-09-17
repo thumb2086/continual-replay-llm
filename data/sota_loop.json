@@ -2579,6 +2579,12 @@
    "status": "banked",
    "bpb": 0.9089,
    "note": "100KB K=1 overlap A/B vs v13 counted 0.9139/377esc/93588 bits: overlap 0 -> 0.9219/383esc/94400 bits; overlap 4096 -> 0.9089/372esc (~93071 bits, derived); overlap 6144 -> 0.9092/376esc/93100 bits (artifact checked in). All roundtrip OK. The 812-bit gap was context length, not the distribution builder: batched prefill recovered ~1330 bits. At matched context the codec beats the v13 counted reference by ~517 bits (0.0050 bpb) -- attribution open (v13 blend gate + fp16 xfer; decisive run: BLEND_BT_MIN=0 BLEND_TT_MIN=0 USE_FP16_XFER=0). More overlap is NOT better (6144 slightly worse than 4096): the reset discontinuity costs about what the extra context buys, so 4096 is the knee. Timings unusable (696/736/1214s for configs that should be within single-digit percent; 8KB per-step is 2x the 100KB one). overlap 7680 OOM was the lm_head [L,V] logits (720MB fp16), not KV; fixed via backbone prefills + --prefill-chunk slicing."
+  },
+  {
+   "id": "seg-k8192-100kb-k1",
+   "status": "banked",
+   "bpb": 0.8998,
+   "note": "100KB K=1, codec --overlap 4096 --top-k 8192 --prefilter 8192 --trigram-conf 10.0: 0.8998 bpb (console only, no artifact: driver del-then-use bug killed the JSON write AFTER encode+decode). Matched v13 counted 0.9003 (pf8192 k8192 tc10 ov4096). Counting correction: v13's total_bits pays one arithmetic-coder finish per escape call (~1.5 bits measured, tools/audit_count_overhead.py); corrected v13 = 0.9000 vs codec 0.8998 -> parity within tie-order noise, both sub-0.90 as single streams. Also: v13 gate=0/fp16=0 = 0.9141/380esc -> those are worth ~nothing; ov7680 = 0.9094 -> past ~4096 more overlap buys nothing. Next blocker for 100MB: build_distribution at 2.2-2.8 ms/position (17-21 h for 27M positions, single core) vs GPU ~180/K hours."
   }
  ],
  "done": false,
