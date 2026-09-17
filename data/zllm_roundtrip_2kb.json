@@ -1,0 +1,13 @@
+{
+  "model": "SmolLM2-135M",
+  "kb": 2,
+  "n_tokens": 555,
+  "n_bytes": 2048,
+  "bits": 2388,
+  "bpb": 1.166,
+  "file_bytes": 323,
+  "compression_ratio": 6.34,
+  "roundtrip": true,
+  "match_pct": 100.0,
+  "encode_time_s": 18.9
+}

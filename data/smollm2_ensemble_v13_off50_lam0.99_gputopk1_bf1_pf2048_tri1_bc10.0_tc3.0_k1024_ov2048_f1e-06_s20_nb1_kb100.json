@@ -5,10 +5,10 @@
   "bigram_lambda": 0.99,
   "top_k": 1024,
   "n_bytes": 102400,
-  "total_bits": 94145,
-  "bpb": 0.919384765625,
-  "escapes": 380,
+  "total_bits": 94179,
+  "bpb": 0.919716796875,
+  "escapes": 383,
   "verified_ok": 220,
   "verified_fail": 0,
-  "elapsed_s": 6.869347333908081
+  "elapsed_s": 5.441448450088501
 }
