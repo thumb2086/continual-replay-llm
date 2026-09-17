@@ -28,6 +28,7 @@ from decoded tokens. Labeling corrected in the ledger
 | 5 | `seg8kb-sweep-fd2935b` | `tools/seg_token_compressor.py` (format v2), SmolLM2-135M, enwik8 @50MB, 8KB, K = 1/4/8/16/32 | all roundtrip=True; bpb_payload 1.1262 → 1.4741, escapes 2.20% → 4.12%, encode 157.8 s → 3.9 s | speed OK, ratio open |
 | 6 | `seg-vs-v13-8kb-k1` | same slice, F1/F2 codec (K=1) against v13 counted at TOP_K=1024 / PF=2048 / tc3.0 | codec 1.1245 bpb, 56 escapes, decodable `.zllm`; v13 1.1323 bpb, 56 escapes, counted only | ratio parity reached; 64-bit gap unexplained |
 | 7 | `seg-vs-v13-100kb-k1` | same slice (100 KB, offset 50 MB), codec K=1 `--overlap 0` vs v13 counted at TOP_K=1024 / PF=2048 / tc3.0 / OVERLAP=4096 | codec **94400 bits** / 0.9219 bpb / 383 escapes / roundtrip ✓; v13 **93588 bits** / 0.9139 bpb / 377 escapes / counted only | **812-bit gap = context deficit, fixable** |
+| 8 | `seg-overlap-ab-100kb-k1` | same 100 KB slice, `--overlap` 0 / 4096 / 6144 (all K=1), vs v13 counted | escapes 383 / 372 / 376 (v13: 377); bpb **0.9219 / 0.9089 / 0.9092** (v13: 0.9139); all roundtrip ✓ | context deficit closed; codec now **below** v13 |
 
 ## What run 2/4 actually prove — and don't
 
@@ -194,6 +195,55 @@ per-token loop, i.e. this is a ratio knob that is nearly free in wall clock.
 mapping (which caught a real off-by-one that included the current token in the
 prefill). Default remains `--overlap 0`, so the measured runs above stay
 reproducible.
+
+## Run 8 — overlap A/B: the context deficit was the whole story
+
+Same 100 KB slice, K=1, three schedules; the checked-in artifact is the
+`--overlap 6144` run (`data/seg_verify_1seg_100kb.json`), the 4096 row is from
+the run summary (that file was overwritten), and the 0 row is run 7.
+
+| overlap | escapes | bits | bpb | encode s | decode s | roundtrip |
+|---|---|---|---|---|---|---|
+| 0 | 383 | 94 400 | 0.9219 | 696.2 | 688.4 | ✓ |
+| 4096 | 372 | ≈93 071 *(derived: 0.9089 × 102 400)* | **0.9089** | not in artifact | — | ✓ |
+| 6144 | 376 | 93 100 | 0.9092 | 736.3 | 724.1 | ✓ |
+| v13 counted | 377 | 93 588 | 0.9139 | — | — | ✗ |
+
+**What this establishes.**
+
+* The 812-bit gap was context, not the distribution builder. Buying back history
+  through a batched prefill recovered ~1 330 bits (0.9219 → 0.9089) with escapes
+  moving 383 → 372, and the escape count now straddles v13's 377. That is the
+  clean confirmation of the run 7 diagnosis.
+* At matched context the codec is ~517 bits (0.0050 bpb) **better** than the v13
+  counted reference. Attribution is open: the codec always blends, while v13's
+  gate (`BLEND_BT_MIN=5`/`BLEND_TT_MIN=2`) falls back to LM-only on thin rows,
+  and v13 documents its whole row to fp16 (`USE_FP16_XFER=1`) before blending.
+  The decisive run is cheap: `ENWIK8_KB=100 BLEND_BT_MIN=0 BLEND_TT_MIN=0
+  USE_FP16_XFER=0` on v13 — if it lands near 0.9089 the attribution is settled.
+* More overlap is not better: 6144 (stride 2048, 15 chunk boundaries) is 0.0003
+  bpb *worse* than 4096 (stride 4096, 7.5 boundaries). The deficit model
+  (mean context `(overlap + window)/2`) predicts the opposite, so the reset
+  discontinuity has a real cost that roughly cancels the extra context past
+  ~4096. 4096 is the knee — which is where v13's `OVERLAP=4096` sits.
+
+**Wall-clock readings from this A/B are not usable.** Three schedules whose cost
+model differs by single-digit percent were reported/measured at 696 s, 736 s and
+1214 s. The checked-in artifact says the 6144 run took 736.3 s (23.9 ms/step),
+and run 7 said overlap 0 took 696.2 s (22.6 ms/step) — but the 8 KB K=1 run in
+the same batch is 127.3 s over 2 594 steps (49 ms/step), i.e. twice the per-step
+cost of the 12× longer run. Nothing in the code explains a 2× swing, so treat
+per-run timings on this host as unreliable until repeated; the ratio columns are
+deterministic and unaffected.
+
+**`--overlap 7680` OOM: cause found, different from the obvious guess.** It is
+not the KV cache (172 MB at 7 680 tokens). A prefill forward materialises the
+LM head's `[L, V]` logits: 7 680 × 49 152 × 2 B = **720 MB fp16** in a single
+allocation, on top of the outgoing cache the previous `out` object was still
+holding. Two fixes: prefills now go through the model's backbone
+(`model.model`) so no logits are ever built, and they are sliced
+(`--prefill-chunk`, default 2 048) with the previous cache released first.
+Expected to put 7680/8191 back in reach; not yet measured on the GPU.
 
 ## Next step and its scaling limit
 

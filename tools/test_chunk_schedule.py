@@ -46,6 +46,15 @@ def check(label, ok, detail=""):
         FAILS.append(label)
 
 
+def _try(fn, *a):
+    """True when `fn(*a)` raises ValueError."""
+    try:
+        fn(*a)
+        return False
+    except ValueError:
+        return True
+
+
 def context_of(step, window, overlap):
     """Tokens of context the token at `step` is forwarded with."""
     stride = window - overlap
@@ -129,6 +138,28 @@ def main():
                     bad.append((step, got[:3], want[:3]))
         check(f"overlap {ov:5d}: prefill rows == the last `overlap` fed tokens",
               not bad, str(bad[:2]))
+
+    print()
+    print("-- prefill memory slicing --")
+    # A prefill forward materialises [L, V] logits (720 MB fp16 at L=7680,
+    # V=49152) -- that, not the KV cache, is what OOM'd overlap 7680.
+    for ov in (0, 4096, 7680, 8191):
+        pieces = stc.split_prefill(0, ov, 2048)
+        covered = [t for a, b in pieces for t in range(a, b)]
+        check(f"overlap {ov:5d}: pieces cover [0, {ov}) exactly once",
+              covered == list(range(ov)) and [a for a, _ in pieces] ==
+              sorted(set(a for a, _ in pieces)))
+        check(f"overlap {ov:5d}: no piece exceeds the chunk limit",
+              all(b - a <= 2048 for a, b in pieces),
+              f"{len(pieces)} piece(s)")
+    check("a chunk limit larger than the window yields one piece",
+          stc.split_prefill(0, 4096, 8192) == [(0, 4096)])
+    check("a non-positive chunk limit is rejected",
+          _try(stc.split_prefill, 0, 10, 0) and _try(stc.split_prefill, 0, 10, -5))
+    print(f"  peak transient logits: unsliced 7680 = "
+          f"{7680 * 49152 * 2 / 2**20:.0f} MB -> with 2048-slices = "
+          f"{2048 * 49152 * 2 / 2**20:.0f} MB (and 0 MB when the model "
+          f"exposes a backbone)")
 
     print()
     print("-- guards --")

@@ -131,8 +131,30 @@ def prefill_offsets(step, lo, hi, n_kept):
     return max(0, last - (step - lo)), last - (step - hi)
 
 
+def split_prefill(lo, hi, chunk):
+    """Cut the prefill window [lo, hi) into consecutive pieces of <= `chunk`.
+
+    Exists for memory, not for correctness: a prefill forward materialises
+    `last_hidden_state` (and, through the LM head, a [L, V] logits tensor) for
+    every token it covers. At V = 49 152 and L = 7 680 that is 720 MB fp16 in one
+    allocation -- which is what OOM'd a 7680-token prefill on an 8 GB card, not
+    the KV cache (172 MB at that length). Slicing the prefill bounds the
+    transient; the cache is threaded through the pieces in order, so the result
+    is the same.
+    """
+    if chunk <= 0:
+        raise ValueError(f"prefill chunk {chunk} must be positive")
+    out, a = [], lo
+    while a < hi:
+        b = min(a + chunk, hi)
+        out.append((a, b))
+        a = b
+    return out
+
+
 # ── model plumbing ───────────────────────────────────────────────────
-def make_next_logits(model, torch, device, n_segments, window=None, overlap=None):
+def make_next_logits(model, torch, device, n_segments, window=None, overlap=None,
+                     prefill_chunk=None):
     """Returns next_logits(inp_tokens, step) -> [n_segments][V] probabilities.
 
     One batched forward per step: row s receives segment s's token at index
@@ -146,12 +168,42 @@ def make_next_logits(model, torch, device, n_segments, window=None, overlap=None
                  else os.environ.get("KV_WINDOW", "8192"))
     overlap = int(overlap if overlap is not None
                   else os.environ.get("KV_OVERLAP", "0"))
+    prefill_chunk = int(prefill_chunk if prefill_chunk is not None
+                        else os.environ.get("KV_PREFILL_CHUNK", "2048"))
     assert 0 <= overlap < window, (overlap, window)
+
+    # Prefills need the KV cache and nothing else. Going through the base model
+    # skips the LM head, so no [L, V] logits are ever materialised (720 MB at
+    # L=7680, V=49152 -- the actual OOM). Guarded: fall back to the full model.
+    backbone = getattr(model, "model", None)
+    if backbone is None or not hasattr(backbone, "forward"):
+        backbone = None
+    prefill_note = ("backbone (cache only, no LM head)" if backbone is not None
+                    else f"full model, split into <= {prefill_chunk} tokens")
 
     cache = None
     # Only the last `window` tokens can ever be re-fed, so bound the buffer:
     # keeping every token fed would be ~36 bytes x the whole file.
     hist = [deque(maxlen=window) for _ in range(n_segments)]
+
+    def _warm(past):
+        """One prefill pass, sliced for memory; returns the fresh cache."""
+        nonlocal cache
+        for a, b in split_prefill(0, past.shape[1], prefill_chunk):
+            piece = past[:, a:b]
+            if backbone is not None:
+                o = backbone(input_ids=piece, past_key_values=cache,
+                             use_cache=True)
+            else:
+                try:
+                    o = model(input_ids=piece, past_key_values=cache,
+                              use_cache=True, num_logits_to_keep=0)
+                except TypeError:      # older transformers: full LM head
+                    o = model(input_ids=piece, past_key_values=cache,
+                              use_cache=True)
+            cache = o.past_key_values
+            o = None                   # release activations before the next slice
+        return cache
 
     def next_logits(inp, step):
         nonlocal cache
@@ -161,22 +213,19 @@ def make_next_logits(model, torch, device, n_segments, window=None, overlap=None
             hist[s].append(int(inp[s]))
         with torch.inference_mode():
             if reset:
+                # Drop the outgoing cache BEFORE allocating the new one: the
+                # previous `out` object still references it, so peak memory
+                # would otherwise be old cache + new prefill cache.
+                out = None
                 cache = None
                 if hi > lo:
-                    # Warm the fresh cache with the last `overlap` KNOWN tokens
-                    # in one batched forward. This is the only place history
-                    # crosses a chunk boundary, and both sides already hold
-                    # those tokens (the decoder decoded them), so the mirror
-                    # holds. Cost is O(overlap) work per `stride` tokens -- one
-                    # batched prefill, not `overlap` per-token steps.
                     rows = []
                     for s in range(len(inp)):
                         d = hist[s]
                         rlo, rhi = prefill_offsets(step, lo, hi, len(d))
                         rows.append(list(d)[rlo:rhi])
                     past = torch.tensor(rows, dtype=torch.long, device=device)
-                    out = model(input_ids=past, use_cache=True)
-                    cache = out.past_key_values
+                    cache = _warm(past)
             x = torch.tensor(inp, dtype=torch.long, device=device).unsqueeze(1)
             kw = dict(input_ids=x, use_cache=True)
             if cache is not None:
@@ -187,8 +236,10 @@ def make_next_logits(model, torch, device, n_segments, window=None, overlap=None
             lg = lg - lg.max(dim=-1, keepdim=True).values
             p = torch.exp(lg)
             p = (p / p.sum(dim=-1, keepdim=True)).cpu().numpy()
+            out = None
         return [p[s] for s in range(len(inp))], time.time() - t0
 
+    next_logits.prefill_note = prefill_note
     return next_logits
 
 
@@ -248,6 +299,12 @@ def main():
                          "Raising it costs almost no wall clock -- the prefill is "
                          "batched, not per-token -- so it is a ratio knob, not a "
                          "speed knob.")
+    ap.add_argument("--prefill-chunk", type=int, default=2048,
+                    help="slice a prefill into pieces of at most this many "
+                         "tokens. Memory, not correctness: the prefill's [L,V] "
+                         "logits are what OOM'd a 7680-token prefill (720 MB "
+                         "fp16), and when the model exposes a backbone (no LM "
+                         "head) they are skipped entirely and this is a no-op.")
     ap.add_argument("--floor-frac", type=float, default=1e-6)
     ap.add_argument("--bigram-lambda", type=float, default=0.99)
     ap.add_argument("--bigram-conf", type=float, default=10.0)
@@ -304,7 +361,9 @@ def main():
     stats = dict(coded=0, escapes=0, uniform=0)
 
     nl_enc = make_next_logits(model, torch, device, K,
-                               window=args.kv_window, overlap=args.overlap)
+                               window=args.kv_window, overlap=args.overlap,
+                               prefill_chunk=args.prefill_chunk)
+    print(f"      prefill: {nl_enc.prefill_note}")
     maxL = max(L for _, L in plan)
     ticks = {"n": 0}
 
@@ -352,7 +411,8 @@ def main():
                             shared=args.shared_tables)
     stats_d = dict(coded=0, escapes=0, uniform=0)
     nl_dec = make_next_logits(model, torch, device, K,
-                               window=args.kv_window, overlap=args.overlap)
+                               window=args.kv_window, overlap=args.overlap,
+                               prefill_chunk=args.prefill_chunk)
     t_dec = time.time()
     rec = sc.decode_stream(n_tokens, K, cfg, nl_dec, dec, tables_d,
                            sc.uniform_cum_cached(V, {}), sc.build_distribution,
@@ -385,6 +445,8 @@ def main():
     result = dict(kind="seg-per-token", model=meta["model"], segments=K,
                   kb=args.kb, offset_mb=args.offset_mb, n_bytes=len(raw),
                   kv_window=args.kv_window, overlap=args.overlap,
+                  prefill=("backbone" if "backbone" in nl_enc.prefill_note
+                           else "split"),
                   n_tokens=n_tokens, n_bits=n_bits, file_bytes=file_bytes,
                   bpb_payload=round(bpb_payload, 4), bpb_file=round(bpb_file, 4),
                   encode_s=round(dt_enc, 1), decode_s=round(dt_dec, 1),
