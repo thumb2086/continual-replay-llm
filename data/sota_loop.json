@@ -2573,15 +2573,12 @@
    "status": "chart",
    "bpb": 0.9219,
    "note": "100KB K=1, codec (--overlap 0) 94400 bits / 0.9219 bpb / 383 escapes / roundtrip tokens_identical=True vs v13 counted 93588 bits / 0.9139 / 377 esc (TOP_K1024/PF2048/tc3.0/OVERLAP=4096). Gap is 812 bits, NOT 64 (64 was the 8KB figure). Cause: context deficit -- v13's OVERLAP=4096 gives 4097-8192 tokens of context per coded token (mean 6144.5); codec --overlap 0 gives 1-8192 (mean 4096.5). Fix implemented (--overlap O with a batched prefill, ~free in wall clock); 4096 reproduces v13's context exactly. Not yet measured."
-<<<<<<< HEAD
-=======
   },
   {
    "id": "seg-overlap-ab-100kb-k1",
    "status": "banked",
    "bpb": 0.9089,
    "note": "100KB K=1 overlap A/B vs v13 counted 0.9139/377esc/93588 bits: overlap 0 -> 0.9219/383esc/94400 bits; overlap 4096 -> 0.9089/372esc (~93071 bits, derived); overlap 6144 -> 0.9092/376esc/93100 bits (artifact checked in). All roundtrip OK. The 812-bit gap was context length, not the distribution builder: batched prefill recovered ~1330 bits. At matched context the codec beats the v13 counted reference by ~517 bits (0.0050 bpb) -- attribution open (v13 blend gate + fp16 xfer; decisive run: BLEND_BT_MIN=0 BLEND_TT_MIN=0 USE_FP16_XFER=0). More overlap is NOT better (6144 slightly worse than 4096): the reset discontinuity costs about what the extra context buys, so 4096 is the knee. Timings unusable (696/736/1214s for configs that should be within single-digit percent; 8KB per-step is 2x the 100KB one). overlap 7680 OOM was the lm_head [L,V] logits (720MB fp16), not KV; fixed via backbone prefills + --prefill-chunk slicing."
->>>>>>> origin/arena/01a0a930-continual-replay-llm
   }
  ],
  "done": false,
